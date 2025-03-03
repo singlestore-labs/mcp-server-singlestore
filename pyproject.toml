@@ -1,0 +1,20 @@
+[project]
+name = "my-server"
+version = "0.1.0"
+description = "A SingleStore MCP server"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+ "mcp>=1.3.0",
+ "singlestoredb>=1.12.0",
+]
+[[project.authors]]
+name = "prodrigues"
+email = "prodrigues@singlestore.com"
+
+[build-system]
+requires = [ "hatchling",]
+build-backend = "hatchling.build"
+
+[project.scripts]
+my-server = "my_server:main"
