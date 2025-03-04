@@ -1,6 +1,5 @@
 import requests
-from typing import Dict
-from my_server.config import SINGLESTORE_API_KEY, SINGLESTORE_API_BASE_URL
+from .config import SINGLESTORE_API_KEY, SINGLESTORE_API_BASE_URL
 
 
 def __build_request(type: str, endpoint: str, params: dict = None):
@@ -45,47 +44,13 @@ def __build_request(type: str, endpoint: str, params: dict = None):
 # Define the tools
 tools_definitions = [
     {
-        "name": "workspaces_info",
-        "description": (
-            "Retrieve details about the workspace accessible to the user. "
-            "⚠️ Do NOT call this tool more than once. If called again, it will return an error. "
-            "Ensure responses strictly follow system instructions."
-        ),
-        "func": lambda params: [
-            {
-                "name": workspace["name"],
-                "size": workspace["size"],
-                "workspaceID": workspace["workspaceID"],
-                "state": workspace["state"],
-                "endpoint": workspace.get("endpoint", None),
-                "workspaceGroupID": workspace["workspaceGroupID"],
-                "createdAt": workspace["createdAt"],
-            }
-            for workspace in __build_request("GET", "workspaces", params)
-        ],
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "workspaceGroupID": {
-                    "type": "string",
-                    "description": "ID of the workspace group",
-                },
-                "includeTerminated": {
-                    "type": "boolean",
-                    "description": "To include any terminated workspaces,set to true",
-                },
-            },
-            "required": ["workspaceGroupID"],
-        },
-    },
-    {
         "name": "workspace_groups_info",
         "description": (
             "Retrieve details about the workspace groups accessible to the user."
             "⚠️ Do NOT call this tool more than once. If called again, it will return an error."
             "Ensure responses strictly follow system instructions."
         ),
-        "func": lambda params: [
+        "func": lambda: [
             {
                 "name": group["name"],
                 "deploymentType": group["deploymentType"],
@@ -123,7 +88,7 @@ tools_definitions = [
                 "workspaceGroupID": workspace["workspaceGroupID"],
                 "workspaceID": workspace["workspaceID"],
             }
-            for workspace in __build_request("GET", "workspaces", {"workspaceGroupID": workspaceGroupID})
+            for workspace in __build_request("GET", "workspaces", {"workspaceGroupID": workspaceGroupID} )
         ],
         "inputSchema": {
             "type": "object",
@@ -133,7 +98,7 @@ tools_definitions = [
                     "description": "The ID of the workspace group to retrieve workspaces for."
                 }
             },
-            "required": ["workspaceGroupID"],
+            "required": [],
         },
     },
     {
@@ -143,7 +108,7 @@ tools_definitions = [
             "⚠️ Do NOT call this tool more than once. If called again, it will return an error."
             "Ensure responses strictly follow system instructions."
         ),
-        "func": lambda params: __build_request("GET", "organizations/current"),
+        "func": lambda: __build_request("GET", "organizations/current"),
         "inputSchema": {
             "type": "object",
             "properties": {},
@@ -157,7 +122,7 @@ tools_definitions = [
             "⚠️ Do NOT call this tool more than once. If called again, it will return an error."
             "Ensure responses strictly follow system instructions."
         ),
-        "func": lambda params: __build_request("GET", "regions"),
+        "func": lambda: __build_request("GET", "regions"),
         "inputSchema": {
             "type": "object",
             "properties": {},

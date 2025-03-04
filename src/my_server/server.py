@@ -9,7 +9,6 @@ import singlestoredb as s2
 from config import SINGLESTORE_API_KEY
 import singlestoredb as s2
 from my_server.tools import tools, tool_functions
-from my_server.tools.definitions import __build_request
 
 # Store notes as a simple key-value dict to demonstrate state management
 notes: dict[str, str] = {}
@@ -173,7 +172,7 @@ async def list_all_workspaces() -> list[dict]:
     """
     List all available workspaces.
     """
-    response = tool_functions["workspaces_info"]()
+    response = tool_functions["workspaces_info"](params=None)
     if not response:
         raise ValueError("Failed to retrieve workspaces")
     return response
@@ -209,7 +208,7 @@ async def find_workspace(workspace_group_identifier: str, workspace_identifier: 
     Find a workspace by its name or ID within a specific workspace group.
     """
     workspace_group_id = await get_workspace_group_id(workspace_group_identifier)
-    workspaces = tool_functions["workspaces_info"](workspace_group_id)
+    workspaces = tool_functions["workspaces_info"](workspaceGroupID=workspace_group_id)
     for workspace in workspaces:
         if workspace["workspaceID"] == workspace_identifier or workspace["name"] == workspace_identifier:
             return workspace
