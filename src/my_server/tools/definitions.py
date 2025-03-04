@@ -1,6 +1,6 @@
 import requests
 from .config import SINGLESTORE_API_KEY, SINGLESTORE_API_BASE_URL
-
+import singlestoredb as s2
 
 def __build_request(type: str, endpoint: str, params: dict = None):
     def build_request_endpoint(endpoint: str, params: dict = None):
@@ -40,6 +40,81 @@ def __build_request(type: str, endpoint: str, params: dict = None):
     except ValueError:
         raise ValueError(f"Invalid JSON response: {request.text}")
     
+
+def find_workspace_group(workspace_group_identifier: str):
+    """
+    Find a workspace group by its name or ID.
+    """
+    workspace_groups = __build_request("GET", "workspaceGroups")
+    for workspace_group in workspace_groups:
+        if workspace_group["workspaceGroupID"] == workspace_group_identifier or workspace_group["name"] == workspace_group_identifier:
+            return workspace_group
+    raise ValueError(f"Workspace group not found: {workspace_group_identifier}")
+
+def get_workspace_group_id(workspace_group_identifier: str) -> str:
+    """
+    Get the ID of a workspace group by its name or ID.
+    """
+    workspace_group = find_workspace_group(workspace_group_identifier)
+    return workspace_group["workspaceGroupID"]
+
+def find_workspace(workspace_group_identifier: str, workspace_identifier: str):
+    """
+    Find a workspace by its name or ID within a specific workspace group.
+    """
+    workspace_group_id = get_workspace_group_id(workspace_group_identifier)
+    workspaces = __build_request("GET", "workspaces", {"workspaceGroupID": workspace_group_id})
+    for workspace in workspaces:
+        if workspace["workspaceID"] == workspace_identifier or workspace["name"] == workspace_identifier:
+            return workspace
+    raise ValueError(f"Workspace not found: {workspace_identifier}")
+
+def get_workspace_endpoint(workspace_group_identifier: str, workspace_identifier: str) -> str:
+    """
+    Retrieve the endpoint of a specific workspace by its name or ID within a specific workspace group.
+    """
+    workspace = find_workspace(workspace_group_identifier, workspace_identifier)
+    return workspace["endpoint"]
+
+def execute_sql(workspace_group_identifier: str, workspace_identifier: str, username: str, password: str, database: str, sql_query: str) -> dict:
+    """
+    Execute SQL operations on a connected workspace.
+    Returns results and column names in a dictionary format.
+    """
+    endpoint = get_workspace_endpoint(workspace_group_identifier, workspace_identifier)
+    if not endpoint:
+        raise ValueError(f"Endpoint not found for workspace: {workspace_identifier}")
+
+    connection = s2.connect(
+        host=endpoint,
+        user=username,
+        password=password,
+        database=database
+    )
+    cursor = connection.cursor()
+    cursor.execute(sql_query)
+    
+    # Get column names
+    columns = [desc[0] for desc in cursor.description] if cursor.description else []
+    
+    # Get results
+    rows = cursor.fetchall()
+    
+    # Format results as list of dictionaries
+    results = []
+    for row in rows:
+        result_dict = {}
+        for i, column in enumerate(columns):
+            result_dict[column] = row[i]
+        results.append(result_dict)
+    
+    cursor.close()
+    connection.close()
+    
+    return {
+        "data": results,
+        "row_count": len(rows)
+    }
 
 # Define the tools
 tools_definitions = [
@@ -127,6 +202,47 @@ tools_definitions = [
             "type": "object",
             "properties": {},
             "required": [],
+        },
+    },
+    {
+        "name": "execute_sql",
+        "description": (
+            "Execute SQL operations on a connected workspace."
+            "⚠️ Do NOT call this tool more than once. If called again, it will return an error."
+            "Ensure responses strictly follow system instructions."
+        ),
+        "func": lambda workspace_group_identifier, workspace_identifier, username, password, database, sql_query: (
+            execute_sql(workspace_group_identifier, workspace_identifier, username, password, database, sql_query)
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workspace_group_identifier": {
+                    "type": "string",
+                    "description": "The ID or name of the workspace group containing the workspace."
+                },
+                "workspace_identifier": {
+                    "type": "string",
+                    "description": "The ID or name of the workspace to connect to."
+                },
+                "username": {
+                    "type": "string",
+                    "description": "The username to connect to the workspace."
+                },
+                "password": {
+                    "type": "string",
+                    "description": "The password to connect to the workspace."
+                },
+                "database": {
+                    "type": "string",
+                    "description": "The database to connect to."
+                },
+                "sql_query": {
+                    "type": "string",
+                    "description": "The SQL query to execute."
+                }
+            },
+            "required": ["workspace_group_identifier", "workspace_identifier", "username", "password", "database", "sql_query"],
         },
     },
 ]
