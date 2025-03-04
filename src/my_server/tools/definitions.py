@@ -1,14 +1,14 @@
 import requests
-from .config import API_KEY, API_BASE_URL
+from .config import SINGLESTORE_API_KEY, SINGLESTORE_API_BASE_URL
 
 
 def __build_request(type: str, endpoint: str) -> str:
     def build_request_endpoint(endpoint: str) -> str:
-        return f"{API_BASE_URL}/v1/{endpoint}"
+        return f"{SINGLESTORE_API_BASE_URL}/v1/{endpoint}"
     
     # Headers with authentication
     headers = {
-        "Authorization": f"Bearer {API_KEY}",
+        "Authorization": f"Bearer {SINGLESTORE_API_KEY}",
         "Content-Type": "application/json"
     }
     
