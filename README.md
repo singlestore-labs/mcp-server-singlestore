@@ -10,45 +10,9 @@ The server implements a simple note storage system with:
 - Custom note:// URI scheme for accessing individual notes
 - Each note resource has a name, description and text/plain mimetype
 
-### Prompts
-
-The server provides three prompts:
-- get-workspace-details: Get details of a specific workspace
-  - Takes "workspace_id" as a required string argument
-- get-workspace-group-details: Get details of a specific workspace group
-  - Takes "workspace_group_id" as a required string argument
-- get-starter-workspace-details: Get details of a specific starter workspace
-  - Takes "starter_workspace_id" as a required string argument
-
 ### Tools
 
-The server implements twelve tools:
-- list-workspace-groups: Lists all workspace groups in SingleStore
-  - No arguments required
-  - Returns a list of workspace group details including name, creation date, region ID, state, and workspace group ID
-- get-workspace-details: Get details of a specific workspace
-  - Takes "workspace_id" as a required string argument
-  - Returns details of the specified workspace
-- terminate-workspace: Terminate a specific workspace
-  - Takes "workspace_id" as a required string argument
-  - Takes "force" as an optional boolean argument to force termination
-- get-workspace-group-details: Get details of a specific workspace group
-  - Takes "workspace_group_id" as a required string argument
-  - Returns details of the specified workspace group
-- terminate-workspace-group: Terminate a specific workspace group
-  - Takes "workspace_group_id" as a required string argument
-  - Takes "force" as an optional boolean argument to force termination
-- list-starter-workspaces: Lists all starter workspaces in SingleStore
-  - No arguments required
-  - Returns a list of starter workspace details including name and ID
-- create-starter-workspace: Create a new starter workspace
-  - Takes "name" as a required string argument
-  - Returns details of the created starter workspace
-- get-starter-workspace-details: Get details of a specific starter workspace
-  - Takes "starter_workspace_id" as a required string argument
-  - Returns details of the specified starter workspace
-- terminate-starter-workspace: Terminate a specific starter workspace
-  - Takes "starter_workspace_id" as a required string argument
+The server implements the following tools:
 - workspace_groups_info: Retrieve details about the workspace groups accessible to the user
   - No arguments required
   - Returns details of the workspace groups
@@ -70,6 +34,11 @@ export SINGLESTORE_API_KEY="your_api_key_here"
 ## Quickstart
 
 ### Install
+
+1. Set up environment variables:
+    Create a `config` folder with a `__init__.py` file with the following content:
+    ```properties
+    singlestore_api_key=your_api_key_here
 
 #### Claude Desktop
 
@@ -109,6 +78,11 @@ On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
 
 ## Development
 
+To run the project:
+```bash
+px @modelcontextprotocol/inspector uv --directory /home/prodrigues/Desktop/mcp-server-singlestore/src/my_server run server.py
+```
+
 ### Building and Publishing
 
 To prepare the package for distribution:
@@ -139,12 +113,10 @@ Note: You'll need to set PyPI credentials via environment variables or command f
 Since MCP servers run over stdio, debugging can be challenging. For the best debugging
 experience, we strongly recommend using the [MCP Inspector](https://github.com/modelcontextprotocol/inspector).
 
-
 You can launch the MCP Inspector via [`npm`](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm) with this command:
 
 ```bash
-npx @modelcontextprotocol/inspector uv --directory /home/prodrigues/Desktop/mcp-server/my-server run my-server
+npx @modelcontextprotocol/inspector uv --directory /home/prodrigues/Desktop/mcp-server-singlestore/src/my_server run server.py
 ```
-
 
 Upon launching, the Inspector will display a URL that you can access in your browser to begin debugging.

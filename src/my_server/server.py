@@ -6,7 +6,7 @@ from mcp.server import NotificationOptions, Server
 from pydantic import AnyUrl
 import mcp.server.stdio
 import singlestoredb as s2
-from .config import SINGLESTORE_API_KEY
+from config import SINGLESTORE_API_KEY
 from my_server.tools import tools, tool_functions
 
 # Store notes as a simple key-value dict to demonstrate state management
@@ -85,41 +85,7 @@ async def handle_list_prompts() -> list[types.Prompt]:
     List available prompts.
     Each prompt can have optional arguments to customize its behavior.
     """
-    return [
-        types.Prompt(
-            name="get-workspace-details",
-            description="Get details of a specific workspace",
-            arguments=[
-                types.PromptArgument(
-                    name="workspace_id",
-                    description="ID of the workspace",
-                    required=True,
-                )
-            ],
-        ),
-        types.Prompt(
-            name="get-workspace-group-details",
-            description="Get details of a specific workspace group",
-            arguments=[
-                types.PromptArgument(
-                    name="workspace_group_id",
-                    description="ID of the workspace group",
-                    required=True,
-                )
-            ],
-        ),
-        types.Prompt(
-            name="get-starter-workspace-details",
-            description="Get details of a specific starter workspace",
-            arguments=[
-                types.PromptArgument(
-                    name="starter_workspace_id",
-                    description="ID of the starter workspace",
-                    required=True,
-                )
-            ],
-        )
-    ]
+    return []
 
 @server.get_prompt()
 async def handle_get_prompt(
@@ -128,91 +94,7 @@ async def handle_get_prompt(
     """
     Generate a prompt by combining arguments with server state.
     """
-    if name == "get-workspace-details":
-        workspace_id = arguments.get("workspace_id")
-        if not workspace_id:
-            raise ValueError("Missing workspace_id argument")
-
-        manager = s2.manage_workspaces(access_token=SINGLESTORE_API_KEY)
-        workspace = manager.get_workspace(workspace_id)
-
-        return types.GetPromptResult(
-            description="Workspace details",
-            messages=[
-                types.PromptMessage(
-                    role="user",
-                    content=types.TextContent(
-                        type="text",
-                        text=(
-                            f"Workspace ID: {workspace.id}\n"
-                            f"Name: {workspace.name}\n"
-                            f"State: {workspace.state}\n"
-                            f"Created At: {workspace.created_at}\n"
-                            f"Terminated At: {workspace.terminated_at}\n"
-                            f"Endpoint: {workspace.endpoint}\n"
-                            f"Auto Suspend: {workspace.auto_suspend}\n"
-                            f"Cache Config: {workspace.cache_config}\n"
-                            f"Deployment Type: {workspace.deployment_type}\n"
-                            f"Scaling Progress: {workspace.scaling_progress}\n"
-                            f"Last Resumed At: {workspace.last_resumed_at}\n"
-                        ),
-                    ),
-                )
-            ],
-        )
-    elif name == "get-workspace-group-details":
-        workspace_group_id = arguments.get("workspace_group_id")
-        if not workspace_group_id:
-            raise ValueError("Missing workspace_group_id argument")
-
-        manager = s2.manage_workspaces(access_token=SINGLESTORE_API_KEY)
-        workspace_group = manager.get_workspace_group(workspace_group_id)
-
-        return types.GetPromptResult(
-            description="Workspace Group details",
-            messages=[
-                types.PromptMessage(
-                    role="user",
-                    content=types.TextContent(
-                        type="text",
-                        text=(
-                            f"Workspace Group ID: {workspace_group.id}\n"
-                            f"Name: {workspace_group.name}\n"
-                            f"Created At: {workspace_group.created_at}\n"
-                            f"Region: {workspace_group.region}\n"
-                            f"Firewall Ranges: {', '.join(workspace_group.firewall_ranges)}\n"
-                            f"Terminated At: {workspace_group.terminated_at}\n"
-                            f"Allow All Traffic: {workspace_group.allow_all_traffic}\n"
-                        ),
-                    ),
-                )
-            ],
-        )
-    elif name == "get-starter-workspace-details":
-        starter_workspace_id = arguments.get("starter_workspace_id")
-        if not starter_workspace_id:
-            raise ValueError("Missing starter_workspace_id argument")
-
-        manager = s2.manage_workspaces(access_token=SINGLESTORE_API_KEY)
-        starter_workspace = manager.get_starter_workspace(starter_workspace_id)
-
-        return types.GetPromptResult(
-            description="Starter Workspace details",
-            messages=[
-                types.PromptMessage(
-                    role="user",
-                    content=types.TextContent(
-                        type="text",
-                        text=(
-                            f"Starter Workspace ID: {starter_workspace.id}\n"
-                            f"Name: {starter_workspace.name}\n"
-                        ),
-                    ),
-                )
-            ],
-        )
-    else:
-        raise ValueError(f"Unknown prompt: {name}")
+    raise ValueError(f"Unknown prompt: {name}")
 
 @server.list_tools()
 async def handle_list_tools() -> list[types.Tool]:
