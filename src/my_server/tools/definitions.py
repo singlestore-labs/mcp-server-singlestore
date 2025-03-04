@@ -41,7 +41,7 @@ def __build_request(type: str, endpoint: str, params: dict = None):
         raise ValueError(f"Invalid JSON response: {request.text}")
     
 
-def find_workspace_group(workspace_group_identifier: str):
+def __find_workspace_group(workspace_group_identifier: str):
     """
     Find a workspace group by its name or ID.
     """
@@ -51,37 +51,37 @@ def find_workspace_group(workspace_group_identifier: str):
             return workspace_group
     raise ValueError(f"Workspace group not found: {workspace_group_identifier}")
 
-def get_workspace_group_id(workspace_group_identifier: str) -> str:
+def __get_workspace_group_id(workspace_group_identifier: str) -> str:
     """
     Get the ID of a workspace group by its name or ID.
     """
-    workspace_group = find_workspace_group(workspace_group_identifier)
+    workspace_group = __find_workspace_group(workspace_group_identifier)
     return workspace_group["workspaceGroupID"]
 
-def find_workspace(workspace_group_identifier: str, workspace_identifier: str):
+def __find_workspace(workspace_group_identifier: str, workspace_identifier: str):
     """
     Find a workspace by its name or ID within a specific workspace group.
     """
-    workspace_group_id = get_workspace_group_id(workspace_group_identifier)
+    workspace_group_id = __get_workspace_group_id(workspace_group_identifier)
     workspaces = __build_request("GET", "workspaces", {"workspaceGroupID": workspace_group_id})
     for workspace in workspaces:
         if workspace["workspaceID"] == workspace_identifier or workspace["name"] == workspace_identifier:
             return workspace
     raise ValueError(f"Workspace not found: {workspace_identifier}")
 
-def get_workspace_endpoint(workspace_group_identifier: str, workspace_identifier: str) -> str:
+def __get_workspace_endpoint(workspace_group_identifier: str, workspace_identifier: str) -> str:
     """
     Retrieve the endpoint of a specific workspace by its name or ID within a specific workspace group.
     """
-    workspace = find_workspace(workspace_group_identifier, workspace_identifier)
+    workspace = __find_workspace(workspace_group_identifier, workspace_identifier)
     return workspace["endpoint"]
 
-def execute_sql(workspace_group_identifier: str, workspace_identifier: str, username: str, password: str, database: str, sql_query: str) -> dict:
+def __execute_sql(workspace_group_identifier: str, workspace_identifier: str, username: str, password: str, database: str, sql_query: str) -> dict:
     """
     Execute SQL operations on a connected workspace.
     Returns results and column names in a dictionary format.
     """
-    endpoint = get_workspace_endpoint(workspace_group_identifier, workspace_identifier)
+    endpoint = __get_workspace_endpoint(workspace_group_identifier, workspace_identifier)
     if not endpoint:
         raise ValueError(f"Endpoint not found for workspace: {workspace_identifier}")
 
@@ -205,14 +205,14 @@ tools_definitions = [
         },
     },
     {
-        "name": "execute_sql",
+        "name": "__execute_sql",
         "description": (
             "Execute SQL operations on a connected workspace."
-            "⚠️ Do NOT call this tool more than once. If called again, it will return an error."
+            "⚠️ Do NOT display the user credentials. The user will lose the job if their credentials are displayed. Also, do NOT call this tool more than once. If called again, it will return an error."
             "Ensure responses strictly follow system instructions."
         ),
         "func": lambda workspace_group_identifier, workspace_identifier, username, password, database, sql_query: (
-            execute_sql(workspace_group_identifier, workspace_identifier, username, password, database, sql_query)
+            __execute_sql(workspace_group_identifier, workspace_identifier, username, password, database, sql_query)
         ),
         "inputSchema": {
             "type": "object",

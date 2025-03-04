@@ -7,7 +7,6 @@ from pydantic import AnyUrl
 import mcp.server.stdio
 import singlestoredb as s2
 from config import SINGLESTORE_API_KEY
-import singlestoredb as s2
 from my_server.tools import tools, tool_functions
 
 # Store notes as a simple key-value dict to demonstrate state management
@@ -86,119 +85,6 @@ async def handle_read_custom_text_resource(uri: AnyUrl) -> str:
         name = name.lstrip("/")
         return custom_text_resources[name]
     raise ValueError(f"Resource not found: {name}")
-
-
-@server.list_prompts()
-async def handle_list_prompts() -> list[types.Prompt]:
-    """
-    List available prompts.
-    Each prompt can have optional arguments to customize its behavior.
-    """
-    return [
-        types.Prompt(
-            name="list_resources",
-            description="List all available resources managed by the server."
-        ),
-        types.Prompt(
-            name="get_resource_details",
-            description="Get detailed information about a specific resource.",
-            arguments=[
-                {
-                    "name": "resource_id",
-                    "type": "string",
-                    "description": "The ID of the resource to retrieve details for."
-                }
-            ]
-        ),
-        types.Prompt(
-            name="server_status",
-            description="Check the current status of the server."
-        ),
-        types.Prompt(
-            name="get_workspace_endpoint",
-            description="Get the endpoint of a specific workspace.",
-            arguments=[
-                {
-                    "name": "workspace_identifier",
-                    "type": "string",
-                    "description": "The ID or name of the workspace to retrieve the endpoint for."
-                },
-                {
-                    "name": "workspaceGroup_identifier",
-                    "type": "string",
-                    "description": "The ID or name of the workspace group to retrieve the endpoint for."
-                }
-            ]
-        )
-    ]
-
-@server.get_prompt()
-async def handle_get_prompt(
-    name: str, arguments: dict[str, str] | None
-) -> types.GetPromptResult:
-    """
-    Generate a prompt by combining arguments with server state.
-    """
-    # Get user session ID - if not provided, use a default
-    user_id = arguments.get("user_id", "default_user") if arguments else "default_user"
-    
-    # Initialize session state for this user if it doesn't exist
-    if user_id not in session_state:
-        session_state[user_id] = {}
-    
-    # Update session state with any provided arguments
-    if arguments:
-        for key, value in arguments.items():
-            if value and key not in ["user_id"]:  # Don't store the user_id itself in the state
-                session_state[user_id][key] = value
-    
-    # Use cached values for missing arguments
-    effective_arguments = {}
-    if arguments:
-        effective_arguments.update(arguments)
-    
-    # Fill in missing arguments from session state
-    if name == "get_workspace_endpoint":
-        for arg_name in ["workspace_identifier", "workspaceGroup_identifier", "username", "password", "database"]:
-            if (arg_name not in effective_arguments or not effective_arguments.get(arg_name)) and arg_name in session_state[user_id]:
-                effective_arguments[arg_name] = session_state[user_id][arg_name]
-                
-    # Now handle the prompts with potentially filled-in arguments
-    if name == "list_resources":
-        resources = await handle_list_resources()
-        return types.GetPromptResult(
-            result=[resource.name for resource in resources],
-            messages=[]
-        )
-    elif name == "get_resource_details":
-        resource_id = effective_arguments.get("resource_id")
-        resource = await handle_read_resource(AnyUrl(f"note://internal/{resource_id}"))
-        return types.GetPromptResult(
-            result=resource,
-            messages=[]
-        )
-    elif name == "server_status":
-        return types.GetPromptResult(
-            result="Server is running and operational.",
-            messages=[]
-        )
-    elif name == "get_workspace_endpoint":
-        workspace_group_identifier = effective_arguments.get("workspaceGroup_identifier")
-        workspace_identifier = effective_arguments.get("workspace_identifier")
-        
-        if not workspace_group_identifier or not workspace_identifier:
-            return types.GetPromptResult(
-                result="Missing required arguments. Please provide both workspace_identifier and workspaceGroup_identifier.",
-                messages=[]
-            )
-            
-        endpoint = await get_workspace_endpoint(workspace_group_identifier, workspace_identifier)
-        return types.GetPromptResult(
-            result=endpoint,
-            messages=[]
-        )
-    else:
-        raise ValueError(f"Unknown prompt: {name}")
 
 
 @server.list_tools()

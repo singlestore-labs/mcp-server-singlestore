@@ -16,7 +16,7 @@ The server implements the following tools:
 - workspace_groups_info: Retrieve details about the workspace groups accessible to the user
   - No arguments required
   - Returns details of the workspace groups
-- workspaces_info: Retrieve details about the workspaces in a specific workspace group
+ more tools- workspaces_info: Retrieve details about the workspaces in a specific workspace group
   - Arguments: workspaceGroupID (string)
   - Returns details of the workspaces
 - organization_info: Retrieve details about the user's current organization
@@ -25,25 +25,9 @@ The server implements the following tools:
 - list_of_regions: Retrieve a list of all regions that support workspaces for the user
   - No arguments required
   - Returns a list of regions
-
-### Prompts
-
-The server implements the following prompts:
-- list_resources: List all available resources managed by the server
-  - No arguments required
-  - Returns a list of resource names
-- get_resource_details: Get detailed information about a specific resource
-  - Arguments: resource_id (string)
-  - Returns the details of the specified resource
-- server_status: Check the current status of the server
-  - No arguments required
-  - Returns the status of the server
-- get_workspace_endpoint: Get the endpoint of a specific workspace
-  - Arguments: workspace_id (string)
-  - Returns the endpoint of the specified workspace
 - execute_sql: Execute SQL operations on a connected workspace
-  - Arguments: workspace_id (string or name), username (string), password (string), database (string), sql_query (string)
-  - Returns the result of the SQL query
+  - Arguments: workspace_group_identifier, workspace_identifier, username, password, database, sql_query
+  - Returns the results of the SQL query in a structured format
 
 ## Configuration
 
@@ -127,18 +111,4 @@ uv publish
 ```
 
 Note: You'll need to set PyPI credentials via environment variables or command flags:
-- Token: `--token` or `UV_PUBLISH_TOKEN`
-- Or username/password: `--username`/`UV_PUBLISH_USERNAME` and `--password`/`UV_PUBLISH_PASSWORD`
-
-### Debugging
-
-Since MCP servers run over stdio, debugging can be challenging. For the best debugging
-experience, we strongly recommend using the [MCP Inspector](https://github.com/modelcontextprotocol/inspector).
-
-You can launch the MCP Inspector via [`npm`](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm) with this command:
-
-```bash
-npx @modelcontextprotocol/inspector uv --directory /home/prodrigues/Desktop/mcp-server-singlestore/src/my_server run server.py
-```
-
-Upon launching, the Inspector will display a URL that you can access in your browser to begin debugging.
+- Token
