@@ -16,12 +16,34 @@ The server implements the following tools:
 - workspace_groups_info: Retrieve details about the workspace groups accessible to the user
   - No arguments required
   - Returns details of the workspace groups
+- workspaces_info: Retrieve details about the workspaces in a specific workspace group
+  - Arguments: workspaceGroupID (string)
+  - Returns details of the workspaces
 - organization_info: Retrieve details about the user's current organization
   - No arguments required
   - Returns details of the organization
 - list_of_regions: Retrieve a list of all regions that support workspaces for the user
   - No arguments required
   - Returns a list of regions
+
+### Prompts
+
+The server implements the following prompts:
+- list_resources: List all available resources managed by the server
+  - No arguments required
+  - Returns a list of resource names
+- get_resource_details: Get detailed information about a specific resource
+  - Arguments: resource_id (string)
+  - Returns the details of the specified resource
+- server_status: Check the current status of the server
+  - No arguments required
+  - Returns the status of the server
+- get_workspace_endpoint: Get the endpoint of a specific workspace
+  - Arguments: workspace_id (string)
+  - Returns the endpoint of the specified workspace
+- execute_sql: Execute SQL operations on a connected workspace
+  - Arguments: workspace_id (string or name), username (string), password (string), database (string), sql_query (string)
+  - Returns the result of the SQL query
 
 ## Configuration
 

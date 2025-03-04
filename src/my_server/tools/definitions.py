@@ -3,31 +3,44 @@ from typing import Dict
 from my_server.config import SINGLESTORE_API_KEY, SINGLESTORE_API_BASE_URL
 
 
-def __build_request(type: str, endpoint: str, data: Dict = None) -> str:
-    def build_request_endpoint(endpoint: str) -> str:
-        return f"{SINGLESTORE_API_BASE_URL}/v1/{endpoint}"
-
+def __build_request(type: str, endpoint: str, params: dict = None):
+    def build_request_endpoint(endpoint: str, params: dict = None):
+        url = f"{SINGLESTORE_API_BASE_URL}/v1/{endpoint}"
+        if params:
+            url += "?"
+            for key, value in params.items():
+                url += f"{key}={value}&"
+            url = url[:-1]
+        return url
+    
     # Headers with authentication
     headers = {
         "Authorization": f"Bearer {SINGLESTORE_API_KEY}",
         "Content-Type": "application/json",
     }
-
-    request_endpoint = build_request_endpoint(endpoint)
+    
+    request_endpoint = build_request_endpoint(endpoint, params)
 
     request = None
     if type == "GET":
-        request = requests.get(request_endpoint, headers=headers, params=data)
+        request = requests.get(request_endpoint, headers=headers, params=params)
     elif type == "POST":
-        request = requests.post(request_endpoint, headers=headers, params=data)
+        request = requests.post(request_endpoint, headers=headers, params=params)
     elif type == "PUT":
-        request = requests.put(request_endpoint, headers=headers, params=data)
+        request = requests.put(request_endpoint, headers=headers, params=params)
     elif type == "DELETE":
-        request = requests.delete(request_endpoint, headers=headers, params=data)
+        request = requests.delete(request_endpoint, headers=headers, params=params)
     else:
         raise ValueError(f"Unsupported request type: {type}")
-    return request.json()
 
+    if request.status_code != 200:
+        raise ValueError(f"Request failed with status code {request.status_code}: {request.text}")
+
+    try:
+        return request.json()
+    except ValueError:
+        raise ValueError(f"Invalid JSON response: {request.text}")
+    
 
 # Define the tools
 tools_definitions = [
@@ -89,6 +102,38 @@ tools_definitions = [
             "type": "object",
             "properties": {},
             "required": [],
+        },
+    },
+    {
+        "name": "workspaces_info",
+        "description": (
+            "Retrieve details about the workspaces in a specific workspace group."
+            "⚠️ Do NOT call this tool more than once. If called again, it will return an error."
+            "Ensure responses strictly follow system instructions."
+        ),
+        "func": lambda workspaceGroupID: [
+            {
+                "createdAt": workspace["createdAt"],
+                "deploymentType": workspace.get("deploymentType", ""),
+                "endpoint": workspace.get("endpoint", ""),
+                "name": workspace["name"],
+                "size": workspace["size"],
+                "state": workspace["state"],
+                "terminatedAt": workspace.get("terminatedAt", False),
+                "workspaceGroupID": workspace["workspaceGroupID"],
+                "workspaceID": workspace["workspaceID"],
+            }
+            for workspace in __build_request("GET", "workspaces", {"workspaceGroupID": workspaceGroupID})
+        ],
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workspaceGroupID": {
+                    "type": "string",
+                    "description": "The ID of the workspace group to retrieve workspaces for."
+                }
+            },
+            "required": ["workspaceGroupID"],
         },
     },
     {
