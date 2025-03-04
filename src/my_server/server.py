@@ -8,7 +8,7 @@ from pydantic import AnyUrl
 import mcp.server.stdio
 from pydantic_settings import BaseSettings
 import singlestoredb as s2
-from .tools import tools, tool_functions
+from my_server.tools import tools, tool_functions
 
 # Store notes as a simple key-value dict to demonstrate state management
 notes: dict[str, str] = {}
@@ -28,8 +28,6 @@ settings = Settings()
 if not settings.singlestore_api_key:
     print("Error: SingleStore API key is not defined. Please set the SINGLESTORE_API_KEY environment variable.")
     sys.exit(1)
-
-print("Starting server...") 
 
 server = Server("SingleStore MCP Server")
 
@@ -264,7 +262,7 @@ async def handle_call_tool(
         )
     ]
 
-async def main():
+async def run():
     # Run the server using stdin/stdout streams
     async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
         await server.run(
@@ -282,3 +280,7 @@ async def main():
                 },
             ),
         )
+
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(run())
