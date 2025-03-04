@@ -16,7 +16,7 @@ The server implements the following tools:
 - workspace_groups_info: Retrieve details about the workspace groups accessible to the user
   - No arguments required
   - Returns details of the workspace groups
- more tools- workspaces_info: Retrieve details about the workspaces in a specific workspace group
+- workspaces_info: Retrieve details about the workspaces in a specific workspace group
   - Arguments: workspaceGroupID (string)
   - Returns details of the workspaces
 - organization_info: Retrieve details about the user's current organization
@@ -28,6 +28,23 @@ The server implements the following tools:
 - execute_sql: Execute SQL operations on a connected workspace
   - Arguments: workspace_group_identifier, workspace_identifier, username, password, database, sql_query
   - Returns the results of the SQL query in a structured format
+- list_virtual_workspaces: List all starter workspaces accessible to the user
+  - No arguments required
+  - Returns details of available starter workspaces
+- create_virtual_workspace: Create a new starter workspace with a user
+  - Arguments: 
+    - name: Name of the starter workspace
+    - database_name: Name of the database to create
+    - username: Username for accessing the workspace
+    - password: Password for the user
+    - workspace_group: Object containing name (optional) and cellID (mandatory)
+  - Returns details of the created workspace and user
+- connect_to_virtual_workspace: Connect to an existing starter workspace
+  - Arguments: virtual_workspace_id, username, password
+  - Returns connection status and workspace details
+- execute_sql_on_virtual_workspace: Execute SQL operations on a virtual workspace
+  - Arguments: virtual_workspace_id, username, password, sql_query
+  - Returns the results of the SQL query in a structured format including data, row count, columns, and status
 
 ## Configuration
 
