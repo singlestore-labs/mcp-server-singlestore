@@ -6,7 +6,6 @@ import mcp.types as types
 from mcp.server import NotificationOptions, Server
 from pydantic import AnyUrl
 import mcp.server.stdio
-from pydantic_settings import BaseSettings
 import singlestoredb as s2
 from my_server.tools import tools, tool_functions
 

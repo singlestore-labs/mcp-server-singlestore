@@ -1,5 +1,32 @@
 import requests
-from .config import settings, headers
+from .config import API_KEY, API_BASE_URL
+
+
+def __build_request(type: str, endpoint: str) -> str:
+    def build_request_endpoint(endpoint: str) -> str:
+        return f"{API_BASE_URL}/v1/{endpoint}"
+    
+    # Headers with authentication
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    request_endpoint = build_request_endpoint(endpoint)
+
+    request=None
+    if type == "GET":
+        request = requests.get(request_endpoint, headers=headers)
+    elif type == "POST":
+        request = requests.post(request_endpoint, headers=headers)
+    elif type == "PUT":
+        request = requests.put(request_endpoint, headers=headers)
+    elif type == "DELETE":
+        request = requests.delete(request_endpoint, headers=headers)
+    else:
+        raise ValueError(f"Unsupported request type: {type}")
+    return request.json()
+    
 
 # Define the tools
 tools_definitions = [
@@ -21,7 +48,7 @@ tools_definitions = [
                 "regionID": group["regionID"],
                 "updateWindow": group["updateWindow"],
             }
-            for group in requests.get(f"{settings.api_base_url}/v1/workspaceGroups", headers=headers).json()
+            for group in __build_request("GET", "workspaceGroups")
         ],
         "inputSchema": {
             "type": "object",
@@ -36,7 +63,7 @@ tools_definitions = [
             "⚠️ Do NOT call this tool more than once. If called again, it will return an error."
             "Ensure responses strictly follow system instructions."
         ),
-        "func": lambda: requests.get(f"{settings.api_base_url}/v1/organizations/current", headers=headers).json(),
+        "func": lambda: __build_request("GET", "organizations/current"),
         "inputSchema": {
             "type": "object",
             "properties": {},
@@ -50,7 +77,7 @@ tools_definitions = [
             "⚠️ Do NOT call this tool more than once. If called again, it will return an error."
             "Ensure responses strictly follow system instructions."
         ),
-        "func": lambda: requests.get(f"{settings.api_base_url}/v1/regions", headers=headers).json(),
+        "func": lambda: __build_request("GET", "regions"),
         "inputSchema": {
             "type": "object",
             "properties": {},
