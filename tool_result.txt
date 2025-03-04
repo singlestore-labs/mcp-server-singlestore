@@ -1,1 +1,0 @@
-[{'name': 'NBA App', 'deploymentType': 'PRODUCTION', 'state': 'PENDING', 'workspaceGroupID': 'b758ebc7-44ad-447c-b9b0-5be740653fe0', 'firewallRanges': [], 'createdAt': '2024-12-17T12:22:38.433364Z', 'regionID': 'b1824e3c-7054-4869-be97-bc36aef0b2b4', 'updateWindow': {'hour': 12, 'day': 5}}]

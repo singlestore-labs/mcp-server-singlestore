@@ -1,13 +1,14 @@
 import asyncio
 import sys
+
 from mcp.server.models import InitializationOptions
 import mcp.types as types
 from mcp.server import NotificationOptions, Server
 from pydantic import AnyUrl
 import mcp.server.stdio
+from pydantic_settings import BaseSettings
 import singlestoredb as s2
 from my_server.tools import tools, tool_functions
-from my_server.tools.config import settings
 
 # Store notes as a simple key-value dict to demonstrate state management
 notes: dict[str, str] = {}
@@ -238,13 +239,6 @@ async def handle_call_tool(
         raise ValueError(f"Unknown tool: {name}")
 
     result = tool_functions[name]()
-    try:
-        import os
-        tool_result_path = 'tool_result.txt'
-        with open(tool_result_path, 'w') as f:
-            f.write(str(result))
-    except IOError as e:
-        print(f"Error writing to file: {e}")
     return [
         types.TextContent(
             type="text",

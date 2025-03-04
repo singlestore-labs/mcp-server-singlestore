@@ -1,14 +1,5 @@
-from pydantic_settings import BaseSettings
-
-class Settings(BaseSettings):
-    singlestore_api_key: str
-    api_base_url: str = "https://api.singlestore.com"
-
-    class Config:
-        env_file = "config/settings.toml"
-        env_file_encoding = 'utf-8'
-
-settings = Settings()
+API_KEY = "5ba26ff44418aacde02ccf2b2fec68ebf31b8e3934affe7f41e62274946796e6"
+API_BASE_URL = "https://api.singlestore.com"
 
 # Headers with authentication
 headers = {
