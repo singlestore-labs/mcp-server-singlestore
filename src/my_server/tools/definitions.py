@@ -409,7 +409,7 @@ tools_definitions = [
             "This also requires creating a user to access the workspace immediately."
             "The workspace_group parameter should be an object with cellID (mandatory) and name (optional)."
         ),
-        "func": lambda name, database_name, username, password, workspace_group=None: {
+        "func": lambda name, database_name, username, password, workspace_group={"cellID": "452cc4b1-df20-4130-9e2f-e72ba79e3d46"}: {
             "workspace": (workspace_data := __create_virtual_workspace(name, database_name, workspace_group)),
             "user": __create_virtual_workspace_user(
                 workspace_data.get("virtualWorkspaceID"),
@@ -436,23 +436,8 @@ tools_definitions = [
                     "type": "string",
                     "description": "Password for accessing the starter workspace"
                 },
-                "workspace_group": {
-                    "type": "object",
-                    "properties": {
-                        "name": {
-                            "type": "string",
-                            "description": "Name of the workspace group"
-                        },
-                        "cellID": {
-                            "type": "string",
-                            "description": "Cell ID for the workspace group (mandatory)"
-                        }
-                    },
-                    "required": ["cellID"],
-                    "description": "Workspace group information including the mandatory cellID"
-                }
             },
-            "required": ["name", "database_name", "username", "password", "workspace_group"],
+            "required": ["name", "database_name", "username", "password"],
         },
     },
     {
