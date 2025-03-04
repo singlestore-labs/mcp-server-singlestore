@@ -6,7 +6,7 @@ from mcp.server import NotificationOptions, Server
 from pydantic import AnyUrl
 import mcp.server.stdio
 import singlestoredb as s2
-from config import SINGLESTORE_API_KEY
+from my_server.config import SINGLESTORE_API_KEY
 from my_server.tools import tools, tool_functions
 
 # Store notes as a simple key-value dict to demonstrate state management
@@ -16,6 +16,7 @@ notes: dict[str, str] = {}
 custom_text_resources: dict[str, str] = {}
 
 server = Server("SingleStore MCP Server")
+
 
 @server.list_resources()
 async def handle_list_resources() -> list[types.Resource]:
@@ -33,6 +34,7 @@ async def handle_list_resources() -> list[types.Resource]:
         for name in notes
     ]
 
+
 @server.read_resource()
 async def handle_read_resource(uri: AnyUrl) -> str:
     """
@@ -47,6 +49,7 @@ async def handle_read_resource(uri: AnyUrl) -> str:
         name = name.lstrip("/")
         return notes[name]
     raise ValueError(f"Note not found: {name}")
+
 
 @server.list_resources()
 async def handle_list_custom_text_resources() -> list[types.Resource]:
@@ -64,6 +67,7 @@ async def handle_list_custom_text_resources() -> list[types.Resource]:
         for name in custom_text_resources
     ]
 
+
 @server.read_resource()
 async def handle_read_custom_text_resource(uri: AnyUrl) -> str:
     """
@@ -79,6 +83,7 @@ async def handle_read_custom_text_resource(uri: AnyUrl) -> str:
         return custom_text_resources[name]
     raise ValueError(f"Resource not found: {name}")
 
+
 @server.list_prompts()
 async def handle_list_prompts() -> list[types.Prompt]:
     """
@@ -86,6 +91,7 @@ async def handle_list_prompts() -> list[types.Prompt]:
     Each prompt can have optional arguments to customize its behavior.
     """
     return []
+
 
 @server.get_prompt()
 async def handle_get_prompt(
@@ -96,6 +102,7 @@ async def handle_get_prompt(
     """
     raise ValueError(f"Unknown prompt: {name}")
 
+
 @server.list_tools()
 async def handle_list_tools() -> list[types.Tool]:
     """
@@ -103,6 +110,7 @@ async def handle_list_tools() -> list[types.Tool]:
     Each tool specifies its arguments using JSON Schema validation.
     """
     return tools
+
 
 @server.call_tool()
 async def handle_call_tool(
@@ -115,13 +123,9 @@ async def handle_call_tool(
     if name not in tool_functions:
         raise ValueError(f"Unknown tool: {name}")
 
-    result = tool_functions[name]()
-    return [
-        types.TextContent(
-            type="text",
-            text=str(result)
-        )
-    ]
+    result = tool_functions[name](arguments)
+    return [types.TextContent(type="text", text=str(result))]
+
 
 async def run():
     # Run the server using stdin/stdout streams
@@ -142,6 +146,8 @@ async def run():
             ),
         )
 
+
 if __name__ == "__main__":
     import asyncio
+
     asyncio.run(run())

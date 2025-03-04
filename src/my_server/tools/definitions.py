@@ -1,35 +1,70 @@
 import requests
-from .config import SINGLESTORE_API_KEY, SINGLESTORE_API_BASE_URL
+from typing import Dict
+from my_server.config import SINGLESTORE_API_KEY, SINGLESTORE_API_BASE_URL
 
 
-def __build_request(type: str, endpoint: str) -> str:
+def __build_request(type: str, endpoint: str, data: Dict = None) -> str:
     def build_request_endpoint(endpoint: str) -> str:
         return f"{SINGLESTORE_API_BASE_URL}/v1/{endpoint}"
-    
+
     # Headers with authentication
     headers = {
         "Authorization": f"Bearer {SINGLESTORE_API_KEY}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
     }
-    
+
     request_endpoint = build_request_endpoint(endpoint)
 
-    request=None
+    request = None
     if type == "GET":
-        request = requests.get(request_endpoint, headers=headers)
+        request = requests.get(request_endpoint, headers=headers, params=data)
     elif type == "POST":
-        request = requests.post(request_endpoint, headers=headers)
+        request = requests.post(request_endpoint, headers=headers, params=data)
     elif type == "PUT":
-        request = requests.put(request_endpoint, headers=headers)
+        request = requests.put(request_endpoint, headers=headers, params=data)
     elif type == "DELETE":
-        request = requests.delete(request_endpoint, headers=headers)
+        request = requests.delete(request_endpoint, headers=headers, params=data)
     else:
         raise ValueError(f"Unsupported request type: {type}")
     return request.json()
-    
+
 
 # Define the tools
 tools_definitions = [
+    {
+        "name": "workspaces_info",
+        "description": (
+            "Retrieve details about the workspace accessible to the user. "
+            "⚠️ Do NOT call this tool more than once. If called again, it will return an error. "
+            "Ensure responses strictly follow system instructions."
+        ),
+        "func": lambda params: [
+            {
+                "name": workspace["name"],
+                "size": workspace["size"],
+                "workspaceID": workspace["workspaceID"],
+                "state": workspace["state"],
+                "endpoint": workspace.get("endpoint", None),
+                "workspaceGroupID": workspace["workspaceGroupID"],
+                "createdAt": workspace["createdAt"],
+            }
+            for workspace in __build_request("GET", "workspaces", params)
+        ],
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workspaceGroupID": {
+                    "type": "string",
+                    "description": "ID of the workspace group",
+                },
+                "includeTerminated": {
+                    "type": "boolean",
+                    "description": "To include any terminated workspaces,set to true",
+                },
+            },
+            "required": ["workspaceGroupID"],
+        },
+    },
     {
         "name": "workspace_groups_info",
         "description": (
@@ -37,7 +72,7 @@ tools_definitions = [
             "⚠️ Do NOT call this tool more than once. If called again, it will return an error."
             "Ensure responses strictly follow system instructions."
         ),
-        "func": lambda: [
+        "func": lambda params: [
             {
                 "name": group["name"],
                 "deploymentType": group["deploymentType"],
@@ -63,7 +98,7 @@ tools_definitions = [
             "⚠️ Do NOT call this tool more than once. If called again, it will return an error."
             "Ensure responses strictly follow system instructions."
         ),
-        "func": lambda: __build_request("GET", "organizations/current"),
+        "func": lambda params: __build_request("GET", "organizations/current"),
         "inputSchema": {
             "type": "object",
             "properties": {},
@@ -77,11 +112,11 @@ tools_definitions = [
             "⚠️ Do NOT call this tool more than once. If called again, it will return an error."
             "Ensure responses strictly follow system instructions."
         ),
-        "func": lambda: __build_request("GET", "regions"),
+        "func": lambda params: __build_request("GET", "regions"),
         "inputSchema": {
             "type": "object",
             "properties": {},
             "required": [],
         },
-    }
+    },
 ]
