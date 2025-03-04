@@ -1,21 +1,5 @@
 import requests
-from pydantic_settings import BaseSettings
-
-class Settings(BaseSettings):
-    api_key: str
-    api_base_url: str
-
-    class Config:
-        env_file = "/home/prodrigues/Desktop/mcp-server/my-server/.env"
-        env_file_encoding = 'utf-8'
-
-settings = Settings()
-
-# Headers with authentication
-headers = {
-    "Authorization": f"Bearer {settings.api_key}",
-    "Content-Type": "application/json"
-}
+from .config import settings, headers
 
 # Define the tools
 tools_definitions = [

@@ -1,2 +1,3 @@
 [default]
 singlestore_api_key = "5ba26ff44418aacde02ccf2b2fec68ebf31b8e3934affe7f41e62274946796e6"
+api_base_url = "https://api.singlestore.com"

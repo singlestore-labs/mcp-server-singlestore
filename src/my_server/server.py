@@ -1,29 +1,19 @@
 import asyncio
 import sys
-
 from mcp.server.models import InitializationOptions
 import mcp.types as types
 from mcp.server import NotificationOptions, Server
 from pydantic import AnyUrl
 import mcp.server.stdio
-from pydantic_settings import BaseSettings
 import singlestoredb as s2
 from my_server.tools import tools, tool_functions
+from my_server.tools.config import settings
 
 # Store notes as a simple key-value dict to demonstrate state management
 notes: dict[str, str] = {}
 
 # Store custom text resources
 custom_text_resources: dict[str, str] = {}
-
-class Settings(BaseSettings):
-    singlestore_api_key: str
-
-    class Config:
-        env_file = "/home/prodrigues/Desktop/mcp-server/my-server/config/settings.toml"
-        env_file_encoding = 'utf-8'
-
-settings = Settings()
 
 if not settings.singlestore_api_key:
     print("Error: SingleStore API key is not defined. Please set the SINGLESTORE_API_KEY environment variable.")
@@ -250,8 +240,8 @@ async def handle_call_tool(
     result = tool_functions[name]()
     try:
         import os
-        os.makedirs(os.path.dirname('/home/prodrigues/Desktop/mcp-server/my-server/tool_result.txt'), exist_ok=True)
-        with open('/home/prodrigues/Desktop/mcp-server/my-server/tool_result.txt', 'w') as f:
+        tool_result_path = 'tool_result.txt'
+        with open(tool_result_path, 'w') as f:
             f.write(str(result))
     except IOError as e:
         print(f"Error writing to file: {e}")
