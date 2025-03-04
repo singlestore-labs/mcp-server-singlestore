@@ -1,5 +1,4 @@
 import asyncio
-import sys
 
 from mcp.server.models import InitializationOptions
 import mcp.types as types
@@ -7,6 +6,7 @@ from mcp.server import NotificationOptions, Server
 from pydantic import AnyUrl
 import mcp.server.stdio
 import singlestoredb as s2
+from .config import SINGLESTORE_API_KEY
 from my_server.tools import tools, tool_functions
 
 # Store notes as a simple key-value dict to demonstrate state management
@@ -14,10 +14,6 @@ notes: dict[str, str] = {}
 
 # Store custom text resources
 custom_text_resources: dict[str, str] = {}
-
-if not settings.singlestore_api_key:
-    print("Error: SingleStore API key is not defined. Please set the SINGLESTORE_API_KEY environment variable.")
-    sys.exit(1)
 
 server = Server("SingleStore MCP Server")
 
@@ -137,7 +133,7 @@ async def handle_get_prompt(
         if not workspace_id:
             raise ValueError("Missing workspace_id argument")
 
-        manager = s2.manage_workspaces(access_token=settings.singlestore_api_key)
+        manager = s2.manage_workspaces(access_token=SINGLESTORE_API_KEY)
         workspace = manager.get_workspace(workspace_id)
 
         return types.GetPromptResult(
@@ -169,7 +165,7 @@ async def handle_get_prompt(
         if not workspace_group_id:
             raise ValueError("Missing workspace_group_id argument")
 
-        manager = s2.manage_workspaces(access_token=settings.singlestore_api_key)
+        manager = s2.manage_workspaces(access_token=SINGLESTORE_API_KEY)
         workspace_group = manager.get_workspace_group(workspace_group_id)
 
         return types.GetPromptResult(
@@ -197,7 +193,7 @@ async def handle_get_prompt(
         if not starter_workspace_id:
             raise ValueError("Missing starter_workspace_id argument")
 
-        manager = s2.manage_workspaces(access_token=settings.singlestore_api_key)
+        manager = s2.manage_workspaces(access_token=SINGLESTORE_API_KEY)
         starter_workspace = manager.get_starter_workspace(starter_workspace_id)
 
         return types.GetPromptResult(
@@ -259,7 +255,7 @@ async def run():
                     experimental_capabilities={},
                 ),
                 initialization_options={
-                    "singlestore_api_key": settings.singlestore_api_key,
+                    "singlestore_api_key": SINGLESTORE_API_KEY,
                 },
             ),
         )
