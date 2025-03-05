@@ -4,12 +4,18 @@ This package contains tools for interacting with the SingleStore API.
 
 ## Setup
 
-1. Set up environment variables:
-    Create a `config` folder with a `__init__.py` file with the following content:
-    ```properties
-    api_key=your_api_key_here
-    api_base_url="https://api.singlestore.com"
+1. Set up environment variables using one of these methods:
+
+    a. Using a .env file: Copy .env.example to .env and fill in your values 
+
+    b. Export variables in shell:
+    ```bash
+    export SINGLESTORE_API_KEY=your_api_key
+    export SINGLESTORE_DB_USERNAME=your_db_username
+    export SIGNLESTORE_DB_PASSWORD=your_db_password
     ```
+
+Note: Database username and password are optional and can be provided as input parameters when needed.
 
 ## Usage
 
