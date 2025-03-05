@@ -306,6 +306,186 @@ def __execute_sql_on_virtual_workspace(
         return {"status": "Failed", "error": str(e)}
 
 
+def __list_notebooks():
+    """
+    Lists all available notebook samples for SingleStore Spaces.
+    """
+    return __build_request("GET", "spaces/notebooks")
+
+
+def __create_file_in_personal_space(path: str, content: str = None):
+    """
+    Create a new file (such as a notebook) in the user's personal space.
+    
+    Args:
+        path: Path to the file to create
+        content: Optional content for the file. If not provided and the file is a 
+                notebook, a sample notebook will be created.
+    """
+    # For creating files, we need to use multipart/form-data format
+    url = f"{SINGLESTORE_API_BASE_URL}/v1/files/fs/personal/{path}"
+    
+    headers = {
+        "Authorization": f"Bearer {SINGLESTORE_API_KEY}",
+    }
+    
+    # Check if it's a notebook and no content provided
+    if path.endswith(".ipynb") and content is None:
+        # Create a sample notebook with SingleStore connectivity example
+        content = json.dumps({
+            "cells": [
+                {
+                    "cell_type": "markdown",
+                    "metadata": {},
+                    "source": ["# SingleStore Sample Notebook\n", 
+                              "\n",
+                              "This notebook demonstrates how to connect to a SingleStore database and run queries.\n"]
+                },
+                {
+                    "cell_type": "code",
+                    "execution_count": None,
+                    "metadata": {},
+                    "outputs": [],
+                    "source": [
+                        "# Import required libraries\n",
+                        "import singlestoredb as s2\n",
+                        "import pandas as pd"
+                    ]
+                },
+                {
+                    "cell_type": "markdown",
+                    "metadata": {},
+                    "source": ["## Connect to SingleStore Database\n", 
+                               "\n",
+                               "Replace the connection parameters with your actual SingleStore database credentials."]
+                },
+                {
+                    "cell_type": "code",
+                    "execution_count": None,
+                    "metadata": {},
+                    "outputs": [],
+                    "source": [
+                        "# Database connection parameters\n",
+                        "host = 'your-endpoint.svc.singlestore.com'\n",
+                        "port = 3306\n",
+                        "user = 'admin'\n",
+                        "password = 'your-password'\n",
+                        "database = 'your-database'\n",
+                        "\n",
+                        "# Connect to SingleStore\n",
+                        "conn = s2.connect(host=host, port=port, user=user, password=password, database=database)\n",
+                        "print('Connected to SingleStore database!')"
+                    ]
+                },
+                {
+                    "cell_type": "markdown",
+                    "metadata": {},
+                    "source": ["## Execute SQL Query\n"]
+                },
+                {
+                    "cell_type": "code",
+                    "execution_count": None,
+                    "metadata": {},
+                    "outputs": [],
+                    "source": [
+                        "# Execute a simple SQL query\n",
+                        "query = \"SELECT 'Hello from SingleStore!' as message\"\n",
+                        "df = pd.read_sql(query, conn)\n",
+                        "df"
+                    ]
+                },
+                {
+                    "cell_type": "markdown",
+                    "metadata": {},
+                    "source": ["## Create and Query a Table\n"]
+                },
+                {
+                    "cell_type": "code",
+                    "execution_count": None,
+                    "metadata": {},
+                    "outputs": [],
+                    "source": [
+                        "# Create a sample table\n",
+                        "conn.execute(\"\"\"\n",
+                        "CREATE TABLE IF NOT EXISTS sample_data (\n",
+                        "    id INT AUTO_INCREMENT PRIMARY KEY,\n",
+                        "    name VARCHAR(100),\n",
+                        "    value FLOAT\n",
+                        ")\n",
+                        "\"\"\")\n",
+                        "\n",
+                        "# Insert some data\n",
+                        "conn.execute(\"\"\"\n",
+                        "INSERT INTO sample_data (name, value) VALUES\n",
+                        "    ('Alpha', 10.5),\n",
+                        "    ('Beta', 20.7),\n",
+                        "    ('Gamma', 15.2),\n",
+                        "    ('Delta', 30.1)\n",
+                        "\"\"\")\n",
+                        "\n",
+                        "# Query the data\n",
+                        "df = pd.read_sql(\"SELECT * FROM sample_data\", conn)\n",
+                        "df"
+                    ]
+                },
+                {
+                    "cell_type": "markdown",
+                    "metadata": {},
+                    "source": ["## Close Connection\n"]
+                },
+                {
+                    "cell_type": "code",
+                    "execution_count": None,
+                    "metadata": {},
+                    "outputs": [],
+                    "source": [
+                        "# Close the connection\n",
+                        "conn.close()"
+                    ]
+                }
+            ],
+            "metadata": {},
+            "nbformat": 4,
+            "nbformat_minor": 2
+        })
+    
+    # If content is provided, send it as the file content
+    # Otherwise, create an empty file
+    if content:
+        files = {'file': (path, content)}
+        response = requests.put(url, headers=headers, files=files)
+    else:
+        response = requests.put(url, headers=headers)
+        
+    if response.status_code != 200:
+        raise ValueError(f"Request failed with status code {response.status_code}: {response.text}")
+        
+    try:
+        return response.json()
+    except ValueError:
+        return {"status": "success", "message": f"File {path} created successfully"}
+
+def __list_files_in_personal_space():
+    """
+    List all files in the user's personal space.
+    """
+    url = f"{SINGLESTORE_API_BASE_URL}/v1/files/fs/personal"
+    
+    headers = {
+        "Authorization": f"Bearer {SINGLESTORE_API_KEY}",
+    }
+    
+    response = requests.get(url, headers=headers)
+    
+    if response.status_code != 200:
+        raise ValueError(f"Request failed with status code {response.status_code}: {response.text}")
+        
+    try:
+        return response.json()
+    except ValueError:
+        raise ValueError(f"Invalid JSON response: {response.text}")
+
+
 # Define the tools
 tools_definitions = [
     {
@@ -567,6 +747,57 @@ tools_definitions = [
                 },
             },
             "required": ["start_time", "end_time", "aggregate_type"],
+        },
+    },
+    {
+        "name": "list_notebook_samples",
+        "description": (
+            "List all notebook samples available in SingleStore Spaces."
+            "This provides sample notebooks that can be used as templates for data analysis."
+        ),
+        "func": lambda: __list_notebooks(),
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    {
+        "name": "create_notebook",
+        "description": (
+            "Create a new notebook in the user's personal space."
+            "This allows creating Jupyter notebooks for data analysis and visualization."
+        ),
+        "func": lambda notebook_name, content=None: __create_file_in_personal_space(
+            notebook_name if notebook_name.endswith(".ipynb") else f"{notebook_name}.ipynb",
+            content
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "notebook_name": {
+                    "type": "string",
+                    "description": "Name of the notebook to create (will automatically add .ipynb extension if not provided)"
+                },
+                "content": {
+                    "type": "string",
+                    "description": "Optional content for the notebook in JSON format"
+                }
+            },
+            "required": ["notebook_name"],
+        },
+    },
+    {
+        "name": "list_personal_files",
+        "description": (
+            "List all files in the user's personal space, including notebooks."
+            "Use this to see what files and notebooks are available in your personal space."
+        ),
+        "func": lambda: __list_files_in_personal_space(),
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
         },
     },
 ]

@@ -45,6 +45,15 @@ The server implements the following tools:
 - execute_sql_on_virtual_workspace: Execute SQL operations on a virtual workspace
   - Arguments: virtual_workspace_id, username, password, sql_query
   - Returns the results of the SQL query in a structured format including data, row count, columns, and status
+- list_notebook_samples: List all notebook samples available in SingleStore Spaces
+  - No arguments required
+  - Returns details of available notebook samples
+- create_notebook: Create a new notebook in the user's personal space
+  - Arguments: notebook_name, content (optional)
+  - Returns details of the created notebook
+- list_personal_files: List all files in the user's personal space
+  - No arguments required
+  - Returns details of all files in the user's personal space
 
 ## Configuration
 
