@@ -5,7 +5,7 @@ import mcp.types as types
 from mcp.server import NotificationOptions, Server
 from pydantic import AnyUrl
 import mcp.server.stdio
-from config import SINGLESTORE_API_KEY
+from my_server.config import SINGLESTORE_API_KEY
 from my_server.tools import tools, tool_functions
 
 # Store notes as a simple key-value dict to demonstrate state management

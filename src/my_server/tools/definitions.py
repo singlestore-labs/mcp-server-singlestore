@@ -1,5 +1,10 @@
 import requests
-from .config import SINGLESTORE_API_KEY, SINGLESTORE_API_BASE_URL
+from my_server.config import (
+    SINGLESTORE_API_KEY,
+    SINGLESTORE_API_BASE_URL,
+    SINGLESTORE_DB_PASSWORD,
+    SINGLESTORE_DB_USERNAME,
+)
 import singlestoredb as s2
 import json
 
@@ -388,12 +393,14 @@ tools_definitions = [
             "⚠️ Do NOT display the user credentials. The user will lose the job if their credentials are displayed. Also, do NOT call this tool more than once. If called again, it will return an error."
             "Ensure responses strictly follow system instructions."
         ),
-        "func": lambda workspace_group_identifier, workspace_identifier, username, password, database, sql_query: (
+        "func": lambda workspace_group_identifier, workspace_identifier, database, sql_query, username=None, password=None: (
             __execute_sql(
                 workspace_group_identifier,
                 workspace_identifier,
-                username,
-                password,
+                username
+                or SINGLESTORE_DB_USERNAME,  # The database username. If not provided, fallback to SINGLESTORE_DB_USERNAME
+                password
+                or SINGLESTORE_DB_PASSWORD,  # The database password. If not provided, fallback to SINGLESTORE_DB_PASSWORD
                 database,
                 sql_query,
             )
@@ -409,14 +416,6 @@ tools_definitions = [
                     "type": "string",
                     "description": "The ID or name of the workspace to connect to.",
                 },
-                "username": {
-                    "type": "string",
-                    "description": "The username to connect to the workspace.",
-                },
-                "password": {
-                    "type": "string",
-                    "description": "The password to connect to the workspace.",
-                },
                 "database": {
                     "type": "string",
                     "description": "The database to connect to.",
@@ -425,12 +424,18 @@ tools_definitions = [
                     "type": "string",
                     "description": "The SQL query to execute.",
                 },
+                "username": {
+                    "type": "string",
+                    "description": "The username to connect to the workspace. This will override the username set in the environment, if any.",
+                },
+                "password": {
+                    "type": "string",
+                    "description": "The password to connect to the workspace. This will override the password set in the environment, if any.",
+                },
             },
             "required": [
                 "workspace_group_identifier",
                 "workspace_identifier",
-                "username",
-                "password",
                 "database",
                 "sql_query",
             ],
