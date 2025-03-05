@@ -486,6 +486,92 @@ def __list_files_in_personal_space():
         raise ValueError(f"Invalid JSON response: {response.text}")
 
 
+def __create_scheduled_job(name: str, notebook_path: str, schedule_mode: str, 
+                           execution_interval_minutes: int = 60, 
+                           start_at: str = None,
+                           description: str = "Scheduled notebook execution",
+                           create_snapshot: bool = True,
+                           runtime_name: str = "notebooks-cpu-small",
+                           parameters: list = None,
+                           target_config: dict = None):
+    """
+    Create a new scheduled job for running a notebook periodically.
+    
+    Args:
+        name: Name of the job
+        notebook_path: Path to the notebook to be executed
+        schedule_mode: Mode of the schedule (OneTime or Recurring)
+        execution_interval_minutes: Minutes between executions (for Recurring mode)
+        start_at: When to start the job (ISO 8601 format)
+        description: Optional description of the job
+        create_snapshot: Whether to create a snapshot of the notebook before execution
+        runtime_name: Name of the runtime to use for the job execution
+        parameters: List of parameter objects to pass to the notebook
+        target_config: Optional target configuration for the job
+    """
+    # Use current time as default for start_at if not provided
+    if not start_at:
+        from datetime import datetime, timezone
+        start_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    
+    # Build schedule based on the mode
+    schedule = {
+        "mode": schedule_mode,
+    }
+    
+    # Add schedule-specific parameters
+    if schedule_mode.lower() == "onetime":
+        schedule["startAt"] = start_at
+    
+    if schedule_mode.lower() == "recurring":
+        schedule["executionIntervalInMinutes"] = execution_interval_minutes
+        schedule["startAt"] = start_at
+    
+    # Set default target_config if not provided
+    if target_config is None:
+        target_config = {
+            "resumeTarget": True
+        }
+    else:
+        # Ensure resumeTarget is set to True if not specified
+        if "resumeTarget" not in target_config:
+            target_config["resumeTarget"] = True
+    
+    # Build the job creation payload according to the API spec
+    payload = {
+        "name": name,
+        "description": description,
+        "executionConfig": {
+            "notebookPath": notebook_path,
+            "createSnapshot": create_snapshot,
+            "runtimeName": runtime_name
+        },
+        "schedule": schedule,
+        "targetConfig": target_config
+    }
+    
+    # Add parameters if provided
+    if parameters:
+        payload["parameters"] = parameters
+    
+    return __build_request("POST", "jobs", data=payload)
+
+
+def __get_job_details(job_id: str):
+    """
+    Get details about a specific job.
+    """
+    return __build_request("GET", f"jobs/{job_id}")
+
+
+def __list_job_executions(job_id: str, start: int = 1, end: int = 10):
+    """
+    List executions for a specific job.
+    """
+    return __build_request("GET", f"jobs/{job_id}/executions", 
+                          params={"start": start, "end": end})
+
+
 # Define the tools
 tools_definitions = [
     {
@@ -798,6 +884,118 @@ tools_definitions = [
             "type": "object",
             "properties": {},
             "required": [],
+        },
+    },
+    {
+        "name": "create_scheduled_job",
+        "description": (
+            "Create a new scheduled job to run a notebook on a defined schedule."
+            "This allows automating notebook execution for recurring tasks or one-time runs."
+        ),
+        "func": lambda name, notebook_path, schedule_mode, execution_interval_minutes=60, start_at=None, 
+                       description="Scheduled notebook execution", create_snapshot=True, runtime_name="notebooks-cpu-small", 
+                       parameters=None, target_config=None: __create_scheduled_job(
+            name, 
+            notebook_path, 
+            schedule_mode, 
+            execution_interval_minutes, 
+            start_at, 
+            description,
+            create_snapshot,
+            runtime_name,
+            parameters,
+            target_config
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Name for the scheduled job"
+                },
+                "notebook_path": {
+                    "type": "string",
+                    "description": "Path to the notebook to be executed (e.g., 'my-notebook.ipynb')"
+                },
+                "schedule_mode": {
+                    "type": "string",
+                    "enum": ["OneTime", "Recurring"],
+                    "description": "Whether the job runs once or repeatedly"
+                },
+                "execution_interval_minutes": {
+                    "type": "integer",
+                    "description": "For recurring jobs, how often to run (in minutes, default: 60)"
+                },
+                "start_at": {
+                    "type": "string",
+                    "description": "When to start the job (ISO 8601 format, e.g., '2023-07-30T18:30:00Z'). Default: current time"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Description of what the job does (default: 'Scheduled notebook execution')"
+                },
+                "create_snapshot": {
+                    "type": "boolean",
+                    "description": "Whether to create a snapshot of the notebook before execution (default: true)"
+                },
+                "runtime_name": {
+                    "type": "string",
+                    "description": "The runtime to use for job execution (default: notebooks-cpu-small)"
+                },
+                "parameters": {
+                    "type": "array",
+                    "description": "Parameters to pass to the notebook (array of objects with name, type, and value)"
+                },
+                "target_config": {
+                    "type": "object",
+                    "description": "Target configuration with targetType, targetID, resumeTarget (default: true), and databaseName"
+                }
+            },
+            "required": ["name", "notebook_path", "schedule_mode"],
+        },
+    },
+    {
+        "name": "get_job_details",
+        "description": (
+            "Get details about a specific scheduled job."
+            "This provides detailed information about a specific job identified by its ID."
+        ),
+        "func": lambda job_id: __get_job_details(job_id),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "job_id": {
+                    "type": "string",
+                    "description": "ID of the scheduled job to get details for"
+                }
+            },
+            "required": ["job_id"],
+        },
+    },
+    {
+        "name": "list_job_executions",
+        "description": (
+            "List executions for a specific scheduled job."
+            "This provides information about the execution history of a specific job."
+        ),
+        "func": lambda job_id, start=1, end=10: __list_job_executions(job_id, start, end),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "job_id": {
+                    "type": "string",
+                    "description": "ID of the scheduled job to list executions for"
+                },
+                "start": {
+                    "type": "integer",
+                    "description": "Starting execution number (default: 1)"
+                },
+                "end": {
+                    "type": "integer",
+                    "description": "Ending execution number (default: 10)"
+                }
+            },
+            "required": ["job_id"],
         },
     },
 ]

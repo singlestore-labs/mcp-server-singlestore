@@ -54,6 +54,23 @@ The server implements the following tools:
 - list_personal_files: List all files in the user's personal space
   - No arguments required
   - Returns details of all files in the user's personal space
+- create_scheduled_job: Create a new scheduled job to run a notebook
+  - Arguments: 
+    - name: Name for the job
+    - notebook_path: Path to the notebook to execute
+    - schedule_mode: OneTime or Recurring
+    - execution_interval_minutes: Minutes between executions (optional)
+    - start_at: When to start the job (optional)
+    - description: Description of the job (optional)
+    - max_duration_minutes: Maximum allowed runtime (optional)
+    - create_snapshot: Whether to create notebook snapshots (optional)
+  - Returns details of the created job
+- get_job_details: Get details about a specific job
+  - Arguments: job_id
+  - Returns detailed information about the specified job
+- list_job_executions: List execution history for a specific job
+  - Arguments: job_id, start (optional), end (optional)
+  - Returns execution history for the specified job
 
 ## Configuration
 
