@@ -106,15 +106,11 @@ async def handle_call_tool(
     """
     if name not in tool_functions:
         raise ValueError(f"Unknown tool: {name}")
-    
+
     result = tool_functions[name](**arguments)
 
-    return [
-        types.TextContent(
-            type="text",
-            text=str(result)
-        )
-    ]
+    return [types.TextContent(type="text", text=str(result))]
+
 
 async def run():
     # Run the server using stdin/stdout streams
