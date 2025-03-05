@@ -503,8 +503,13 @@ tools_definitions = [
             "⚠️ Do NOT display the user credentials. The user will lose their job if their credentials are displayed."
             "Use this to run SQL queries directly on a starter workspace."
         ),
-        "func": lambda virtual_workspace_id, username, password, sql_query: __execute_sql_on_virtual_workspace(
-            virtual_workspace_id, username, password, sql_query
+        "func": lambda virtual_workspace_id, sql_query, username=None, password=None: __execute_sql_on_virtual_workspace(
+            virtual_workspace_id,
+            username
+            or SINGLESTORE_DB_USERNAME,  # The database username. If not provided, fallback to SINGLESTORE_DB_USERNAME
+            password
+            or SINGLESTORE_DB_PASSWORD,  # The database password. If not provided, fallback to SINGLESTORE_DB_PASSWORD
+            sql_query,
         ),
         "inputSchema": {
             "type": "object",
@@ -513,20 +518,20 @@ tools_definitions = [
                     "type": "string",
                     "description": "ID of the starter workspace to connect to",
                 },
-                "username": {
-                    "type": "string",
-                    "description": "Username for accessing the starter workspace",
-                },
-                "password": {
-                    "type": "string",
-                    "description": "Password for accessing the starter workspace",
-                },
                 "sql_query": {
                     "type": "string",
                     "description": "The SQL query to execute on the starter workspace",
                 },
+                "username": {
+                    "type": "string",
+                    "description": "Username for accessing the starter workspace. This will override the username set in the environment, if any.",
+                },
+                "password": {
+                    "type": "string",
+                    "description": "Password for accessing the starter workspace. This will override the password set in the environment, if any.",
+                },
             },
-            "required": ["virtual_workspace_id", "username", "password", "sql_query"],
+            "required": ["virtual_workspace_id", "sql_query"],
         },
     },
     {
