@@ -58,7 +58,7 @@ The server implements the following tools:
   - Arguments: 
     - name: Name for the job
     - notebook_path: Path to the notebook to execute
-    - schedule_mode: OneTime or Recurring
+    - schedule_mode: Once or Recurring
     - execution_interval_minutes: Minutes between executions (optional)
     - start_at: When to start the job (optional)
     - description: Description of the job (optional)

@@ -500,7 +500,7 @@ def __create_scheduled_job(name: str, notebook_path: str, schedule_mode: str,
     Args:
         name: Name of the job
         notebook_path: Path to the notebook to be executed
-        schedule_mode: Mode of the schedule (OneTime or Recurring)
+        schedule_mode: Mode of the schedule (Once or Recurring)
         execution_interval_minutes: Minutes between executions (for Recurring mode)
         start_at: When to start the job (ISO 8601 format)
         description: Optional description of the job
@@ -520,7 +520,7 @@ def __create_scheduled_job(name: str, notebook_path: str, schedule_mode: str,
     }
     
     # Add schedule-specific parameters
-    if schedule_mode.lower() == "onetime":
+    if schedule_mode.lower() == "Once":
         schedule["startAt"] = start_at
     
     if schedule_mode.lower() == "recurring":
@@ -570,6 +570,136 @@ def __list_job_executions(job_id: str, start: int = 1, end: int = 10):
     """
     return __build_request("GET", f"jobs/{job_id}/executions", 
                           params={"start": start, "end": end})
+
+def __list_files_in_shared_space():
+    """
+    List all files in the shared space.
+    """
+    url = f"{SINGLESTORE_API_BASE_URL}/v1/files/fs/shared"
+    
+    headers = {
+        "Authorization": f"Bearer {SINGLESTORE_API_KEY}",
+    }
+    
+    response = requests.get(url, headers=headers)
+    
+    if response.status_code != 200:
+        raise ValueError(f"Request failed with status code {response.status_code}: {response.text}")
+        
+    try:
+        return response.json()
+    except ValueError:
+        raise ValueError(f"Invalid JSON response: {response.text}")
+
+def __get_notebook_path_by_name(notebook_name: str, location: str = "personal") -> str:
+    """
+    Find a notebook by its name and return its full path.
+    
+    Args:
+        notebook_name: The name of the notebook to find (with or without .ipynb extension)
+        location: Where to look for the notebook - 'personal' or 'shared'
+        
+    Returns:
+        The full path of the notebook if found
+        
+    Raises:
+        ValueError: If no notebook with the given name is found
+    """
+    # Make sure we look for the right extension
+    if not notebook_name.endswith('.ipynb'):
+        search_name = f"{notebook_name}.ipynb"
+    else:
+        search_name = notebook_name
+    
+    # Get all files from the specified location
+    if location.lower() == "personal":
+        files_response = __list_files_in_personal_space()
+    elif location.lower() == "shared":
+        files_response = __list_files_in_shared_space()
+    else:
+        raise ValueError(f"Invalid location: {location}. Must be 'personal' or 'shared'")
+    
+    # The API might return different structures
+    # Handle both array of files or object with content property
+    if isinstance(files_response, dict) and 'content' in files_response:
+        files = files_response['content']
+    elif isinstance(files_response, list):
+        files = files_response
+    else:
+        raise ValueError(f"Unexpected response format from file listing API: {type(files_response)}")
+    
+    # Filter to find notebooks matching the name (case insensitive)
+    matching_notebooks = []
+    for file in files:
+        # Verify file is a dictionary with the expected fields
+        if not isinstance(file, dict):
+            continue
+        
+        # Skip if not a notebook or missing path
+        if 'path' not in file or not isinstance(file['path'], str) or not file['path'].endswith('.ipynb'):
+            continue
+        
+        # Check if the name matches
+        file_name = file['path'].split('/')[-1]  # Get just the filename portion
+        if file_name.lower() == search_name.lower():
+            matching_notebooks.append(file)
+    
+    if not matching_notebooks:
+        raise ValueError(f"No notebook with name '{notebook_name}' found in {location} space")
+    
+    # If we found multiple matches (unlikely with exact name match), return first one
+    notebook_path = matching_notebooks[0]['path']
+    
+    if location.lower() == "personal":
+        user_id = __get_user_id()
+
+        # Format for personal space: {projectID}/_internal-s2-personal/{userID}/{path}
+        return f"_internal-s2-personal/{user_id}/{notebook_path}"
+    elif location.lower() == "shared":
+        project_id = __get_project_id()
+
+        # Format for shared space: {projectID}/{path}
+        return f"{project_id}/{notebook_path}"
+    
+    # If we couldn't get the IDs or format correctly, return the raw path
+    return notebook_path
+
+
+def __get_project_id():
+    """
+    Get the organization ID (project ID) from the management API.
+    
+    Returns:
+        str: The organization ID
+    """
+    # Get current organization info to extract the project ID
+    org_info = __build_request("GET", "organizations/current")
+    project_id = org_info.get("orgID")
+    
+    if not project_id:
+        raise ValueError("Could not retrieve organization ID from the API")
+        
+    return project_id
+
+def __get_user_id():
+    """
+    Get the current user's ID from the management API.
+    
+    Returns:
+        str: The user ID
+    """
+    # Get all users in the organization
+    users = __build_request("GET", "users")
+    
+    # Find the current user
+    # Since we can't directly get the current user ID, we'll use the first user
+    # In a real implementation, we might need additional logic to identify the current user
+    if users and isinstance(users, list) and len(users) > 0:
+        user_id = users[0].get("userID")
+        if user_id:
+            return user_id
+    
+    raise ValueError("Could not retrieve user ID from the API")
 
 
 # Define the tools
@@ -919,7 +1049,7 @@ tools_definitions = [
                 },
                 "schedule_mode": {
                     "type": "string",
-                    "enum": ["OneTime", "Recurring"],
+                    "enum": ["Once", "Recurring"],
                     "description": "Whether the job runs once or repeatedly"
                 },
                 "execution_interval_minutes": {
@@ -998,4 +1128,54 @@ tools_definitions = [
             "required": ["job_id"],
         },
     },
+    {
+        "name": "get_notebook_path",
+        "description": (
+            "Find the full path of a notebook by its name in personal or shared space."
+            "This is useful when you need to reference a notebook path for creating scheduled jobs."
+        ),
+        "func": lambda notebook_name, location="personal": __get_notebook_path_by_name(notebook_name, location),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "notebook_name": {
+                    "type": "string",
+                    "description": "Name of the notebook to find (with or without .ipynb extension)"
+                },
+                "location": {
+                    "type": "string", 
+                    "enum": ["personal", "shared"],
+                    "description": "Location to search for the notebook (personal or shared space)",
+                    "default": "personal"
+                }
+            },
+            "required": ["notebook_name"],
+        },
+    },
+    {
+        "name": "get_project_id",
+        "description": (
+            "Retrieve the organization ID (project ID) from the SingleStore Management API."
+            "This is useful for constructing paths or references to resources."
+        ),
+        "func": lambda: __get_project_id(),
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    {
+        "name": "get_user_id",
+        "description": (
+            "Retrieve the current user's ID from the SingleStore Management API."
+            "This is useful for constructing paths or references to personal resources."
+        ),
+        "func": lambda: __get_user_id(),
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    }
 ]
