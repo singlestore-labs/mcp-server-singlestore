@@ -316,187 +316,199 @@ def __list_notebooks():
 def __create_file_in_personal_space(path: str, content: str = None):
     """
     Create a new file (such as a notebook) in the user's personal space.
-    
+
     Args:
         path: Path to the file to create
-        content: Optional content for the file. If not provided and the file is a 
+        content: Optional content for the file. If not provided and the file is a
                 notebook, a sample notebook will be created.
     """
     # For creating files, we need to use multipart/form-data format
     url = f"{SINGLESTORE_API_BASE_URL}/v1/files/fs/personal/{path}"
-    
+
     headers = {
         "Authorization": f"Bearer {SINGLESTORE_API_KEY}",
     }
-    
+
     # Check if it's a notebook and no content provided
     if path.endswith(".ipynb") and content is None:
         # Create a sample notebook with SingleStore connectivity example
-        content = json.dumps({
-            "cells": [
-                {
-                    "cell_type": "markdown",
-                    "metadata": {},
-                    "source": ["# SingleStore Sample Notebook\n", 
-                              "\n",
-                              "This notebook demonstrates how to connect to a SingleStore database and run queries.\n"]
-                },
-                {
-                    "cell_type": "code",
-                    "execution_count": None,
-                    "metadata": {},
-                    "outputs": [],
-                    "source": [
-                        "# Import required libraries\n",
-                        "import singlestoredb as s2\n",
-                        "import pandas as pd"
-                    ]
-                },
-                {
-                    "cell_type": "markdown",
-                    "metadata": {},
-                    "source": ["## Connect to SingleStore Database\n", 
-                               "\n",
-                               "Replace the connection parameters with your actual SingleStore database credentials."]
-                },
-                {
-                    "cell_type": "code",
-                    "execution_count": None,
-                    "metadata": {},
-                    "outputs": [],
-                    "source": [
-                        "# Database connection parameters\n",
-                        "host = 'your-endpoint.svc.singlestore.com'\n",
-                        "port = 3306\n",
-                        "user = 'admin'\n",
-                        "password = 'your-password'\n",
-                        "database = 'your-database'\n",
-                        "\n",
-                        "# Connect to SingleStore\n",
-                        "conn = s2.connect(host=host, port=port, user=user, password=password, database=database)\n",
-                        "print('Connected to SingleStore database!')"
-                    ]
-                },
-                {
-                    "cell_type": "markdown",
-                    "metadata": {},
-                    "source": ["## Execute SQL Query\n"]
-                },
-                {
-                    "cell_type": "code",
-                    "execution_count": None,
-                    "metadata": {},
-                    "outputs": [],
-                    "source": [
-                        "# Execute a simple SQL query\n",
-                        "query = \"SELECT 'Hello from SingleStore!' as message\"\n",
-                        "df = pd.read_sql(query, conn)\n",
-                        "df"
-                    ]
-                },
-                {
-                    "cell_type": "markdown",
-                    "metadata": {},
-                    "source": ["## Create and Query a Table\n"]
-                },
-                {
-                    "cell_type": "code",
-                    "execution_count": None,
-                    "metadata": {},
-                    "outputs": [],
-                    "source": [
-                        "# Create a sample table\n",
-                        "conn.execute(\"\"\"\n",
-                        "CREATE TABLE IF NOT EXISTS sample_data (\n",
-                        "    id INT AUTO_INCREMENT PRIMARY KEY,\n",
-                        "    name VARCHAR(100),\n",
-                        "    value FLOAT\n",
-                        ")\n",
-                        "\"\"\")\n",
-                        "\n",
-                        "# Insert some data\n",
-                        "conn.execute(\"\"\"\n",
-                        "INSERT INTO sample_data (name, value) VALUES\n",
-                        "    ('Alpha', 10.5),\n",
-                        "    ('Beta', 20.7),\n",
-                        "    ('Gamma', 15.2),\n",
-                        "    ('Delta', 30.1)\n",
-                        "\"\"\")\n",
-                        "\n",
-                        "# Query the data\n",
-                        "df = pd.read_sql(\"SELECT * FROM sample_data\", conn)\n",
-                        "df"
-                    ]
-                },
-                {
-                    "cell_type": "markdown",
-                    "metadata": {},
-                    "source": ["## Close Connection\n"]
-                },
-                {
-                    "cell_type": "code",
-                    "execution_count": None,
-                    "metadata": {},
-                    "outputs": [],
-                    "source": [
-                        "# Close the connection\n",
-                        "conn.close()"
-                    ]
-                }
-            ],
-            "metadata": {},
-            "nbformat": 4,
-            "nbformat_minor": 2
-        })
-    
+        content = json.dumps(
+            {
+                "cells": [
+                    {
+                        "cell_type": "markdown",
+                        "metadata": {},
+                        "source": [
+                            "# SingleStore Sample Notebook\n",
+                            "\n",
+                            "This notebook demonstrates how to connect to a SingleStore database and run queries.\n",
+                        ],
+                    },
+                    {
+                        "cell_type": "code",
+                        "execution_count": None,
+                        "metadata": {},
+                        "outputs": [],
+                        "source": [
+                            "# Import required libraries\n",
+                            "import singlestoredb as s2\n",
+                            "import pandas as pd",
+                        ],
+                    },
+                    {
+                        "cell_type": "markdown",
+                        "metadata": {},
+                        "source": [
+                            "## Connect to SingleStore Database\n",
+                            "\n",
+                            "Replace the connection parameters with your actual SingleStore database credentials.",
+                        ],
+                    },
+                    {
+                        "cell_type": "code",
+                        "execution_count": None,
+                        "metadata": {},
+                        "outputs": [],
+                        "source": [
+                            "# Database connection parameters\n",
+                            "host = 'your-endpoint.svc.singlestore.com'\n",
+                            "port = 3306\n",
+                            "user = 'admin'\n",
+                            "password = 'your-password'\n",
+                            "database = 'your-database'\n",
+                            "\n",
+                            "# Connect to SingleStore\n",
+                            "conn = s2.connect(host=host, port=port, user=user, password=password, database=database)\n",
+                            "print('Connected to SingleStore database!')",
+                        ],
+                    },
+                    {
+                        "cell_type": "markdown",
+                        "metadata": {},
+                        "source": ["## Execute SQL Query\n"],
+                    },
+                    {
+                        "cell_type": "code",
+                        "execution_count": None,
+                        "metadata": {},
+                        "outputs": [],
+                        "source": [
+                            "# Execute a simple SQL query\n",
+                            "query = \"SELECT 'Hello from SingleStore!' as message\"\n",
+                            "df = pd.read_sql(query, conn)\n",
+                            "df",
+                        ],
+                    },
+                    {
+                        "cell_type": "markdown",
+                        "metadata": {},
+                        "source": ["## Create and Query a Table\n"],
+                    },
+                    {
+                        "cell_type": "code",
+                        "execution_count": None,
+                        "metadata": {},
+                        "outputs": [],
+                        "source": [
+                            "# Create a sample table\n",
+                            'conn.execute("""\n',
+                            "CREATE TABLE IF NOT EXISTS sample_data (\n",
+                            "    id INT AUTO_INCREMENT PRIMARY KEY,\n",
+                            "    name VARCHAR(100),\n",
+                            "    value FLOAT\n",
+                            ")\n",
+                            '""")\n',
+                            "\n",
+                            "# Insert some data\n",
+                            'conn.execute("""\n',
+                            "INSERT INTO sample_data (name, value) VALUES\n",
+                            "    ('Alpha', 10.5),\n",
+                            "    ('Beta', 20.7),\n",
+                            "    ('Gamma', 15.2),\n",
+                            "    ('Delta', 30.1)\n",
+                            '""")\n',
+                            "\n",
+                            "# Query the data\n",
+                            'df = pd.read_sql("SELECT * FROM sample_data", conn)\n',
+                            "df",
+                        ],
+                    },
+                    {
+                        "cell_type": "markdown",
+                        "metadata": {},
+                        "source": ["## Close Connection\n"],
+                    },
+                    {
+                        "cell_type": "code",
+                        "execution_count": None,
+                        "metadata": {},
+                        "outputs": [],
+                        "source": ["# Close the connection\n", "conn.close()"],
+                    },
+                ],
+                "metadata": {},
+                "nbformat": 4,
+                "nbformat_minor": 2,
+            }
+        )
+
     # If content is provided, send it as the file content
     # Otherwise, create an empty file
     if content:
-        files = {'file': (path, content)}
+        files = {"file": (path, content)}
         response = requests.put(url, headers=headers, files=files)
     else:
         response = requests.put(url, headers=headers)
-        
+
     if response.status_code != 200:
-        raise ValueError(f"Request failed with status code {response.status_code}: {response.text}")
-        
+        raise ValueError(
+            f"Request failed with status code {response.status_code}: {response.text}"
+        )
+
     try:
         return response.json()
     except ValueError:
         return {"status": "success", "message": f"File {path} created successfully"}
+
 
 def __list_files_in_personal_space():
     """
     List all files in the user's personal space.
     """
     url = f"{SINGLESTORE_API_BASE_URL}/v1/files/fs/personal"
-    
+
     headers = {
         "Authorization": f"Bearer {SINGLESTORE_API_KEY}",
     }
-    
+
     response = requests.get(url, headers=headers)
-    
+
     if response.status_code != 200:
-        raise ValueError(f"Request failed with status code {response.status_code}: {response.text}")
-        
+        raise ValueError(
+            f"Request failed with status code {response.status_code}: {response.text}"
+        )
+
     try:
         return response.json()
     except ValueError:
         raise ValueError(f"Invalid JSON response: {response.text}")
 
 
-def __create_scheduled_job(name: str, notebook_path: str, schedule_mode: str, 
-                           execution_interval_minutes: int = 60, 
-                           start_at: str = None,
-                           description: str = "Scheduled notebook execution",
-                           create_snapshot: bool = True,
-                           runtime_name: str = "notebooks-cpu-small",
-                           parameters: list = None,
-                           target_config: dict = None):
+def __create_scheduled_job(
+    name: str,
+    notebook_path: str,
+    schedule_mode: str,
+    execution_interval_minutes: int = 60,
+    start_at: str = None,
+    description: str = "Scheduled notebook execution",
+    create_snapshot: bool = True,
+    runtime_name: str = "notebooks-cpu-small",
+    parameters: list = None,
+    target_config: dict = None,
+):
     """
     Create a new scheduled job for running a notebook periodically.
-    
+
     Args:
         name: Name of the job
         notebook_path: Path to the notebook to be executed
@@ -512,31 +524,30 @@ def __create_scheduled_job(name: str, notebook_path: str, schedule_mode: str,
     # Use current time as default for start_at if not provided
     if not start_at:
         from datetime import datetime, timezone
+
         start_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    
+
     # Build schedule based on the mode
     schedule = {
         "mode": schedule_mode,
     }
-    
+
     # Add schedule-specific parameters
     if schedule_mode.lower() == "Once":
         schedule["startAt"] = start_at
-    
+
     if schedule_mode.lower() == "recurring":
         schedule["executionIntervalInMinutes"] = execution_interval_minutes
         schedule["startAt"] = start_at
-    
+
     # Set default target_config if not provided
     if target_config is None:
-        target_config = {
-            "resumeTarget": True
-        }
+        target_config = {"resumeTarget": True}
     else:
         # Ensure resumeTarget is set to True if not specified
         if "resumeTarget" not in target_config:
             target_config["resumeTarget"] = True
-    
+
     # Build the job creation payload according to the API spec
     payload = {
         "name": name,
@@ -544,16 +555,16 @@ def __create_scheduled_job(name: str, notebook_path: str, schedule_mode: str,
         "executionConfig": {
             "notebookPath": notebook_path,
             "createSnapshot": create_snapshot,
-            "runtimeName": runtime_name
+            "runtimeName": runtime_name,
         },
         "schedule": schedule,
-        "targetConfig": target_config
+        "targetConfig": target_config,
     }
-    
+
     # Add parameters if provided
     if parameters:
         payload["parameters"] = parameters
-    
+
     return __build_request("POST", "jobs", data=payload)
 
 
@@ -568,88 +579,103 @@ def __list_job_executions(job_id: str, start: int = 1, end: int = 10):
     """
     List executions for a specific job.
     """
-    return __build_request("GET", f"jobs/{job_id}/executions", 
-                          params={"start": start, "end": end})
+    return __build_request(
+        "GET", f"jobs/{job_id}/executions", params={"start": start, "end": end}
+    )
+
 
 def __list_files_in_shared_space():
     """
     List all files in the shared space.
     """
     url = f"{SINGLESTORE_API_BASE_URL}/v1/files/fs/shared"
-    
+
     headers = {
         "Authorization": f"Bearer {SINGLESTORE_API_KEY}",
     }
-    
+
     response = requests.get(url, headers=headers)
-    
+
     if response.status_code != 200:
-        raise ValueError(f"Request failed with status code {response.status_code}: {response.text}")
-        
+        raise ValueError(
+            f"Request failed with status code {response.status_code}: {response.text}"
+        )
+
     try:
         return response.json()
     except ValueError:
         raise ValueError(f"Invalid JSON response: {response.text}")
 
+
 def __get_notebook_path_by_name(notebook_name: str, location: str = "personal") -> str:
     """
     Find a notebook by its name and return its full path.
-    
+
     Args:
         notebook_name: The name of the notebook to find (with or without .ipynb extension)
         location: Where to look for the notebook - 'personal' or 'shared'
-        
+
     Returns:
         The full path of the notebook if found
-        
+
     Raises:
         ValueError: If no notebook with the given name is found
     """
     # Make sure we look for the right extension
-    if not notebook_name.endswith('.ipynb'):
+    if not notebook_name.endswith(".ipynb"):
         search_name = f"{notebook_name}.ipynb"
     else:
         search_name = notebook_name
-    
+
     # Get all files from the specified location
     if location.lower() == "personal":
         files_response = __list_files_in_personal_space()
     elif location.lower() == "shared":
         files_response = __list_files_in_shared_space()
     else:
-        raise ValueError(f"Invalid location: {location}. Must be 'personal' or 'shared'")
-    
+        raise ValueError(
+            f"Invalid location: {location}. Must be 'personal' or 'shared'"
+        )
+
     # The API might return different structures
     # Handle both array of files or object with content property
-    if isinstance(files_response, dict) and 'content' in files_response:
-        files = files_response['content']
+    if isinstance(files_response, dict) and "content" in files_response:
+        files = files_response["content"]
     elif isinstance(files_response, list):
         files = files_response
     else:
-        raise ValueError(f"Unexpected response format from file listing API: {type(files_response)}")
-    
+        raise ValueError(
+            f"Unexpected response format from file listing API: {type(files_response)}"
+        )
+
     # Filter to find notebooks matching the name (case insensitive)
     matching_notebooks = []
     for file in files:
         # Verify file is a dictionary with the expected fields
         if not isinstance(file, dict):
             continue
-        
+
         # Skip if not a notebook or missing path
-        if 'path' not in file or not isinstance(file['path'], str) or not file['path'].endswith('.ipynb'):
+        if (
+            "path" not in file
+            or not isinstance(file["path"], str)
+            or not file["path"].endswith(".ipynb")
+        ):
             continue
-        
+
         # Check if the name matches
-        file_name = file['path'].split('/')[-1]  # Get just the filename portion
+        file_name = file["path"].split("/")[-1]  # Get just the filename portion
         if file_name.lower() == search_name.lower():
             matching_notebooks.append(file)
-    
+
     if not matching_notebooks:
-        raise ValueError(f"No notebook with name '{notebook_name}' found in {location} space")
-    
+        raise ValueError(
+            f"No notebook with name '{notebook_name}' found in {location} space"
+        )
+
     # If we found multiple matches (unlikely with exact name match), return first one
-    notebook_path = matching_notebooks[0]['path']
-    
+    notebook_path = matching_notebooks[0]["path"]
+
     if location.lower() == "personal":
         user_id = __get_user_id()
 
@@ -660,7 +686,7 @@ def __get_notebook_path_by_name(notebook_name: str, location: str = "personal") 
 
         # Format for shared space: {projectID}/{path}
         return f"{project_id}/{notebook_path}"
-    
+
     # If we couldn't get the IDs or format correctly, return the raw path
     return notebook_path
 
@@ -668,29 +694,30 @@ def __get_notebook_path_by_name(notebook_name: str, location: str = "personal") 
 def __get_project_id():
     """
     Get the organization ID (project ID) from the management API.
-    
+
     Returns:
         str: The organization ID
     """
     # Get current organization info to extract the project ID
     org_info = __build_request("GET", "organizations/current")
     project_id = org_info.get("orgID")
-    
+
     if not project_id:
         raise ValueError("Could not retrieve organization ID from the API")
-        
+
     return project_id
+
 
 def __get_user_id():
     """
     Get the current user's ID from the management API.
-    
+
     Returns:
         str: The user ID
     """
     # Get all users in the organization
     users = __build_request("GET", "users")
-    
+
     # Find the current user
     # Since we can't directly get the current user ID, we'll use the first user
     # In a real implementation, we might need additional logic to identify the current user
@@ -698,7 +725,7 @@ def __get_user_id():
         user_id = users[0].get("userID")
         if user_id:
             return user_id
-    
+
     raise ValueError("Could not retrieve user ID from the API")
 
 
@@ -707,7 +734,25 @@ tools_definitions = [
     {
         "name": "workspace_groups_info",
         "description": (
-            "Retrieve details about the workspace groups accessible to the user."
+            "List all workspace groups accessible to the user in SingleStore.\n"
+            "\n"
+            "Returns detailed information for each group:\n"
+            "- name: Display name of the workspace group\n"
+            "- deploymentType: Type of deployment (e.g., 'PRODUCTION')\n"
+            "- state: Current status (e.g., 'ACTIVE', 'PAUSED')\n"
+            "- workspaceGroupID: Unique identifier for the group\n"
+            "- firewallRanges: Array of allowed IP ranges for access control\n"
+            "- createdAt: Timestamp of group creation\n"
+            "- regionID: Identifier for deployment region\n"
+            "- updateWindow: Maintenance window configuration\n"
+            "\n"
+            "Use this tool to:\n"
+            "1. Get workspace group IDs for other operations\n"
+            "2. Plan maintenance windows\n"
+            "\n"
+            "Related operations:\n"
+            "- Use workspaces_info to list workspaces within a group\n"
+            "- Use execute_sql to run queries on workspaces in a group\n"
         ),
         "func": lambda: [
             {
@@ -731,7 +776,31 @@ tools_definitions = [
     {
         "name": "workspaces_info",
         "description": (
-            "Retrieve details about the workspaces in a specific workspace group."
+            "List all workspaces within a specified workspace group in SingleStore.\n"
+            "\n"
+            "Returns detailed information for each workspace:\n"
+            "- createdAt: Timestamp of workspace creation\n"
+            "- deploymentType: Type of deployment (e.g., 'PRODUCTION')\n"
+            "- endpoint: Connection URL for database access\n"
+            "- name: Display name of the workspace\n"
+            "- size: Compute and storage configuration\n"
+            "- state: Current status (e.g., 'ACTIVE', 'PAUSED')\n"
+            "- terminatedAt: Timestamp of termination if applicable\n"
+            "- workspaceGroupID: Workspacegroup identifier\n"
+            "- workspaceID: Unique workspace identifier\n"
+            "\n"
+            "Use this tool to:\n"
+            "1. Monitor workspace status\n"
+            "2. Get connection details for database operations\n"
+            "3. Track workspace lifecycle\n"
+            "\n"
+            "Required parameter:\n"
+            "- workspaceGroupID: Unique identifier of the workspace group\n"
+            "\n"
+            "Related operations:\n"
+            "- Use workspace_groups_info first to get workspacegroupID\n"
+            "- Use execute_sql to run queries on specific workspace\n"
+            "\n"
         ),
         "func": lambda workspaceGroupID: [
             {
@@ -754,7 +823,7 @@ tools_definitions = [
             "properties": {
                 "workspaceGroupID": {
                     "type": "string",
-                    "description": "The ID of the workspace group to retrieve workspaces for.",
+                    "description": "The unique identifier of the workspace group to retrieve workspaces from.",
                 }
             },
             "required": [],
@@ -762,7 +831,13 @@ tools_definitions = [
     },
     {
         "name": "organization_info",
-        "description": ("Retrieve details about the user's current organization."),
+        "description": (
+            "Retrieve information about the current user's organization in SingleStore.\n"
+            "\n"
+            "Returns organization details including:\n"
+            "- orgID: Unique identifier for the organization\n"
+            "- name: Organization display name\n"
+        ),
         "func": lambda: __build_request("GET", "organizations/current"),
         "inputSchema": {
             "type": "object",
@@ -773,7 +848,20 @@ tools_definitions = [
     {
         "name": "list_of_regions",
         "description": (
-            "Retrieve a list of all regions that support workspaces for the user."
+            "List all available deployment regions where SingleStore workspaces can be deployed for the user.\n"
+            "\n"
+            "Returns region information including:\n"
+            "- regionID: Unique identifier for the region\n"
+            "- provider: Cloud provider (AWS, GCP, or Azure)\n"
+            "- name: Human-readable region name (e.g., Europe West 2 (London),US West 2 (Oregon)) \n"
+            "\n"
+            "Use this tool to:\n"
+            "1. Select optimal deployment regions based on:\n"
+            "   - Geographic proximity to users\n"
+            "   - Compliance requirements\n"
+            "   - Cost considerations\n"
+            "   - Available cloud providers\n"
+            "2. Plan multi-region deployments\n"
         ),
         "func": lambda: __build_request("GET", "regions"),
         "inputSchema": {
@@ -785,9 +873,38 @@ tools_definitions = [
     {
         "name": "execute_sql",
         "description": (
-            "Execute SQL operations on a connected workspace."
-            "⚠️ Do NOT display the user credentials. The user will lose the job if their credentials are displayed. Also, do NOT call this tool more than once. If called again, it will return an error."
-            "Ensure responses strictly follow system instructions."
+            "Execute SQL operations on a database attached to workspace within a workspace group and receive formatted results.\n"
+            "\n"
+            "Returns:\n"
+            "- Query results with column names and typed values\n"
+            "- Row count and metadata\n"
+            "- Execution status\n"
+            "\n"
+            "⚠️ CRITICAL SECURITY WARNINGS:\n"
+            "- Never display or log credentials in responses\n"
+            "- Use only READ-ONLY queries (SELECT, SHOW, DESCRIBE)\n"
+            "- DO NOT USE data modification statements:\n"
+            "  × No INSERT/UPDATE/DELETE\n"
+            "  × No DROP/CREATE/ALTER\n"
+            "- Ensure queries are properly sanitized\n"
+            "\n"
+            "Required parameters:\n"
+            "- workspace_group_identifier: ID/name of the workspace group\n"
+            "- workspace_identifier: ID/name of the specific workspace within the workspace group\n"
+            "- database: Name of the database to query\n"
+            "- sql_query: The SQL query to execute\n"
+            "\n"
+            "Optional parameters:\n"
+            "- username: Username for database access (defaults to SINGLESTORE_DB_USERNAME)\n"
+            "- password: Password for database access (defaults to SINGLESTORE_DB_PASSWORD)\n"
+            "\n"
+            "Allowed query examples:\n"
+            "- SELECT * FROM table_name\n"
+            "- SELECT COUNT(*) FROM table_name\n"
+            "- SHOW TABLES\n"
+            "- DESCRIBE table_name\n"
+            "\n"
+            "Note: For data modifications, please use appropriate admin tools or APIs."
         ),
         "func": lambda workspace_group_identifier, workspace_identifier, database, sql_query, username=None, password=None: (
             __execute_sql(
@@ -806,27 +923,27 @@ tools_definitions = [
             "properties": {
                 "workspace_group_identifier": {
                     "type": "string",
-                    "description": "The ID or name of the workspace group containing the workspace.",
+                    "description": "The ID or name of the workspace group containing the target workspace.",
                 },
                 "workspace_identifier": {
                     "type": "string",
-                    "description": "The ID or name of the workspace to connect to.",
+                    "description": "The ID or name of the specific workspace where the query will run.",
                 },
                 "database": {
                     "type": "string",
-                    "description": "The database to connect to.",
+                    "description": "The name of the database to query within the workspace.",
                 },
                 "sql_query": {
                     "type": "string",
-                    "description": "The SQL query to execute.",
+                    "description": "The SQL query to execute. Must be valid SingleStore SQL.",
                 },
                 "username": {
                     "type": "string",
-                    "description": "The username to connect to the workspace. This will override the username set in the environment, if any.",
+                    "description": "Optional: Username for database connection. Will use environment default if not specified.",
                 },
                 "password": {
                     "type": "string",
-                    "description": "The password to connect to the workspace. This will override the password set in the environment, if any.",
+                    "description": "Optional: Password for database connection. Will use environment default if not specified.",
                 },
             },
             "required": [
@@ -840,8 +957,24 @@ tools_definitions = [
     {
         "name": "list_virtual_workspaces",
         "description": (
-            "List all starter workspaces (virtual workspaces) accessible to the user."
-            "Use this to get information about available starter workspaces."
+            "List all starter (virtual) workspaces available to the user in SingleStore.\n"
+            "\n"
+            "Returns detailed information about each starter workspace:\n"
+            "- virtualWorkspaceID: Unique identifier for the workspace\n"
+            "- name: Display name of the workspace\n"
+            "- endpoint: Connection endpoint URL\n"
+            "- databaseName: Name of the primary database\n"
+            "- mysqlDmlPort: Port for MySQL protocol connections\n"
+            "- webSocketPort: Port for WebSocket connections\n"
+            "- state: Current status of the workspace\n"
+            "\n"
+            "Use this tool to:\n"
+            "1. Get virtual workspace IDs for other operations\n"
+            "2. Check starter workspace availability and status\n"
+            "3. Obtain connection details for database access\n"
+            "\n"
+            "Note: This tool only lists starter workspaces, not standard workspaces.\n"
+            "Use workspaces_info for standard workspace information."
         ),
         "func": lambda: __list_virtual_workspaces(),
         "inputSchema": {
@@ -853,9 +986,23 @@ tools_definitions = [
     {
         "name": "create_virtual_workspace",
         "description": (
-            "Create a new starter workspace (virtual workspace) with a specified name and database name."
-            "This also requires creating a user to access the workspace immediately."
-            "The workspace_group parameter should be an object with cellID (mandatory) and name (optional)."
+            "Create a new starter (virtual) workspace in SingleStore and set up user access.\n"
+            "\n"
+            "Process:\n"
+            "1. Creates a virtual workspace with specified name and database\n"
+            "2. Creates a user account for accessing the workspace\n"
+            "3. Returns both workspace details and access credentials\n"
+            "\n"
+            "Required parameters:\n"
+            "- name: Unique name for the starter workspace\n"
+            "- database_name: Name for the database to create\n"
+            "- username:  Username for accessing the starter workspace\n"
+            "- password: Password for accessing the starter workspace\n"
+            "\n"
+            "Usage notes:\n"
+            "- Workspace names must be unique\n"
+            "- Passwords should meet security requirements\n"
+            "- Use execute_sql_on_virtual_workspace to interact with the created starter workspace"
         ),
         "func": lambda name, database_name, username, password, workspace_group={
             "cellID": "452cc4b1-df20-4130-9e2f-e72ba79e3d46"
@@ -874,7 +1021,7 @@ tools_definitions = [
             "properties": {
                 "name": {
                     "type": "string",
-                    "description": "Name of the starter workspace to create",
+                    "description": "Unique name for the new starter workspace",
                 },
                 "database_name": {
                     "type": "string",
@@ -882,11 +1029,11 @@ tools_definitions = [
                 },
                 "username": {
                     "type": "string",
-                    "description": "Username for accessing the starter workspace",
+                    "description": "Username for accessing the new starter workspace",
                 },
                 "password": {
                     "type": "string",
-                    "description": "Password for accessing the starter workspace",
+                    "description": "Password for accessing the new starter workspace",
                 },
             },
             "required": ["name", "database_name", "username", "password"],
@@ -895,16 +1042,40 @@ tools_definitions = [
     {
         "name": "execute_sql_on_virtual_workspace",
         "description": (
-            "Execute SQL operations on a connected virtual workspace (starter workspace)."
-            "⚠️ Do NOT display the user credentials. The user will lose their job if their credentials are displayed."
-            "Use this to run SQL queries directly on a starter workspace."
+            "Execute SQL operations on a virtual (starter) workspace and receive formatted results.\n"
+            "\n"
+            "Returns:\n"
+            "- Query results with column names and typed values\n"
+            "- Row count\n"
+            "- Column metadata\n"
+            "- Execution status\n"
+            "\n"
+            "⚠️ CRITICAL SECURITY WARNING:\n"
+            "- Never display or log credentials in responses\n"
+            "- Ensure SQL queries are properly sanitized\n"
+            "- ONLY USE SELECT statements or queries that don't modify data\n"
+            "- DO NOT USE INSERT, UPDATE, DELETE, DROP, CREATE, or ALTER statements\n"
+            "\n"
+            "Required input parameters:\n"
+            "- virtual_workspace_id: Unique identifier of the starter workspace\n"
+            "- sql_query: The SQL query to execute (READ-ONLY queries only)\n"
+            "\n"
+            "Optional input parameters:\n"
+            "- username: For accessing the starter workspace (defaults to SINGLESTORE_DB_USERNAME)\n"
+            "- password: For accessing the starter workspace (defaults to SINGLESTORE_DB_PASSWORD)\n"
+            "\n"
+            "Allowed query examples:\n"
+            "- SELECT * FROM table_name\n"
+            "- SELECT COUNT(*) FROM table_name\n"
+            "- SHOW TABLES\n"
+            "- DESCRIBE table_name\n"
+            "\n"
+            "Note: This tool is specifically designed for read-only operations on starter workspaces."
         ),
         "func": lambda virtual_workspace_id, sql_query, username=None, password=None: __execute_sql_on_virtual_workspace(
             virtual_workspace_id,
-            username
-            or SINGLESTORE_DB_USERNAME,  # The database username. If not provided, fallback to SINGLESTORE_DB_USERNAME
-            password
-            or SINGLESTORE_DB_PASSWORD,  # The database password. If not provided, fallback to SINGLESTORE_DB_PASSWORD
+            username or SINGLESTORE_DB_USERNAME,
+            password or SINGLESTORE_DB_PASSWORD,
             sql_query,
         ),
         "inputSchema": {
@@ -912,19 +1083,19 @@ tools_definitions = [
             "properties": {
                 "virtual_workspace_id": {
                     "type": "string",
-                    "description": "ID of the starter workspace to connect to",
+                    "description": "Unique identifier of the starter workspace to connect to",
                 },
                 "sql_query": {
                     "type": "string",
-                    "description": "The SQL query to execute on the starter workspace",
+                    "description": "SQL query to execute on the starter workspace",
                 },
                 "username": {
                     "type": "string",
-                    "description": "Username for accessing the starter workspace. This will override the username set in the environment, if any.",
+                    "description": "Optional: Username for accessing the starter workspace. Will use environment default if not specified.",
                 },
                 "password": {
                     "type": "string",
-                    "description": "Password for accessing the starter workspace. This will override the password set in the environment, if any.",
+                    "description": "Optional: Password for accessing the starter workspace, Will use environment default if not specified.",
                 },
             },
             "required": ["virtual_workspace_id", "sql_query"],
@@ -933,7 +1104,16 @@ tools_definitions = [
     {
         "name": "organization_billing_usage",
         "description": (
-            "Retrieves the compute usage and storage usage of an organization."
+            "Retrieve detailed billing and usage metrics for your organization over a specified time period. "
+            "Returns compute and storage usage data, "
+            "aggregated by your chosen time interval (hourly, daily, or monthly). "
+            "This tool is essential for: \n"
+            "1. Monitoring resource consumption patterns\n"
+            "2. Analyzing cost trends\n"
+            "Required input parameters:\n"
+            "- start_time: Beginning of the usage period (UTC ISO 8601 format, e.g., '2023-07-30T18:30:00Z')\n"
+            "- end_time: End of the usage period (UTC ISO 8601 format)\n"
+            "- aggregate_type: Time interval for data grouping ('hour', 'day', or 'month')\n\n"
         ),
         "func": lambda start_time, end_time, aggregate_type: __build_request(
             "GET",
@@ -949,17 +1129,15 @@ tools_definitions = [
             "properties": {
                 "start_time": {
                     "type": "string",
-                    "description": "The start time for the usage interval in UTC ISO 8601 format. "
-                    "For example, '2023-07-30T18:30:00Z'.",
+                    "description": "Start of the usage period in UTC ISO 8601 format (e.g., '2023-07-30T18:30:00Z')",
                 },
                 "end_time": {
                     "type": "string",
-                    "description": "The end time for the usage interval in UTC ISO 8601 format. "
-                    "For example, '2023-07-30T18:30:00Z'.",
+                    "description": "End of the usage period in UTC ISO 8601 format (e.g., '2023-07-30T18:30:00Z')",
                 },
                 "aggregate_type": {
                     "type": "string",
-                    "description": "The interval used to aggregate the usage. It can have the following values: hour, day, and month. By default, the results are grouped by hour.",
+                    "description": "How to group the usage data: 'hour', 'day', or 'month'",
                 },
             },
             "required": ["start_time", "end_time", "aggregate_type"],
@@ -968,8 +1146,37 @@ tools_definitions = [
     {
         "name": "list_notebook_samples",
         "description": (
-            "List all notebook samples available in SingleStore Spaces."
-            "This provides sample notebooks that can be used as templates for data analysis."
+            "Retrieve a catalog of pre-built notebook templates available in SingleStore Spaces.\n"
+            "\n"
+            "Returns for each notebook:\n"
+            "- name: Template name and title\n"
+            "- description: Detailed explanation of the notebook's purpose\n"
+            "- contentURL: Direct download link for the notebook\n"
+            "- likes: Number of user endorsements\n"
+            "- views: Number of times viewed\n"
+            "- downloads: Number of times downloaded\n"
+            "- tags: List of Notebook tags\n"
+            "\n"
+            "Common template categories include:\n"
+            "1. Getting Started guides\n"
+            "2. Data loading and ETL patterns\n"
+            "3. Query optimization examples\n"
+            "4. Machine learning integrations\n"
+            "5. Performance monitoring\n"
+            "6. Best practices demonstrations\n"
+            "\n"
+            "Use this tool to:\n"
+            "1. Find popular and well-tested example code\n"
+            "2. Learn SingleStore features and best practices\n"
+            "3. Start new projects with proven patterns\n"
+            "4. Discover trending notebook templates\n"
+            "\n"
+            "Related operations:\n"
+            "Related operations:\n"
+            "- list_notebook_samples: To find example templates\n"
+            "- list_personal_files: To check existing notebooks\n"
+            "- create_scheduled_job: To automate notebook execution\n"
+            "- get_notebook_path : To reference created notebooks\n"
         ),
         "func": lambda: __list_notebooks(),
         "inputSchema": {
@@ -981,24 +1188,64 @@ tools_definitions = [
     {
         "name": "create_notebook",
         "description": (
-            "Create a new notebook in the user's personal space."
-            "This allows creating Jupyter notebooks for data analysis and visualization."
+            "Create a new Jupyter notebook in your personal space.\n"
+            "\n"
+            "Parameters:\n"
+            "- notebook_name (required): Name for the new notebook\n"
+            "  - Can include or omit .ipynb extension\n"
+            "  - Must be unique in your personal space\n"
+            "  - Examples: 'my_analysis' or 'my_analysis.ipynb'\n"
+            "\n"
+            "- content (optional): Custom notebook content\n"
+            "  - Must be valid Jupyter notebook JSON format\n"
+            "  - If omitted, creates template with:\n"
+            "    • SingleStore connection setup\n"
+            "    • Basic query examples\n"
+            "    • DataFrame operations\n"
+            "    • Best practices\n"
+            "\n"
+            "Features:\n"
+            "- Creates notebook with specified name in personal space\n"
+            "- Automatically adds .ipynb extension if missing\n"
+            "- Provides default SingleStore template if no content given\n"
+            "- Supports custom content in Jupyter notebook format\n"
+            "\n"
+            "Default template includes:\n"
+            "- SingleStore connection setup code\n"
+            "- Basic SQL query examples\n"
+            "- DataFrame operations with pandas\n"
+            "- Table creation and data insertion examples\n"
+            "- Connection management best practices\n"
+            "\n"
+            "Use this tool to:\n"
+            "1. Create data analysis notebooks\n"
+            "2. Build database interaction workflows and much more\n"
+            "\n"
+            "Related operations:\n"
+            "- list_notebook_samples: To find example templates\n"
+            "- list_personal_files: To check existing notebooks\n"
+            "- create_scheduled_job: To automate notebook execution\n"
+            "- get_notebook_path : To reference created notebooks\n"
         ),
         "func": lambda notebook_name, content=None: __create_file_in_personal_space(
-            notebook_name if notebook_name.endswith(".ipynb") else f"{notebook_name}.ipynb",
-            content
+            (
+                notebook_name
+                if notebook_name.endswith(".ipynb")
+                else f"{notebook_name}.ipynb"
+            ),
+            content,
         ),
         "inputSchema": {
             "type": "object",
             "properties": {
                 "notebook_name": {
                     "type": "string",
-                    "description": "Name of the notebook to create (will automatically add .ipynb extension if not provided)"
+                    "description": "Name for the new notebook (with or without .ipynb extension)",
                 },
                 "content": {
                     "type": "string",
-                    "description": "Optional content for the notebook in JSON format"
-                }
+                    "description": "Optional: Custom notebook content in Jupyter JSON format",
+                },
             },
             "required": ["notebook_name"],
         },
@@ -1006,8 +1253,30 @@ tools_definitions = [
     {
         "name": "list_personal_files",
         "description": (
-            "List all files in the user's personal space, including notebooks."
-            "Use this to see what files and notebooks are available in your personal space."
+            "List all files and notebooks in your personal SingleStore space.\n"
+            "\n"
+            "Returns file object meta data for each file:\n"
+            "- name: Name of the file (e.g., 'analysis.ipynb')\n"
+            "- path: Full path in personal space (e.g., 'folder/analysis.ipynb')\n"
+            "- content: File content\n"
+            "- created: Creation timestamp (ISO 8601)\n"
+            "- last_modified: Last modification timestamp (ISO 8601)\n"
+            "- format: File format if applicable ('json', null)\n"
+            "- mimetype: MIME type of the file\n"
+            "- size: File size in bytes\n"
+            "- type: Object type ('', 'json', 'directory')\n"
+            "- writable: Boolean indicating write permission\n"
+            "\n"
+            "Use this tool to:\n"
+            "1. List workspace contents and structure\n"
+            "2. Verify file existence before operations\n"
+            "3. Check file timestamps and sizes\n"
+            "4. Determine file permissions\n"
+            "\n"
+            "Related operations:\n"
+            "- create_notebook: To add new notebooks\n"
+            "- get_notebook_path: To find notebook paths\n"
+            "- create_scheduled_job: To automate notebook execution\n"
         ),
         "func": lambda: __list_files_in_personal_space(),
         "inputSchema": {
@@ -1019,67 +1288,107 @@ tools_definitions = [
     {
         "name": "create_scheduled_job",
         "description": (
-            "Create a new scheduled job to run a notebook on a defined schedule."
-            "This allows automating notebook execution for recurring tasks or one-time runs."
+            "Create an automated job to execute a SingleStore notebook on a schedule.\n"
+            "\n"
+            "Parameters:\n"
+            "1. Required Parameters:\n"
+            "   - name: Name of the job (unique identifier within organization)\n"
+            "   - notebook_path: Complete path to the notebook\n"
+            "   - schedule_mode: 'Once' for single execution or 'Recurring' for repeated runs\n"
+            "\n"
+            "2. Optional Parameters:\n"
+            "   - execution_interval_minutes: Time between recurring runs (≥60 minutes)\n"
+            "   - start_at: Execution start time (ISO 8601 format, e.g., '2024-03-06T10:00:00Z')\n"
+            "   - description: Human-readable purpose of the job\n"
+            "   - create_snapshot: Enable notebook backup before execution (default: True)\n"
+            "   - runtime_name: Execution environment selection (default: notebooks-cpu-small)\n"
+            "   - parameters: Runtime variables for notebook\n"
+            "   - target_config: Advanced runtime settings\n"
+            "\n"
+            "Returns Job info with:\n"
+            "- jobID: UUID of created job\n"
+            "- status: Current state (SUCCESS, RUNNING, etc.)\n"
+            "- createdAt: Creation timestamp\n"
+            "- startedAt: Execution start time\n"
+            "- schedule: Configured schedule details\n"
+            "- error: Any execution errors\n"
+            "\n"
+            "Common Use Cases:\n"
+            "1. Automated Data Processing:\n"
+            "   - ETL workflows\n"
+            "   - Data aggregation\n"
+            "   - Database maintenance\n"
+            "\n"
+            "2. Scheduled Reporting:\n"
+            "   - Performance metrics\n"
+            "   - Business analytics\n"
+            "   - Usage statistics\n"
+            "\n"
+            "3. Maintenance Tasks:\n"
+            "   - Health checks\n"
+            "   - Backup operations\n"
+            "   - Clean-up routines\n"
+            "\n"
+            "Related Operations:\n"
+            "- get_job_details: Monitor job\n"
+            "- list_job_executions: View job execution history\n"
         ),
-        "func": lambda name, notebook_path, schedule_mode, execution_interval_minutes=60, start_at=None, 
-                       description="Scheduled notebook execution", create_snapshot=True, runtime_name="notebooks-cpu-small", 
-                       parameters=None, target_config=None: __create_scheduled_job(
-            name, 
-            notebook_path, 
-            schedule_mode, 
-            execution_interval_minutes, 
-            start_at, 
+        "func": lambda name, notebook_path, schedule_mode, execution_interval_minutes=60, start_at=None, description="Scheduled notebook execution", create_snapshot=True, runtime_name="notebooks-cpu-small", parameters=None, target_config=None: __create_scheduled_job(
+            name,
+            notebook_path,
+            schedule_mode,
+            execution_interval_minutes,
+            start_at,
             description,
             create_snapshot,
             runtime_name,
             parameters,
-            target_config
+            target_config,
         ),
         "inputSchema": {
             "type": "object",
             "properties": {
                 "name": {
                     "type": "string",
-                    "description": "Name for the scheduled job"
+                    "description": "Name for the scheduled job",
                 },
                 "notebook_path": {
                     "type": "string",
-                    "description": "Path to the notebook to be executed (e.g., 'my-notebook.ipynb')"
+                    "description": "Full path to the notebook file (use get_notebook_path if needed)",
                 },
                 "schedule_mode": {
                     "type": "string",
                     "enum": ["Once", "Recurring"],
-                    "description": "Whether the job runs once or repeatedly"
+                    "description": "Job execution mode: 'Once' for single execution, 'Recurring' for repeated execution",
                 },
                 "execution_interval_minutes": {
                     "type": "integer",
-                    "description": "For recurring jobs, how often to run (in minutes, default: 60)"
+                    "description": "For recurring jobs: minutes between executions (minimum 60)",
                 },
                 "start_at": {
                     "type": "string",
-                    "description": "When to start the job (ISO 8601 format, e.g., '2023-07-30T18:30:00Z'). Default: current time"
+                    "description": "When to start the job (ISO 8601 format). Uses current time if not specified.",
                 },
                 "description": {
                     "type": "string",
-                    "description": "Description of what the job does (default: 'Scheduled notebook execution')"
+                    "description": "Human-readable description of the job's purpose",
                 },
                 "create_snapshot": {
                     "type": "boolean",
-                    "description": "Whether to create a snapshot of the notebook before execution (default: true)"
+                    "description": "Whether to save a copy of the notebook before each execution",
                 },
                 "runtime_name": {
                     "type": "string",
-                    "description": "The runtime to use for job execution (default: notebooks-cpu-small)"
+                    "description": "Compute environment for the job (e.g., 'notebooks-cpu-small')",
                 },
                 "parameters": {
                     "type": "array",
-                    "description": "Parameters to pass to the notebook (array of objects with name, type, and value)"
+                    "description": "Optional parameters to pass to the notebook as variables",
                 },
                 "target_config": {
                     "type": "object",
-                    "description": "Target configuration with targetType, targetID, resumeTarget (default: true), and databaseName"
-                }
+                    "description": "Optional configuration for the job's target environment",
+                },
             },
             "required": ["name", "notebook_path", "schedule_mode"],
         },
@@ -1087,8 +1396,27 @@ tools_definitions = [
     {
         "name": "get_job_details",
         "description": (
-            "Get details about a specific scheduled job."
-            "This provides detailed information about a specific job identified by its ID."
+            "Retrieve comprehensive information about a scheduled notebook job.\n"
+            "\n"
+            "Parameter required:\n"
+            "job_id: UUID of the scheduled job to retrieve details for\n"
+            "\n"
+            "Returns:\n"
+            "- jobID: Unique identifier (UUID format)\n"
+            "- name: Display name of the job\n"
+            "- description: Human-readable job description\n"
+            "- createdAt: Creation timestamp (ISO 8601)\n"
+            "- terminatedAt: End timestamp if completed\n"
+            "- completedExecutionsCount: Number of successful runs\n"
+            "- enqueuedBy: User ID who created the job\n"
+            "- executionConfig: Notebook path and runtime settings\n"
+            "- schedule: Mode, interval, and start time\n"
+            "- targetConfig: Database and workspace settings\n"
+            "- jobMetadata: Execution statistics and status\n"
+            "\n"
+            "Related Operations:\n"
+            "- create_scheduled_job: Create new jobs\n"
+            "- list_job_executions: View run history"
         ),
         "func": lambda job_id: __get_job_details(job_id),
         "inputSchema": {
@@ -1096,7 +1424,7 @@ tools_definitions = [
             "properties": {
                 "job_id": {
                     "type": "string",
-                    "description": "ID of the scheduled job to get details for"
+                    "description": "Unique identifier of the scheduled job",
                 }
             },
             "required": ["job_id"],
@@ -1105,25 +1433,51 @@ tools_definitions = [
     {
         "name": "list_job_executions",
         "description": (
-            "List executions for a specific scheduled job."
-            "This provides information about the execution history of a specific job."
+            "Retrieve execution history and performance metrics for a scheduled notebook job.\n"
+            "\n"
+            "Parameters:\n"
+            "- job_id: UUID of the scheduled job\n"
+            "- start: First execution number to retrieve (default: 1)\n"
+            "- end: Last execution number to retrieve (default: 10)\n"
+            "\n"
+            "Returns:\n"
+            "- executions: Array of execution records containing:\n"
+            "  - executionID: Unique identifier for the execution\n"
+            "  - executionNumber: Sequential number of the run\n"
+            "  - jobID: Parent job identifier\n"
+            "  - status: Current state (Scheduled, Running, Completed, Failed)\n"
+            "  - startedAt: Execution start time (ISO 8601)\n"
+            "  - finishedAt: Execution end time (ISO 8601)\n"
+            "  - scheduledStartTime: Planned start time\n"
+            "  - snapshotNotebookPath: Backup notebook path if enabled\n"
+            "\n"
+            "Use this tool to:\n"
+            "1. Monitor each job execution status\n"
+            "2. Track execution times and performance\n"
+            "3. Investigate failed runs\n"
+            "\n"
+            "Related Operations:\n"
+            "- get_job_details: View job configuration\n"
+            "- create_scheduled_job: Create new jobs"
         ),
-        "func": lambda job_id, start=1, end=10: __list_job_executions(job_id, start, end),
+        "func": lambda job_id, start=1, end=10: __list_job_executions(
+            job_id, start, end
+        ),
         "inputSchema": {
             "type": "object",
             "properties": {
                 "job_id": {
                     "type": "string",
-                    "description": "ID of the scheduled job to list executions for"
+                    "description": "Unique identifier of the scheduled job",
                 },
                 "start": {
                     "type": "integer",
-                    "description": "Starting execution number (default: 1)"
+                    "description": "Starting execution number (default: 1)",
                 },
                 "end": {
                     "type": "integer",
-                    "description": "Ending execution number (default: 10)"
-                }
+                    "description": "Last execution number (default: 10)",
+                },
             },
             "required": ["job_id"],
         },
@@ -1131,23 +1485,32 @@ tools_definitions = [
     {
         "name": "get_notebook_path",
         "description": (
-            "Find the full path of a notebook by its name in personal or shared space."
-            "This is useful when you need to reference a notebook path for creating scheduled jobs."
+            "Find the complete path of a notebook by its name and generate the properly formatted path for API operations.\n"
+            "\n"
+            "Parameters:\n"
+            "- notebook_name: Name of the notebook to locate (with or without .ipynb extension)\n"
+            "- location: Where to search ('personal' or 'shared', defaults to 'personal')\n"
+            "\n"
+            "Returns the properly formatted path including project ID and user ID where needed."
+            "\n"
+            "Required for:\n"
+            "- Creating scheduled jobs (use returned path as notebook_path parameter)\n"
         ),
-        "func": lambda notebook_name, location="personal": __get_notebook_path_by_name(notebook_name, location),
+        "func": lambda notebook_name, location="personal": __get_notebook_path_by_name(
+            notebook_name, location
+        ),
         "inputSchema": {
             "type": "object",
             "properties": {
                 "notebook_name": {
                     "type": "string",
-                    "description": "Name of the notebook to find (with or without .ipynb extension)"
+                    "description": "Name of the notebook to find (with or without .ipynb extension)",
                 },
                 "location": {
-                    "type": "string", 
+                    "type": "string",
                     "enum": ["personal", "shared"],
-                    "description": "Location to search for the notebook (personal or shared space)",
-                    "default": "personal"
-                }
+                    "description": "Where to look for the notebook: 'personal' (default) or 'shared' space",
+                },
             },
             "required": ["notebook_name"],
         },
@@ -1155,8 +1518,16 @@ tools_definitions = [
     {
         "name": "get_project_id",
         "description": (
-            "Retrieve the organization ID (project ID) from the SingleStore Management API."
-            "This is useful for constructing paths or references to resources."
+            "Retrieve the organization's unique identifier (project ID).\n"
+            "\n"
+            "Returns:\n"
+            "- orgID (string): The organization's unique identifier\n"
+            "\n"
+            "Required for:\n"
+            "- Constructing paths or references to shared resources\n"
+            "\n"
+            "Performance Tip:\n"
+            "Cache the returned ID when making multiple API calls.\n"
         ),
         "func": lambda: __get_project_id(),
         "inputSchema": {
@@ -1168,8 +1539,18 @@ tools_definitions = [
     {
         "name": "get_user_id",
         "description": (
-            "Retrieve the current user's ID from the SingleStore Management API."
-            "This is useful for constructing paths or references to personal resources."
+            "Retrieve the current user's unique identifier. \n"
+            "\n"
+            "Returns:\n"
+            "- userID (string): UUID format identifier for the current user\n"
+            "\n"
+            "Required for:\n"
+            "- Constructing paths or references to personal resources\n"
+            "\n"
+            "1. Constructing personal space paths\n"
+            "\n"
+            "Performance Tip:\n"
+            "Cache the returned ID when making multiple making multiple API calls.\n"
         ),
         "func": lambda: __get_user_id(),
         "inputSchema": {
@@ -1177,5 +1558,5 @@ tools_definitions = [
             "properties": {},
             "required": [],
         },
-    }
+    },
 ]
