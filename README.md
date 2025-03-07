@@ -74,20 +74,34 @@ The server implements the following tools:
 
 ## Configuration
 
-The server requires a SingleStore API key to access the SingleStore Management API. You can provide the API key via environment variables.
+The server requires the following environment variables:
 
 ```bash
-export SINGLESTORE_API_KEY="your_api_key_here"
+# SingleStore's management API key (required)
+SINGLESTORE_API_KEY=your_api_key_here
+
+# Database credentials (optional - can be provided as input parameters)
+SINGLESTORE_DB_USERNAME=your_db_username_here
+SIGNLESTORE_DB_PASSWORD=your_db_password_here
 ```
 
+### Configuration Methods
+
+1. Using a .env file:
+  - Copy `.env.example` to `.env`
+  - Fill in your values
+
+2. Export variables in shell:
+  ```bash
+  export SINGLESTORE_API_KEY=your_api_key
+  export SINGLESTORE_DB_USERNAME=your_db_username #optional
+  export SIGNLESTORE_DB_PASSWORD=your_db_password #optional
+  ```
+
+**Note:** Database username and password are optional and can be provided as input parameters when needed.
+
+
 ## Quickstart
-
-### Install
-
-1. Set up environment variables:
-    Create a `config` folder with a `__init__.py` file with the following content:
-    ```properties
-    singlestore_api_key=your_api_key_here
 
 #### Claude Desktop
 

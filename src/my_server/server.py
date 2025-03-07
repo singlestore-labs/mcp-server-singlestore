@@ -111,7 +111,7 @@ async def handle_call_tool(
     return [types.TextContent(type="text", text=str(result))]
 
 
-async def run():
+async def main():
     # Run the server using stdin/stdout streams
     async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
         await server.run(
@@ -129,9 +129,3 @@ async def run():
                 },
             ),
         )
-
-
-if __name__ == "__main__":
-    import asyncio
-
-    asyncio.run(run())
