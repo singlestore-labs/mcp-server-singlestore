@@ -4,6 +4,27 @@ Model Context Protocol (MCP) is a standardized protocol designed to manage conte
 
 With MCP, you can use Claude Desktop or any compatible MCP client to interact with SingleStore using natural language, making it easier to perform complex operations effortlessly.
 
+## Installation
+
+### Clone the Repository
+
+To clone the repository and set up the server locally:
+
+```bash
+git clone https://github.com/singlestore-labs/mcp-server-singlestore.git
+cd singlestore-mcp-server
+npm install
+```
+
+### Install via pip
+
+Alternatively, you can install the package using pip:
+
+```bash
+pip install singlestore-mcp-server
+```
+Use command ```singlestore-mcp-client` to run the server with the mcp clients or mcp inspector.
+
 ## Components
 
 ### Resources

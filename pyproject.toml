@@ -1,6 +1,6 @@
 [project]
-name = "my-server"
-version = "0.1.0"
+name = "singlestore_mcp_server"
+version = "0.1.1"
 description = "A SingleStore MCP server"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -16,5 +16,8 @@ email = "prodrigues@singlestore.com"
 requires = [ "hatchling",]
 build-backend = "hatchling.build"
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/my_server"]
+
 [project.scripts]
-my-server = "my_server:main"
+singlestore-mcp-server = "my_server:main"
