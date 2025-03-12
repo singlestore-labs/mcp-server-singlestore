@@ -1,3 +1,6 @@
+from enum import Enum
+import re
+from typing import Optional
 import requests
 from config import (
     SINGLESTORE_API_KEY,
@@ -313,162 +316,64 @@ def __list_notebooks():
     return __build_request("GET", "spaces/notebooks")
 
 
-def __create_file_in_personal_space(path: str, content: str = None):
+def __create_file_in_shared_space(path: str, content: str):
     """
-    Create a new file (such as a notebook) in the user's personal space.
+    Create a new file (such as a notebook) in the user's shared space.
 
     Args:
         path: Path to the file to create
         content: Optional content for the file. If not provided and the file is a
                 notebook, a sample notebook will be created.
     """
-    # For creating files, we need to use multipart/form-data format
-    url = f"{SINGLESTORE_API_BASE_URL}/v1/files/fs/personal/{path}"
-
-    headers = {
-        "Authorization": f"Bearer {SINGLESTORE_API_KEY}",
-    }
-
+    
     # Check if it's a notebook and no content provided
     if path.endswith(".ipynb") and content is None:
         # Create a sample notebook with SingleStore connectivity example
-        content = json.dumps(
-            {
-                "cells": [
-                    {
-                        "cell_type": "markdown",
-                        "metadata": {},
-                        "source": [
-                            "# SingleStore Sample Notebook\n",
-                            "\n",
-                            "This notebook demonstrates how to connect to a SingleStore database and run queries.\n",
-                        ],
-                    },
-                    {
-                        "cell_type": "code",
-                        "execution_count": None,
-                        "metadata": {},
-                        "outputs": [],
-                        "source": [
-                            "# Import required libraries\n",
-                            "import singlestoredb as s2\n",
-                            "import pandas as pd",
-                        ],
-                    },
-                    {
-                        "cell_type": "markdown",
-                        "metadata": {},
-                        "source": [
-                            "## Connect to SingleStore Database\n",
-                            "\n",
-                            "Replace the connection parameters with your actual SingleStore database credentials.",
-                        ],
-                    },
-                    {
-                        "cell_type": "code",
-                        "execution_count": None,
-                        "metadata": {},
-                        "outputs": [],
-                        "source": [
-                            "# Database connection parameters\n",
-                            "host = 'your-endpoint.svc.singlestore.com'\n",
-                            "port = 3306\n",
-                            "user = 'admin'\n",
-                            "password = 'your-password'\n",
-                            "database = 'your-database'\n",
-                            "\n",
-                            "# Connect to SingleStore\n",
-                            "conn = s2.connect(host=host, port=port, user=user, password=password, database=database)\n",
-                            "print('Connected to SingleStore database!')",
-                        ],
-                    },
-                    {
-                        "cell_type": "markdown",
-                        "metadata": {},
-                        "source": ["## Execute SQL Query\n"],
-                    },
-                    {
-                        "cell_type": "code",
-                        "execution_count": None,
-                        "metadata": {},
-                        "outputs": [],
-                        "source": [
-                            "# Execute a simple SQL query\n",
-                            "query = \"SELECT 'Hello from SingleStore!' as message\"\n",
-                            "df = pd.read_sql(query, conn)\n",
-                            "df",
-                        ],
-                    },
-                    {
-                        "cell_type": "markdown",
-                        "metadata": {},
-                        "source": ["## Create and Query a Table\n"],
-                    },
-                    {
-                        "cell_type": "code",
-                        "execution_count": None,
-                        "metadata": {},
-                        "outputs": [],
-                        "source": [
-                            "# Create a sample table\n",
-                            'conn.execute("""\n',
-                            "CREATE TABLE IF NOT EXISTS sample_data (\n",
-                            "    id INT AUTO_INCREMENT PRIMARY KEY,\n",
-                            "    name VARCHAR(100),\n",
-                            "    value FLOAT\n",
-                            ")\n",
-                            '""")\n',
-                            "\n",
-                            "# Insert some data\n",
-                            'conn.execute("""\n',
-                            "INSERT INTO sample_data (name, value) VALUES\n",
-                            "    ('Alpha', 10.5),\n",
-                            "    ('Beta', 20.7),\n",
-                            "    ('Gamma', 15.2),\n",
-                            "    ('Delta', 30.1)\n",
-                            '""")\n',
-                            "\n",
-                            "# Query the data\n",
-                            'df = pd.read_sql("SELECT * FROM sample_data", conn)\n',
-                            "df",
-                        ],
-                    },
-                    {
-                        "cell_type": "markdown",
-                        "metadata": {},
-                        "source": ["## Close Connection\n"],
-                    },
-                    {
-                        "cell_type": "code",
-                        "execution_count": None,
-                        "metadata": {},
-                        "outputs": [],
-                        "source": ["# Close the connection\n", "conn.close()"],
-                    },
-                ],
-                "metadata": {},
-                "nbformat": 4,
-                "nbformat_minor": 2,
-            }
-        )
+        content = json.dumps({
+            "cells": [
+                {
+                    "cell_type": "markdown",
+                    "metadata": {},
+                    "source": ["# SingleStore Sample Notebook\n", 
+                              "\n",
+                              "This notebook demonstrates how to connect to a SingleStore database and run queries.\n"]
+                },
+                # ...existing notebook template code...
+                {
+                    "cell_type": "code",
+                    "execution_count": None,
+                    "metadata": {},
+                    "outputs": [],
+                    "source": ["# Close the connection\n", "conn.close()"]
+                }
+            ],
+            "metadata": {},
+            "nbformat": 4,
+            "nbformat_minor": 2
+        })
+    
+    file_manager = s2.manage_files(access_token=SINGLESTORE_API_KEY, base_url=SINGLESTORE_API_BASE_URL)
 
-    # If content is provided, send it as the file content
-    # Otherwise, create an empty file
-    if content:
-        files = {"file": (path, content)}
-        response = requests.put(url, headers=headers, files=files)
-    else:
-        response = requests.put(url, headers=headers)
+    if not content:
+        content = ""
 
-    if response.status_code != 200:
-        raise ValueError(
-            f"Request failed with status code {response.status_code}: {response.text}"
-        )
+    with open("sample_notebook.ipynb", "w") as f:
+        f.write(content)
 
     try:
-        return response.json()
-    except ValueError:
-        return {"status": "success", "message": f"File {path} created successfully"}
+        # Upload the file using the SDK method
+        file_info = file_manager.shared_space.upload_file("sample_notebook.ipynb", path)
+            
+        return {
+            "status": "success", 
+            "message": f"File {path} created successfully",
+            "path": file_info.path,
+            "type": file_info.type,
+            "format": file_info.format
+        }
+        
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 
 def __list_files_in_personal_space():
@@ -493,18 +398,38 @@ def __list_files_in_personal_space():
     except ValueError:
         raise ValueError(f"Invalid JSON response: {response.text}")
 
+def camel_to_snake(s: Optional[str]) -> Optional[str]:
+    """Convert camel-case to snake-case."""
+    if s is None:
+        return None
+    out = re.sub(r'([A-Z]+)', r'_\1', s).lower()
+    if out and out[0] == '_':
+        return out[1:]
+    return out
+
+class Mode(Enum):
+    ONCE = 'Once'
+    RECURRING = 'Recurring'
+
+    @classmethod
+    def from_str(cls, s: str) -> 'Mode':
+        try:
+            return cls[str(camel_to_snake(s)).upper()]
+        except KeyError:
+            raise ValueError(f'Unknown Mode: {s}')
+
+    def __str__(self) -> str:
+        """Return string representation."""
+        return self.value
+
+    def __repr__(self) -> str:
+        """Return string representation."""
+        return str(self)
 
 def __create_scheduled_job(
-    name: str,
     notebook_path: str,
-    schedule_mode: str,
-    execution_interval_minutes: int = 60,
-    start_at: str = None,
-    description: str = "Scheduled notebook execution",
-    create_snapshot: bool = True,
-    runtime_name: str = "notebooks-cpu-small",
-    parameters: list = None,
-    target_config: dict = None,
+    mode: str,
+    create_snapshot: bool,
 ):
     """
     Create a new scheduled job for running a notebook periodically.
@@ -521,43 +446,15 @@ def __create_scheduled_job(
         parameters: List of parameter objects to pass to the notebook
         target_config: Optional target configuration for the job
     """
-    # Use current time as default for start_at if not provided
-    if not start_at:
-        from datetime import datetime, timezone
 
-        start_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    mode_enum = Mode.from_str(mode)
 
-    # Build schedule based on the mode
-    schedule = {
-        "mode": schedule_mode,
-    }
-
-    # Add schedule-specific parameters
-    if schedule_mode.lower() == "Once":
-        schedule["startAt"] = start_at
-
-    if schedule_mode.lower() == "recurring":
-        schedule["executionIntervalInMinutes"] = execution_interval_minutes
-        schedule["startAt"] = start_at
-
-    # Build the job creation payload according to the API spec
-    payload = {
-        "name": name,
-        "description": description,
-        "executionConfig": {
-            "notebookPath": notebook_path,
-            "createSnapshot": create_snapshot,
-            "runtimeName": runtime_name,
-        },
-        "schedule": schedule,
-        "targetConfig": target_config,
-    }
-
-    # Add parameters if provided
-    if parameters:
-        payload["parameters"] = parameters
-
-    return __build_request("POST", "jobs", data=payload)
+    try:
+        jobs_manager = s2.manage_workspaces(access_token=SINGLESTORE_API_KEY, base_url=SINGLESTORE_API_BASE_URL).organizations.current.jobs
+        job = jobs_manager.schedule(notebook_path=notebook_path, mode=mode_enum, create_snapshot=create_snapshot)
+        return job
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 
 def __get_job_details(job_id: str):
@@ -1166,7 +1063,7 @@ tools_definitions = [
             "Related operations:\n"
             "Related operations:\n"
             "- list_notebook_samples: To find example templates\n"
-            "- list_personal_files: To check existing notebooks\n"
+            "- list_shared_files: To check existing notebooks\n"
             "- create_scheduled_job: To automate notebook execution\n"
             "- get_notebook_path : To reference created notebooks\n"
         ),
@@ -1218,11 +1115,11 @@ tools_definitions = [
             "\n"
             "Related operations:\n"
             "- list_notebook_samples: To find example templates\n"
-            "- list_personal_files: To check existing notebooks\n"
+            "- list_shared_files: To check existing notebooks\n"
             "- create_scheduled_job: To automate notebook execution\n"
             "- get_notebook_path : To reference created notebooks\n"
         ),
-        "func": lambda notebook_name, content=None: __create_file_in_personal_space(
+        "func": lambda notebook_name, content=None: __create_file_in_shared_space(
             (
                 notebook_name
                 if notebook_name.endswith(".ipynb")
@@ -1246,13 +1143,13 @@ tools_definitions = [
         },
     },
     {
-        "name": "list_personal_files",
+        "name": "list_shared_files",
         "description": (
-            "List all files and notebooks in your personal SingleStore space.\n"
+            "List all files and notebooks in your shared SingleStore space.\n"
             "\n"
             "Returns file object meta data for each file:\n"
             "- name: Name of the file (e.g., 'analysis.ipynb')\n"
-            "- path: Full path in personal space (e.g., 'folder/analysis.ipynb')\n"
+            "- path: Full path in shared space (e.g., 'folder/analysis.ipynb')\n"
             "- content: File content\n"
             "- created: Creation timestamp (ISO 8601)\n"
             "- last_modified: Last modification timestamp (ISO 8601)\n"
@@ -1273,7 +1170,7 @@ tools_definitions = [
             "- get_notebook_path: To find notebook paths\n"
             "- create_scheduled_job: To automate notebook execution\n"
         ),
-        "func": lambda: __list_files_in_personal_space(),
+        "func": lambda: __list_files_in_shared_space(),
         "inputSchema": {
             "type": "object",
             "properties": {},
@@ -1328,64 +1225,27 @@ tools_definitions = [
             "- get_job_details: Monitor job\n"
             "- list_job_executions: View job execution history\n"
         ),
-        "func": lambda name, notebook_path, schedule_mode, execution_interval_minutes=60, start_at=None, description="Scheduled notebook execution", create_snapshot=True, runtime_name="notebooks-cpu-small", parameters=None, target_config=None: __create_scheduled_job(
-            name,
-            notebook_path,
-            schedule_mode,
-            execution_interval_minutes,
-            start_at,
-            description,
-            create_snapshot,
-            runtime_name,
-            parameters,
-            target_config,
+        "func": lambda notebook_path, mode, create_snapshot=True: __create_scheduled_job(
+            notebook_path, mode, create_snapshot,
         ),
         "inputSchema": {
             "type": "object",
             "properties": {
-                "name": {
-                    "type": "string",
-                    "description": "Name for the scheduled job",
-                },
                 "notebook_path": {
                     "type": "string",
                     "description": "Full path to the notebook file (use get_notebook_path if needed)",
                 },
-                "schedule_mode": {
+                "mode": {
                     "type": "string",
                     "enum": ["Once", "Recurring"],
-                    "description": "Job execution mode: 'Once' for single execution, 'Recurring' for repeated execution",
-                },
-                "execution_interval_minutes": {
-                    "type": "integer",
-                    "description": "For recurring jobs: minutes between executions (minimum 60)",
-                },
-                "start_at": {
-                    "type": "string",
-                    "description": "When to start the job (ISO 8601 format). Uses current time if not specified.",
-                },
-                "description": {
-                    "type": "string",
-                    "description": "Human-readable description of the job's purpose",
+                    "description": "Execution mode: 'Once' or 'Recurring'",
                 },
                 "create_snapshot": {
                     "type": "boolean",
-                    "description": "Whether to save a copy of the notebook before each execution",
-                },
-                "runtime_name": {
-                    "type": "string",
-                    "description": "Compute environment for the job (e.g., 'notebooks-cpu-small')",
-                },
-                "parameters": {
-                    "type": "array",
-                    "description": "Optional parameters to pass to the notebook as variables",
-                },
-                "target_config": {
-                    "type": "object",
-                    "description": "Optional configuration for the job's target environment",
+                    "description": "Enable notebook backup before execution (default: True)",
                 },
             },
-            "required": ["name", "notebook_path", "schedule_mode"],
+            "required": ["notebook_path", "mode", "create_snapshot"],
         },
     },
     {
