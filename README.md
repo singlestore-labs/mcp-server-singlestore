@@ -149,9 +149,9 @@ Configure the SingleStore MCP Server in Claude Desktop's configuration file:
       "command": "uv",
       "args": [
         "--directory",
-        "/home/prodrigues/Desktop/mcp-server/my-server",
+        "{path_to_server}/mcp-server-singlestore/server",
         "run",
-        "my-server"
+        "server"
       ]
     }
   }
@@ -168,7 +168,7 @@ Configure the SingleStore MCP Server in Claude Desktop's configuration file:
     "SingleStore MCP Server": {
       "command": "uvx",
       "args": [
-        "my-server"
+        "server"
       ]
     }
   }

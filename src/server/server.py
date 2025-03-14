@@ -5,8 +5,8 @@ import mcp.types as types
 from mcp.server import NotificationOptions, Server
 from pydantic import AnyUrl
 import mcp.server.stdio
-from my_server.config import SINGLESTORE_API_KEY
-from my_server.tools import tools, tool_functions
+from config import SINGLESTORE_API_KEY
+from tools import tools, tool_functions
 
 # Store notes as a simple key-value dict to demonstrate state management
 notes: dict[str, str] = {}
@@ -129,3 +129,7 @@ async def main():
                 },
             ),
         )
+
+# Add this block to run the main function when the script is executed directly
+if __name__ == "__main__":
+    asyncio.run(main())

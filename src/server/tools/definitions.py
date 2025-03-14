@@ -1,5 +1,5 @@
 import requests
-from my_server.config import (
+from config import (
     SINGLESTORE_API_KEY,
     SINGLESTORE_API_BASE_URL,
     SINGLESTORE_DB_PASSWORD,
