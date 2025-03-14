@@ -1188,7 +1188,7 @@ tools_definitions = [
     {
         "name": "create_notebook",
         "description": (
-            "Create a new Jupyter notebook in your personal space.\n"
+            "Create a new Jupyter notebook in your personal space. Only supports python and markdown. Do not try to use any other languange\n"
             "\n"
             "Parameters:\n"
             "- notebook_name (required): Name for the new notebook\n"
@@ -1209,6 +1209,9 @@ tools_definitions = [
             "- Automatically adds .ipynb extension if missing\n"
             "- Provides default SingleStore template if no content given\n"
             "- Supports custom content in Jupyter notebook format\n"
+            "- Only supports python and markdown cells\n"
+            "- When creating a connection to the database the jupyter notebook will already have the connection_url defined and you can use directly\n"
+            "- Install tools in a new cell with !pip3 install <toolname>\n"
             "\n"
             "Default template includes:\n"
             "- SingleStore connection setup code\n"
@@ -1218,7 +1221,7 @@ tools_definitions = [
             "- Connection management best practices\n"
             "\n"
             "Use this tool to:\n"
-            "1. Create data analysis notebooks\n"
+            "1. Create data analysis notebooks using python\n"
             "2. Build database interaction workflows and much more\n"
             "\n"
             "Related operations:\n"
