@@ -26,8 +26,6 @@ git clone https://github.com/singlestore-labs/mcp-server-singlestore.git
 cd mcp-server-singlestore
 # Install dependencies
 pip install -e .
-# Or using uv
-uv pip install -e .
 ```
 
 ### Install via pip
