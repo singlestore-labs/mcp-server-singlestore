@@ -141,6 +141,10 @@ def __execute_sql(
     )
     if not endpoint:
         raise ValueError(f"Endpoint not found for workspace: {workspace_identifier}")
+    
+    # These are required parameters when not running within singlestore portal
+    if not username or not password:
+        raise ValueError("Singlestore Database username and password must be provided")
 
     connection = s2.connect(
         host=endpoint, user=username, password=password, database=database
@@ -795,14 +799,13 @@ tools_definitions = [
             "\n"
             "Note: For data modifications, please use appropriate admin tools or APIs."
         ),
-        "func": lambda workspace_group_identifier, workspace_identifier, database, sql_query, username=None, password=None: (
+        # If the database user and password. If not provided, fallback to SINGLESTORE_DB_USERNAME and SINGLESTORE_DB_PASSWORD
+        "func": lambda workspace_group_identifier, workspace_identifier, database, sql_query, username=SINGLESTORE_DB_USERNAME, password=SINGLESTORE_DB_PASSWORD: (
             __execute_sql(
                 workspace_group_identifier,
                 workspace_identifier,
-                username
-                or SINGLESTORE_DB_USERNAME,  # The database username. If not provided, fallback to SINGLESTORE_DB_USERNAME
-                password
-                or SINGLESTORE_DB_PASSWORD,  # The database password. If not provided, fallback to SINGLESTORE_DB_PASSWORD
+                username,
+                password,
                 database,
                 sql_query,
             )
@@ -961,10 +964,10 @@ tools_definitions = [
             "\n"
             "Note: This tool is specifically designed for read-only operations on starter workspaces."
         ),
-        "func": lambda virtual_workspace_id, sql_query, username=None, password=None: __execute_sql_on_virtual_workspace(
+        "func": lambda virtual_workspace_id, sql_query, username=SINGLESTORE_DB_USERNAME, password=SINGLESTORE_DB_PASSWORD: __execute_sql_on_virtual_workspace(
             virtual_workspace_id,
-            username or SINGLESTORE_DB_USERNAME,
-            password or SINGLESTORE_DB_PASSWORD,
+            username,
+            password,
             sql_query,
         ),
         "inputSchema": {

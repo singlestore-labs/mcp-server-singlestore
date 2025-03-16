@@ -119,5 +119,5 @@ SINGLESTORE_API_KEY=your_api_key_here
 
 # Database credentials (optional - can be provided as input parameters)
 SINGLESTORE_DB_USERNAME=your_db_username_here
-SIGNLESTORE_DB_PASSWORD=your_db_password_here
+SINGLESTORE_DB_PASSWORD=your_db_password_here
 ```
