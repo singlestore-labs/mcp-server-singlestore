@@ -38,7 +38,7 @@ Alternatively, you can install the package using pip:
 pip install singlestore-mcp-server
 ```
 
-Use command ```singlestore-mcp-client` to run the server with the mcp clients or mcp inspector.
+Use command `singlestore-mcp-client` to run the server with the mcp clients or mcp inspector.
 
 ## Components
 
