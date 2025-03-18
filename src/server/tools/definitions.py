@@ -540,14 +540,6 @@ def __create_scheduled_job(
         schedule["executionIntervalInMinutes"] = execution_interval_minutes
         schedule["startAt"] = start_at
 
-    # Set default target_config if not provided
-    if target_config is None:
-        target_config = {"resumeTarget": True}
-    else:
-        # Ensure resumeTarget is set to True if not specified
-        if "resumeTarget" not in target_config:
-            target_config["resumeTarget"] = True
-
     # Build the job creation payload according to the API spec
     payload = {
         "name": name,
