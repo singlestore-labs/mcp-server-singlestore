@@ -1,10 +1,20 @@
 # SingleStore MCP Server
 
+[![smithery badge](https://smithery.ai/badge/@singlestore-labs/mcp-server-singlestore)](https://smithery.ai/server/@singlestore-labs/mcp-server-singlestore)
+
 Model Context Protocol (MCP) is a standardized protocol designed to manage context between large language models (LLMs) and external systems. This repository provides an installer and an MCP Server for Singlestore, enabling seamless integration.
 
 With MCP, you can use Claude Desktop or any compatible MCP client to interact with SingleStore using natural language, making it easier to perform complex operations effortlessly.
 
 ## Installation
+
+### Installing via Smithery
+
+To install mcp-server-singlestore for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@singlestore-labs/mcp-server-singlestore):
+
+```bash
+npx -y @smithery/cli install @singlestore-labs/mcp-server-singlestore --client claude
+```
 
 ### Clone the Repository
 
