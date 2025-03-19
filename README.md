@@ -7,8 +7,9 @@ Model Context Protocol (MCP) is a standardized protocol designed to manage conte
 
 With MCP, you can use Claude Desktop or any compatible MCP client to interact with SingleStore using natural language, making it easier to perform complex operations effortlessly.
 
-## Installation
+## Quickstart
 
+<<<<<<< HEAD
 ### Installing via Smithery
 
 To install mcp-server-singlestore for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@singlestore-labs/mcp-server-singlestore):
@@ -37,15 +38,19 @@ pip install singlestore-mcp-server
 ```
 
 Use command `singlestore-mcp-client` to run the server with the mcp clients or mcp inspector.
+=======
+## Claude Setup
+#### Installing via Smithery
+To install SingleStore MCP Server for Claude Desktop automatically via Smithery:
+
+npx -y @smithery/cli install @singlestore-labs/mcp-server-singlestore --client claude
+Requirements
+Node.js >= v18.0.0
+Claude Desktop
+SingleStore API key - you can generate one through the [SingleStore Helios Portal](https://portal.singlestore.com/intention/cloud) console. Learn more or click here for quick access.
+>>>>>>> b1dfebf (pedro readme update)
 
 ## Components
-
-### Resources
-
-The server implements a simple note storage system with:
-
-- Custom note:// URI scheme for accessing individual notes
-- Each note resource has a name, description, and text/plain mimetype
 
 ### Tools
 
