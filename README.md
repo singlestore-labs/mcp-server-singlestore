@@ -38,6 +38,30 @@ pip install singlestore-mcp-server
 
 Use command `singlestore-mcp-client` to run the server with the mcp clients or mcp inspector.
 
+### Local Installation Configuration
+
+When running the MCP server locally with Claude Desktop or other MCP clients, you'll need to add the server configuration to your Claude Desktop settings. Below is an example of a configuration you can add to your Claude Desktop config:
+
+```json
+{
+  "mcpServers": {
+    "singlestore-mcp-server": {
+      "command": "/path/to/singlestore-mcp-server",
+      "env": {
+        "SINGLESTORE_DB_USERNAME": "your-database-username",
+        "SINGLESTORE_DB_PASSWORD": "your-database-password",
+        "SINGLESTORE_API_KEY": "your-api-key"
+      }
+    }
+  }
+}
+```
+
+Make sure to:
+1. Update the `command` path to match where `singlestore-mcp-server` is installed on your system
+2. Set your SingleStore Database credentials in the `env` section
+3. Restart Claude Desktop after making changes to the configuration
+
 ## Components
 
 ### Tools
