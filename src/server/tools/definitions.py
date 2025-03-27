@@ -2,7 +2,7 @@ from enum import Enum
 import re
 from typing import Optional
 import requests
-from config import (
+from ..config import (
     SINGLESTORE_API_KEY,
     SINGLESTORE_API_BASE_URL,
     SINGLESTORE_DB_PASSWORD,
