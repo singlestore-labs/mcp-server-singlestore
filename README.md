@@ -7,7 +7,7 @@
 
 With MCP, you can use Claude Desktop or any compatible MCP client to interact with SingleStore using natural language, making it easier to perform complex operations effortlessly.
 
-## Quickstart
+## Claude Setup
 
 ### Installing via Smithery
 
@@ -17,36 +17,26 @@ To install mcp-server-singlestore for Claude Desktop automatically via [Smithery
 npx -y @smithery/cli install @singlestore-labs/mcp-server-singlestore --client claude
 ```
 
-### Clone the Repository
+## Requirements
 
-To clone the repository and set up the server locally:
+- Python >= v3.11.0
+- [Pipx](https://pipx.pypa.io/stable/) installed on your python environment
+- Claude Desktop
 
-```bash
-git clone https://github.com/singlestore-labs/mcp-server-singlestore.git
-cd mcp-server-singlestore
-# Install dependencies
-pip install -e .
-```
+## How to use locally
 
-### Install via pip
-
-Alternatively, you can install the package using pip:
-
-```bash
-pip install singlestore-mcp-server
-```
-
-Use command `singlestore-mcp-client` to run the server with the mcp clients or mcp inspector.
-
-### Local Installation Configuration
-
-When running the MCP server locally with Claude Desktop or other MCP clients, you'll need to add the server configuration to your Claude Desktop settings. Below is an example of a configuration you can add to your Claude Desktop config:
+1. Add the following config to your Claude Desktop [config file](https://modelcontextprotocol.io/quickstart/user)
+2. Restart Claude Desktop after making changes to the configuration
 
 ```json
 {
   "mcpServers": {
     "singlestore-mcp-server": {
-      "command": "/path/to/singlestore-mcp-server",
+      "command": "pipx",
+        "args": [
+          "run",
+          "singlestore-mcp-server"
+      ],
       "env": {
         "SINGLESTORE_DB_USERNAME": "your-database-username",
         "SINGLESTORE_DB_PASSWORD": "your-database-password",
@@ -57,10 +47,9 @@ When running the MCP server locally with Claude Desktop or other MCP clients, yo
 }
 ```
 
-Make sure to:
-1. Update the `command` path to match where `singlestore-mcp-server` is installed on your system
-2. Set your SingleStore Database credentials in the `env` section
-3. Restart Claude Desktop after making changes to the configuration
+Note:
+
+You can get your API key and DB credentials on SingleStore's [Helios Portal](https://portal.singlestore.com/intention/cloud)
 
 ## Components
 
