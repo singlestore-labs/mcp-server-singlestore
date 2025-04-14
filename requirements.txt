@@ -1,3 +1,2 @@
 pydantic-settings
-s2_ai_tools
 singlestoredb

@@ -1,11 +1,12 @@
-import asyncio
+from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator
+from dataclasses import dataclass
+import inspect
+from typing import Optional
+from mcp.server.fastmcp import FastMCP, Context
 
-from mcp.server.models import InitializationOptions
-import mcp.types as types
-from mcp.server import NotificationOptions, Server
-from pydantic import AnyUrl
-import mcp.server.stdio
-from .tools import tools, tool_functions
+# Import tools from our definitions
+from .tools import tools_dicts
 
 # Store notes as a simple key-value dict to demonstrate state management
 notes: dict[str, str] = {}
@@ -16,116 +17,87 @@ custom_text_resources: dict[str, str] = {}
 # Store session state for caching user inputs
 session_state: dict[str, dict] = {}
 
-server = Server("SingleStore MCP Server")
+@dataclass
+class AppContext:
+    """Application context for lifespan management"""
+    notes: dict[str, str]
+    custom_text_resources: dict[str, str]
+    session_state: dict[str, dict]
 
-
-@server.list_resources()
-async def handle_list_resources() -> list[types.Resource]:
-    """
-    List available note resources.
-    Each note is exposed as a resource with a custom note:// URI scheme.
-    """
-    return [
-        types.Resource(
-            uri=AnyUrl(f"note://internal/{name}"),
-            name=f"Note: {name}",
-            description=f"A simple note named {name}",
-            mimeType="text/plain",
+@asynccontextmanager
+async def app_lifespan(server: FastMCP) -> AsyncIterator[AppContext]:
+    """Manage application lifecycle with type-safe context"""
+    # Initialize on startup
+    try:
+        yield AppContext(
+            notes=notes,
+            custom_text_resources=custom_text_resources,
+            session_state=session_state
         )
-        for name in notes
-    ]
+    finally:
+        # Cleanup on shutdown
+        pass
 
+# Create FastMCP server instance with lifespan
+mcp = FastMCP(
+    "SingleStore MCP Server", 
+    lifespan=app_lifespan,
+    dependencies=["mcp-server", "singlestoredb"]
+)
 
-@server.read_resource()
-async def handle_read_resource(uri: AnyUrl) -> str:
-    """
-    Read a specific note's content by its URI.
-    The note name is extracted from the URI host component.
-    """
-    if uri.scheme != "note":
-        raise ValueError(f"Unsupported URI scheme: {uri.scheme}")
+# Register each tool using the proper FastMCP decorator pattern
+# This dynamically creates tools from our definitions
+for tool_def in tools_dicts:  # Use tools_dicts instead of tools_definitions
+    # Extract tool information
+    name = tool_def["name"]
+    description = tool_def["description"]
+    func = tool_def["func"]
+    input_schema = tool_def["inputSchema"]
+    
+    # Create a wrapper that preserves the function signature and adds Context
+    def create_tool_wrapper(tool_function, tool_name, tool_description):
+        # Get original signature to preserve parameter structure
+        sig = inspect.signature(tool_function)
+        
+        # Create a dynamic function that matches the original signature
+        if len(sig.parameters) == 0:
+            # For functions with no parameters
+            async def wrapper(ctx: Optional[Context] = None):
+                return tool_function()
+        else:
+            # For functions with parameters
+            # This creates a wrapper that matches the original signature
+            param_names = list(sig.parameters.keys())
+            
+            # Use exec to dynamically create a function with the right signature
+            # This preserves named parameters which is crucial for Pydantic validation
+            function_def = f"async def dynamic_wrapper({', '.join(param_names)}, ctx: Optional[Context] = None):\n"
+            function_def += f"    return tool_function({', '.join(param_names)})\n"
+            
+            # Create a local namespace to hold our dynamic function
+            local_namespace = {}
+            
+            # Execute the function definition in this namespace
+            exec(function_def, {"tool_function": tool_function, "Optional": Optional, "Context": Context}, local_namespace)
+            
+            # Get the created function from the namespace
+            wrapper = local_namespace["dynamic_wrapper"]
+        
+        # Set docstring from description
+        wrapper.__doc__ = tool_description
+        wrapper.__name__ = tool_name
+        
+        return wrapper
+    
+    # Create the wrapper with proper signature
+    tool_wrapper = create_tool_wrapper(func, name, description)
+    
+    # Register with FastMCP
+    mcp.tool(name=name)(tool_wrapper)
 
-    name = uri.path
-    if name is not None:
-        name = name.lstrip("/")
-        return notes[name]
-    raise ValueError(f"Note not found: {name}")
-
-
-@server.list_resources()
-async def handle_list_custom_text_resources() -> list[types.Resource]:
-    """
-    List available custom text resources.
-    Each resource is exposed with a custom text:// URI scheme.
-    """
-    return [
-        types.Resource(
-            uri=AnyUrl(f"text://internal/{name}"),
-            name=f"Text Resource: {name}",
-            description=f"A custom text resource named {name}",
-            mimeType="text/plain",
-        )
-        for name in custom_text_resources
-    ]
-
-
-@server.read_resource()
-async def handle_read_custom_text_resource(uri: AnyUrl) -> str:
-    """
-    Read a specific custom text resource's content by its URI.
-    The resource name is extracted from the URI host component.
-    """
-    if uri.scheme != "text":
-        raise ValueError(f"Unsupported URI scheme: {uri.scheme}")
-
-    name = uri.path
-    if name is not None:
-        name = name.lstrip("/")
-        return custom_text_resources[name]
-    raise ValueError(f"Resource not found: {name}")
-
-
-@server.list_tools()
-async def handle_list_tools() -> list[types.Tool]:
-    """
-    List available tools.
-    Each tool specifies its arguments using JSON Schema validation.
-    """
-    return tools
-
-
-@server.call_tool()
-async def handle_call_tool(
-    name: str, arguments: dict | None
-) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
-    """
-    Handle tool execution requests.
-    Tools can modify server state and notify clients of changes.
-    """
-    if name not in tool_functions:
-        raise ValueError(f"Unknown tool: {name}")
-
-    result = tool_functions[name](**arguments)
-
-    return [types.TextContent(type="text", text=str(result))]
-
-
-async def main():
-    # Run the server using stdin/stdout streams
-    async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
-        await server.run(
-            read_stream,
-            write_stream,
-            InitializationOptions(
-                server_name="SingleStore MCP Server",
-                server_version="0.1.2",
-                capabilities=server.get_capabilities(
-                    notification_options=NotificationOptions(),
-                    experimental_capabilities={},
-                )
-            ),
-        )
+def main():
+    mcp.run()
 
 # Add this block to run the main function when the script is executed directly
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
