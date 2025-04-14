@@ -1,5 +1,7 @@
 # SingleStore MCP Server
 
+[![PyPI version](https://img.shields.io/pypi/v/singlestore-mcp-server)](https://pypi.org/project/singlestore_mcp_server/)
+[![PyPI downloads](https://img.shields.io/pypi/dm/singlestore-mcp-server)](https://pypi.org/project/singlestore_mcp_server/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![smithery badge](https://smithery.ai/badge/@singlestore-labs/mcp-server-singlestore)](https://smithery.ai/server/@singlestore-labs/mcp-server-singlestore)
 
