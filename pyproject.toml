@@ -1,6 +1,6 @@
 [project]
 name = "singlestore_mcp_server"
-version = "0.1.1"
+dynamic = ["version"]
 description = "SingleStore MCP server"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -10,8 +10,11 @@ dependencies = [
 ]
 
 [build-system]
-requires = [ "hatchling",]
+requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/server/version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/server"]

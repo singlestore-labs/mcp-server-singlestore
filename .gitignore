@@ -50,6 +50,3 @@ dmypy.json
 # Tool specific
 tool_result.txt
 .DS_Store
-
-*.yml
-*.yaml
