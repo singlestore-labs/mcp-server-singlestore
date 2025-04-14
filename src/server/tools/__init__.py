@@ -1,5 +1,5 @@
 import mcp.types as types
-from .definitions import tools_definitions
+from s2_ai_tools import tools_definitions
 
 # Export the tools
 tools = [
