@@ -1,12 +1,15 @@
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-import inspect
-from typing import Optional
-from mcp.server.fastmcp import FastMCP, Context
+import argparse
+import sys
+import os
+from mcp.server.fastmcp import FastMCP
 
 # Import tools from our definitions
 from .tools import tools_dicts
+from .tools.registration import register_tools
+from .init import init_command
 
 # Store notes as a simple key-value dict to demonstrate state management
 notes: dict[str, str] = {}
@@ -45,58 +48,41 @@ mcp = FastMCP(
     dependencies=["mcp-server", "singlestoredb"]
 )
 
-# Register each tool using the proper FastMCP decorator pattern
-# This dynamically creates tools from our definitions
-for tool_def in tools_dicts:  # Use tools_dicts instead of tools_definitions
-    # Extract tool information
-    name = tool_def["name"]
-    description = tool_def["description"]
-    func = tool_def["func"]
-    input_schema = tool_def["inputSchema"]
-    
-    # Create a wrapper that preserves the function signature and adds Context
-    def create_tool_wrapper(tool_function, tool_name, tool_description):
-        # Get original signature to preserve parameter structure
-        sig = inspect.signature(tool_function)
-        
-        # Create a dynamic function that matches the original signature
-        if len(sig.parameters) == 0:
-            # For functions with no parameters
-            async def wrapper(ctx: Optional[Context] = None):
-                return tool_function()
-        else:
-            # For functions with parameters
-            # This creates a wrapper that matches the original signature
-            param_names = list(sig.parameters.keys())
-            
-            # Use exec to dynamically create a function with the right signature
-            # This preserves named parameters which is crucial for Pydantic validation
-            function_def = f"async def dynamic_wrapper({', '.join(param_names)}, ctx: Optional[Context] = None):\n"
-            function_def += f"    return tool_function({', '.join(param_names)})\n"
-            
-            # Create a local namespace to hold our dynamic function
-            local_namespace = {}
-            
-            # Execute the function definition in this namespace
-            exec(function_def, {"tool_function": tool_function, "Optional": Optional, "Context": Context}, local_namespace)
-            
-            # Get the created function from the namespace
-            wrapper = local_namespace["dynamic_wrapper"]
-        
-        # Set docstring from description
-        wrapper.__doc__ = tool_description
-        wrapper.__name__ = tool_name
-        
-        return wrapper
-    
-    # Create the wrapper with proper signature
-    tool_wrapper = create_tool_wrapper(func, name, description)
-    
-    # Register with FastMCP
-    mcp.tool(name=name)(tool_wrapper)
+# Register all tools using the registration module
+register_tools(mcp, tools_dicts)
 
 def main():
-    mcp.run()
+    # Set up command-line parser
+    parser = argparse.ArgumentParser(description="SingleStore MCP Server")
+    subparsers = parser.add_subparsers(dest="command", help="Command to run")
+    
+    # Add start command (default behavior when no command is provided)
+    start_parser = subparsers.add_parser("start", help="Start the MCP server")
+    start_parser.add_argument("api_key", help="SingleStore API key")
+    
+    # Add init command
+    init_parser = subparsers.add_parser("init", help="Initialize client configuration")
+    init_parser.add_argument("api_key", help="SingleStore API key")
+    init_parser.add_argument("--client", default="claude", 
+                            choices=["claude", "cursor", "windsurf", "copilot"],
+                            help="LLM client to configure (default: claude)")
+    
+    # Parse arguments
+    args = parser.parse_args()
+    
+    # Handle commands
+    if args.command == "init":
+        # Run the init command and exit with its return code
+        sys.exit(init_command(args.api_key, args.client))
+    elif args.command == "start" or args.command is None:
+        # When no command is provided, default to running the server
+        # with the API key if provided
+        if getattr(args, "api_key", None):
+            os.environ["SINGLESTORE_API_KEY"] = args.api_key
+        mcp.run()
+    else:
+        parser.print_help()
+        sys.exit(1)
 
 # Add this block to run the main function when the script is executed directly
 if __name__ == "__main__":

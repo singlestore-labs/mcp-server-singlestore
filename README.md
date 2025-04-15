@@ -8,7 +8,29 @@ With MCP, you can use Claude Desktop or any compatible MCP client to interact wi
 
 ## Claude Setup
 
-### Installing via Smithery
+### Option 1: Using the Init Command (Recommended)
+
+The simplest way to set up the MCP server for Claude Desktop is to use the built-in initialization command:
+
+```bash
+pipx run singlestore-mcp-server init <YOUR_SINGLESTORE_API_KEY>
+```
+
+This command will:
+
+1. Automatically locate the Claude Desktop configuration file for your platform
+2. Create or update the configuration to include the SingleStore MCP server
+3. Provide instructions for starting the server
+
+You can also set up other supported LLM clients by using the `--client` flag:
+
+```bash
+pipx run singlestore-mcp-server init <YOUR_SINGLESTORE_API_KEY> --client=claude
+```
+
+Supported clients: For now only Claude Desktop is supported but in the future we will support cursor, windsurf and copilot.
+
+### Option 2: Installing via Smithery
 
 To install mcp-server-singlestore for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@singlestore-labs/mcp-server-singlestore):
 
@@ -20,9 +42,11 @@ npx -y @smithery/cli install @singlestore-labs/mcp-server-singlestore --client c
 
 - Python >= v3.11.0
 - [Pipx](https://pipx.pypa.io/stable/) installed on your python environment
-- Claude Desktop
+- Claude Desktop or another supported LLM client
 
-## How to use locally
+## How to use locally (Manual Setup)
+
+If you prefer to manually configure your LLM client, follow these steps:
 
 1. Add the following config to your Claude Desktop [config file](https://modelcontextprotocol.io/quickstart/user)
 2. Restart Claude Desktop after making changes to the configuration
@@ -34,13 +58,10 @@ npx -y @smithery/cli install @singlestore-labs/mcp-server-singlestore --client c
       "command": "pipx",
         "args": [
           "run",
-          "singlestore-mcp-server"
-      ],
-      "env": {
-        "SINGLESTORE_DB_USERNAME": "your-database-username",
-        "SINGLESTORE_DB_PASSWORD": "your-database-password",
-        "SINGLESTORE_API_KEY": "your-api-key"
-      }
+          "singlestore-mcp-server",
+          "start",
+          "YOUR_SINGLESTORE_API_KEY"
+        ]
     }
   }
 }
