@@ -13,19 +13,28 @@ With MCP, you can use Claude Desktop or any compatible MCP client to interact wi
 The simplest way to set up the MCP server for Claude Desktop is to use the built-in initialization command:
 
 ```bash
-pipx run singlestore-mcp-server init <YOUR_SINGLESTORE_API_KEY>
+uvx singlestore-mcp-server init
 ```
 
 This command will:
 
-1. Automatically locate the Claude Desktop configuration file for your platform
-2. Create or update the configuration to include the SingleStore MCP server
-3. Provide instructions for starting the server
+1. Authenticate the user
+2. Automatically locate the Claude Desktop configuration file for your platform
+3. Create or update the configuration to include the SingleStore MCP server
+4. Provide instructions for starting the server
+
+It's also possible to explicitly pass a `<SINGLESTORE_API_KEY>`. Get your API key on SingleStore's [Helios Portal](https://portal.singlestore.com/intention/cloud)
+
+```bash
+uvx singlestore-mcp-server init <SINGLESTORE_API_KEY>
+```
+
+---
 
 You can also set up other supported LLM clients by using the `--client` flag:
 
 ```bash
-pipx run singlestore-mcp-server init <YOUR_SINGLESTORE_API_KEY> --client=claude
+uvx singlestore-mcp-server init <SINGLESTORE_API_KEY> --client=claude
 ```
 
 Supported clients: For now only Claude Desktop is supported but in the future we will support cursor, windsurf and copilot.
@@ -41,7 +50,7 @@ npx -y @smithery/cli install @singlestore-labs/mcp-server-singlestore --client c
 ## Requirements
 
 - Python >= v3.11.0
-- [Pipx](https://pipx.pypa.io/stable/) installed on your python environment
+- [uvx](https://docs.astral.sh/uv/guides/tools/) installed on your python environment
 - Claude Desktop or another supported LLM client
 
 ## How to use locally (Manual Setup)
@@ -55,21 +64,16 @@ If you prefer to manually configure your LLM client, follow these steps:
 {
   "mcpServers": {
     "singlestore-mcp-server": {
-      "command": "pipx",
+      "command": "uvx",
         "args": [
-          "run",
           "singlestore-mcp-server",
           "start",
-          "YOUR_SINGLESTORE_API_KEY"
+          "<SINGLESTORE_API_KEY>"
         ]
     }
   }
 }
 ```
-
-Note:
-
-You can get your API key and DB credentials on SingleStore's [Helios Portal](https://portal.singlestore.com/intention/cloud)
 
 ## Components
 
@@ -134,16 +138,3 @@ The server implements the following tools:
 - **list_job_executions**: List execution history for a specific job
   - Arguments: `job_id`, `start` (optional), `end` (optional)
   - Returns execution history for the specified job
-
-## Configuration
-
-The server requires the following environment variables:
-
-```bash
-# SingleStore's management API key (required)
-SINGLESTORE_API_KEY=your_api_key_here
-
-# Database credentials (optional - can be provided as input parameters)
-SINGLESTORE_DB_USERNAME=your_db_username_here
-SINGLESTORE_DB_PASSWORD=your_db_password_here
-```

@@ -1,7 +1,3 @@
-"""
-Authentication module for SingleStore MCP Server.
-Handles OpenID Connect authentication with auth.singlestore.com.
-"""
 import os
 import json
 import time
@@ -16,6 +12,7 @@ import requests
 from pathlib import Path
 from typing import Optional, Dict, Any, Tuple
 from datetime import datetime
+from pathlib import Path
 
 # Default SingleStore OAuth client ID
 CLIENT_ID = "b7dbf19e-d140-4334-bae4-e8cd03614485"
@@ -92,8 +89,7 @@ class AuthCallbackHandler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
         
         try:
-            from pathlib import Path
-            callback_html_path = f'{Path(__file__).parent.parent}/assets/callback.html'
+            callback_html_path = './src/server/assets/callback.html'
             with open(callback_html_path, 'r') as file:
                 response = file.read()
         except Exception as e:
