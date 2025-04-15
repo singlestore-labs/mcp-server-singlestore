@@ -14,17 +14,10 @@ from typing import Optional, Dict, Any, Tuple
 from datetime import datetime
 from pathlib import Path
 
-# Default SingleStore OAuth client ID
-CLIENT_ID = "b7dbf19e-d140-4334-bae4-e8cd03614485"
-
-# OAuth server host
-OAUTH_HOST = "https://authsvc.singlestore.com/"
+from .config import CLIENT_ID, OAUTH_HOST, AUTH_TIMEOUT_SECONDS, ROOT_DIR
 
 # Scopes that are always required
 ALWAYS_PRESENT_SCOPES = ["openid", "offline", "offline_access"]
-
-# Authentication timeout in seconds
-AUTH_TIMEOUT_SECONDS = 60
 
 # Credential file path
 CREDENTIALS_FILE = Path.home() / ".singlestore-mcp-credentials.json"
@@ -89,7 +82,7 @@ class AuthCallbackHandler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
         
         try:
-            callback_html_path = './src/server/assets/callback.html'
+            callback_html_path = os.path.join(ROOT_DIR, 'assets/callback.html')
             with open(callback_html_path, 'r') as file:
                 response = file.read()
         except Exception as e:
