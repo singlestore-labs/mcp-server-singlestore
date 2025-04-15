@@ -28,7 +28,7 @@ class AppContext:
     session_state: dict[str, dict]
 
 @asynccontextmanager
-async def app_lifespan() -> AsyncIterator[AppContext]:
+async def app_lifespan(server: FastMCP) -> AsyncIterator[AppContext]:
     """Manage application lifecycle with type-safe context"""
     # Initialize on startup
     try:
@@ -91,15 +91,6 @@ def main():
         if getattr(args, "api_key", None):
             print(f"Using provided API key: {args.api_key}")
             os.environ["SINGLESTORE_API_KEY"] = args.api_key
-        else:
-            print("No API key provided. Attempting to authenticate...")
-            # If not, try to get from auth token
-            auth_token = get_authentication_token()
-            if auth_token:
-                os.environ["SINGLESTORE_API_KEY"] = auth_token
-            else:
-                print("Authentication failed. Please provide an API key or authenticate via the web.")
-                sys.exit(1)
                 
         mcp.run()
     else:

@@ -91,16 +91,25 @@ class AuthCallbackHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header('Content-type', 'text/html')
         self.end_headers()
         
-        response = """
-        <html>
-        <head><title>Authentication Successful</title></head>
-        <body>
-            <h1>Authentication Successful</h1>
-            <p>You have successfully authenticated with SingleStore. You can close this window now.</p>
-            <script>window.close();</script>
-        </body>
-        </html>
-        """
+        try:
+            from pathlib import Path
+            callback_html_path = f'{Path(__file__).parent.parent}/assets/callback.html'
+            with open(callback_html_path, 'r') as file:
+                response = file.read()
+        except Exception as e:
+            print(f"Error reading callback.html: {e}")
+            # Fallback response if file can't be read
+            response = """
+            <html>
+            <head><title>Authentication Successful</title></head>
+            <body>
+                <h1>Authentication Successful</h1>
+                <p>You have successfully authenticated with SingleStore. You can close this window now.</p>
+                <script>window.close();</script>
+            </body>
+            </html>
+            """
+        
         self.wfile.write(response.encode())
         
         # Signal that we've received the callback

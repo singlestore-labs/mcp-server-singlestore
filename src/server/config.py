@@ -7,5 +7,6 @@ SINGLESTORE_API_KEY = os.getenv("SINGLESTORE_API_KEY")
 SINGLESTORE_DB_USERNAME = os.getenv("SINGLESTORE_DB_USERNAME")
 SINGLESTORE_DB_PASSWORD = os.getenv("SINGLESTORE_DB_PASSWORD")
 SINGLESTORE_API_BASE_URL = "https://api.singlestore.com"
+SINGLESTORE_GRAPHQL_PUBLIC_ENDPOINT = "https://backend.singlestore.com/public"
 
 print("Environment variables loaded successfully.")
