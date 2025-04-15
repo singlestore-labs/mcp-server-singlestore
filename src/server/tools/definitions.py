@@ -1,15 +1,164 @@
 from enum import Enum
 import re
+import os
 from typing import Optional, List, Dict, Any, Union
 import requests
 import json
+
+# Import the refresh_token function from auth.py
+from ..auth import refresh_token, TokenSet, load_credentials
+from .classes import Tool
 from ..config import (
     SINGLESTORE_API_KEY,
     SINGLESTORE_API_BASE_URL,
     SINGLESTORE_DB_PASSWORD,
     SINGLESTORE_DB_USERNAME,
+    SINGLESTORE_GRAPHQL_PUBLIC_ENDPOINT,
 )
+from ..auth import get_authentication_token
 import singlestoredb as s2
+
+# Global variable to store selected organization
+SELECTED_ORGANIZATION_ID = None
+SELECTED_ORGANIZATION_NAME = None
+AUTH_TOKEN = SINGLESTORE_API_KEY
+
+
+def __query_graphql_organizations():
+    """
+    Query the GraphQL endpoint to get a list of organizations the user has access to.
+    
+    Returns:
+        List of organizations with their IDs and names
+    """
+    graphql_endpoint = SINGLESTORE_GRAPHQL_PUBLIC_ENDPOINT
+    
+    # GraphQL query for organizations
+    query = """
+    query GetOrganizations {
+        organizations {
+            orgID
+            name
+        }
+    }
+    """
+    
+    # Headers with authentication
+    headers = {
+        "Authorization": f"Bearer {AUTH_TOKEN}",
+        "Content-Type": "application/json",
+    }
+    
+    # Payload for the GraphQL request
+    payload = {
+        "operationName": "GetOrganizations",
+        "query": query,
+        "variables": {}
+    }
+    
+    try:
+        response = requests.post(
+            f"{graphql_endpoint}?q=GetOrganizations",
+            headers=headers, 
+            json=payload
+        )
+        
+        if response.status_code != 200:
+            raise ValueError(
+                f"GraphQL request failed with status code {response.status_code}: {response.text}"
+            )
+            
+        data = response.json()
+        if "errors" in data:
+            errors = data["errors"]
+            error_message = "; ".join([error.get("message", "Unknown error") for error in errors])
+            raise ValueError(f"GraphQL query error: {error_message}")
+            
+        if "data" in data and "organizations" in data["data"]:
+            return data["data"]["organizations"]
+        else:
+            return []
+            
+    except Exception as e:
+        raise ValueError(f"Failed to query organizations: {str(e)}")
+
+
+def select_organization():
+    """
+    Query available organizations and prompt the user to select one.
+    
+    This must be called after authentication and before making other API calls.
+    Sets the global SELECTED_ORGANIZATION_ID and SELECTED_ORGANIZATION_NAME variables.
+    
+    Returns:
+        Dictionary with the selected organization ID and name
+    """
+    global SELECTED_ORGANIZATION_ID, SELECTED_ORGANIZATION_NAME
+    
+    # If organization is already selected, return it
+    if SELECTED_ORGANIZATION_ID and SELECTED_ORGANIZATION_NAME:
+        return {
+            "orgID": SELECTED_ORGANIZATION_ID,
+            "name": SELECTED_ORGANIZATION_NAME
+        }
+    
+    # Get available organizations
+    organizations = __query_graphql_organizations()
+    
+    if not organizations:
+        raise ValueError("No organizations found. Please check your account access.")
+    
+    # If only one organization is available, select it automatically
+    if len(organizations) == 1:
+        org = organizations[0]
+        SELECTED_ORGANIZATION_ID = org["orgID"]
+        SELECTED_ORGANIZATION_NAME = org["name"]
+        
+        return {
+            "orgID": SELECTED_ORGANIZATION_ID,
+            "name": SELECTED_ORGANIZATION_NAME
+        }
+    
+    # Create a formatted list of organizations for the user to choose from
+    org_list = "\n".join([f"{i+1}. {org['name']} (ID: {org['orgID']})" for i, org in enumerate(organizations)])
+    
+    # This will be handled by the LLM to ask the user which organization to use
+    raise ValueError(
+        f"Multiple organizations found. Please specify which organization to use either by name or ID:\n\n{org_list}"
+    )
+
+
+def __set_selected_organization(org_identifier):
+    """
+    Set the selected organization by name or ID.
+    
+    Args:
+        org_identifier: Organization name or ID
+    
+    Returns:
+        Dictionary with the selected organization ID and name
+    """
+    global SELECTED_ORGANIZATION_ID, SELECTED_ORGANIZATION_NAME
+    
+    # Get available organizations
+    organizations = __query_graphql_organizations()
+    
+    if not organizations:
+        raise ValueError("No organizations found. Please check your account access.")
+    
+    # Find the organization by name or ID
+    for org in organizations:
+        if org["orgID"] == org_identifier or org["name"] == org_identifier:
+            SELECTED_ORGANIZATION_ID = org["orgID"]
+            SELECTED_ORGANIZATION_NAME = org["name"]
+            
+            return {
+                "orgID": SELECTED_ORGANIZATION_ID,
+                "name": SELECTED_ORGANIZATION_NAME
+            }
+    
+    # If no matching organization is found
+    raise ValueError(f"Organization not found: {org_identifier}")
 
 
 def __build_request(type: str, endpoint: str, params: dict = None, data: dict = None):
@@ -25,9 +174,20 @@ def __build_request(type: str, endpoint: str, params: dict = None, data: dict = 
     Returns:
         JSON response from the API
     """
+    # Ensure an organization is selected before making API requests
+    if not SELECTED_ORGANIZATION_ID:
+        select_organization()
 
     def build_request_endpoint(endpoint: str, params: dict = None):
         url = f"{SINGLESTORE_API_BASE_URL}/v1/{endpoint}"
+        
+        # Add organization ID as a query parameter
+        if params is None:
+            params = {}
+        
+        if SELECTED_ORGANIZATION_ID:
+            params["organizationID"] = SELECTED_ORGANIZATION_ID
+            
         if params and type == "GET":  # Only add query params for GET requests
             url += "?"
             for key, value in params.items():
@@ -37,7 +197,7 @@ def __build_request(type: str, endpoint: str, params: dict = None, data: dict = 
 
     # Headers with authentication
     headers = {
-        "Authorization": f"Bearer {SINGLESTORE_API_KEY}",
+        "Authorization": f"Bearer {AUTH_TOKEN}",
         "Content-Type": "application/json",
     }
 
@@ -356,7 +516,7 @@ def __create_file_in_shared_space(path: str, content: str):
             "nbformat_minor": 2
         })
     
-    file_manager = s2.manage_files(access_token=SINGLESTORE_API_KEY, base_url=SINGLESTORE_API_BASE_URL)
+    file_manager = s2.manage_files(access_token=AUTH_TOKEN, base_url=SINGLESTORE_API_BASE_URL)
 
     if not content:
         content = ""
@@ -387,7 +547,7 @@ def __list_files_in_personal_space():
     url = f"{SINGLESTORE_API_BASE_URL}/v1/files/fs/personal"
 
     headers = {
-        "Authorization": f"Bearer {SINGLESTORE_API_KEY}",
+        "Authorization": f"Bearer {AUTH_TOKEN}",
     }
 
     response = requests.get(url, headers=headers)
@@ -457,7 +617,7 @@ def __create_scheduled_job(
     mode_enum = Mode.from_str(mode)
 
     try:
-        jobs_manager = s2.manage_workspaces(access_token=SINGLESTORE_API_KEY, base_url=SINGLESTORE_API_BASE_URL).organizations.current.jobs
+        jobs_manager = s2.manage_workspaces(access_token=AUTH_TOKEN, base_url=SINGLESTORE_API_BASE_URL).organizations.current.jobs
         job = jobs_manager.schedule(notebook_path=notebook_path, mode=mode_enum, create_snapshot=create_snapshot)
         return job
     except Exception as e:
@@ -487,7 +647,7 @@ def __list_files_in_shared_space():
     url = f"{SINGLESTORE_API_BASE_URL}/v1/files/fs/shared"
 
     headers = {
-        "Authorization": f"Bearer {SINGLESTORE_API_KEY}",
+        "Authorization": f"Bearer {AUTH_TOKEN}",
     }
 
     response = requests.get(url, headers=headers)
@@ -1148,9 +1308,197 @@ def get_user_id() -> str:
     return __get_user_id()
 
 
+def get_organizations() -> List[Dict[str, Any]]:
+    """
+    List all available SingleStore organizations your account has access to.
+    
+    After logging in, this tool must be called first to identify which organization
+    your queries should run against. Returns a list of organizations with:
+    
+    - orgID: Unique identifier for the organization
+    - name: Display name of the organization
+    
+    Use this tool when:
+    1. Starting a new session to see available organizations
+    2. To verify permissions across multiple organizations
+    3. Before switching context to a different organization
+    
+    After reviewing the list, use select_organization to choose one.
+    """
+    return __query_graphql_organizations()
+
+
+def set_organization(orgID: str) -> Dict[str, Any]:
+    """
+    Select which SingleStore organization to use for all subsequent API calls.
+    
+    This tool must be called after logging in and before making other API requests.
+    Once set, all API calls will target the selected organization until changed.
+    
+    Args:
+        orgID: Name or ID of the organization to select
+    
+    Returns:
+        Dictionary with the selected organization ID and name
+    
+    Usage:
+    - Call get_organizations first to see available options
+    - Then call this tool with either the organization's name or ID
+    - All subsequent API calls will use the selected organization
+    """
+    return __set_selected_organization(orgID)
+
+
+def login(api_key: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Authenticate with SingleStore and obtain the necessary token for API access.
+    
+    This should be the first tool called before using any other SingleStore API tools.
+    You can provide an API key directly, or if left empty, the tool will attempt to:
+    1. Use any existing API key from the environment
+    2. Use any saved credentials
+    3. Launch browser-based authentication if needed
+    
+    Args:
+        api_key: Optional SingleStore API key. If provided, it will be used instead of
+                launching the browser authentication flow.
+    
+    Returns:
+        Dictionary with authentication status and instructions for next steps
+        
+    After successful login, call get_organizations to list available organizations
+    and then select one with set_organization before making other API calls.
+    """
+    global AUTH_TOKEN
+    
+    # If API key is provided, store it and return success
+    if api_key:
+        AUTH_TOKEN = api_key
+        return {
+            "status": "success",
+            "message": "Successfully authenticated with provided API key. Please call get_organizations next to list available organizations."
+        }
+    
+    # Otherwise, use the authentication flow from auth.py
+    auth_token = get_authentication_token()
+    
+    if auth_token:
+        AUTH_TOKEN = auth_token
+        return {
+            "status": "success",
+            "message": "Successfully authenticated. Please call get_organizations next to list available organizations."
+        }
+    else:
+        return {
+            "status": "failed",
+            "message": "Authentication failed. Please try again with a valid API key."
+        }
+
+
+def refresh_auth_token() -> Dict[str, Any]:
+    """
+    Refresh the current authentication token with SingleStore.
+    
+    Use this tool when:
+    1. Your current token has expired
+    2. You encounter authentication errors with other API calls
+    3. You want to ensure you have a fresh token for an extended session
+    
+    This tool will attempt to refresh the existing token using the refresh token
+    stored during the initial authentication. If no valid refresh token exists,
+    you'll need to call the login tool again.
+    
+    Returns:
+        Dictionary with refresh status and instructions
+    
+    Note: After a successful refresh, you can continue using all other API tools
+    with the new token. No need to select an organization again.
+    """
+    global AUTH_TOKEN
+    
+    # Check if we have credentials stored
+    credentials = load_credentials()
+    
+    if not credentials or "token_set" not in credentials:
+        return {
+            "status": "failed",
+            "message": "No existing credentials found. Please use the login tool first."
+        }
+    
+    # Create a token set from the stored credentials
+    token_set = TokenSet(credentials["token_set"])
+    
+    # Try to refresh the token
+    refreshed_token_set = refresh_token(token_set)
+    
+    if refreshed_token_set and refreshed_token_set.access_token:
+        # Update the global token
+        AUTH_TOKEN = refreshed_token_set.access_token
+        
+        return {
+            "status": "success",
+            "message": "Authentication token successfully refreshed. You can continue using SingleStore tools."
+        }
+    else:
+        return {
+            "status": "failed", 
+            "message": "Failed to refresh the token. Please use the login tool again to authenticate."
+        }
+
+
 # Create a list of tool definitions to maintain compatibility with existing code
 # This will allow us to iterate through tools in server.py
 tools_definitions = [
+    {
+        "name": "login",
+        "description": login.__doc__,
+        "func": login,
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "api_key": {
+                    "type": "string",
+                    "description": "Optional SingleStore API key. If provided, it will be used instead of launching the browser authentication flow."
+                }
+            },
+            "required": [],
+        }
+    },
+    {
+        "name": "refresh_auth_token",
+        "description": refresh_auth_token.__doc__,
+        "func": refresh_auth_token,
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        }
+    },
+    {
+        "name": "get_organizations",
+        "description": get_organizations.__doc__,
+        "func": get_organizations,
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        }
+    },
+    {
+        "name": "set_organization",
+        "description": set_organization.__doc__,
+        "func": set_organization,
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "orgID": {
+                    "type": "string",
+                    "description": "Name or ID of the organization to select",
+                }
+            },
+            "required": ["orgID"],
+        }
+    },
     {
         "name": "workspace_groups_info",
         "description": workspace_groups_info.__doc__,
@@ -1464,4 +1812,15 @@ tools_definitions = [
             "required": [],
         },
     },
+]
+
+# Export the tools
+tools = [
+    Tool(
+        name=tool["name"],
+        description=tool["description"],
+        func=tool["func"],
+        inputSchema=tool["inputSchema"],
+    )
+    for tool in tools_definitions
 ]

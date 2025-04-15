@@ -16,7 +16,6 @@ def register_tools(mcp: FastMCP, tools_dicts: List[Dict[str, Any]]) -> None:
         name = tool_def["name"]
         description = tool_def["description"]
         func = tool_def["func"]
-        input_schema = tool_def["inputSchema"]
         
         # Create a wrapper that preserves the function signature and adds Context
         tool_wrapper = create_tool_wrapper(func, name, description)

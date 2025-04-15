@@ -3,6 +3,7 @@ import json
 import sys
 from pathlib import Path
 from typing import Optional, Literal
+from .auth import get_authentication_token
 
 # Supported client types
 ClientType = Literal["claude", "cursor", "windsurf", "copilot"]
@@ -21,9 +22,8 @@ CLIENT_CONFIG_TEMPLATES = {
     "claude": {
         "mcpServers": {
             "singlestore-mcp-server": {
-                "command": "pipx",
+                "command": "uvx",
                 "args": [
-                    "run",
                     "singlestore-mcp-server",
                     "start",
                     "{api_key}"
@@ -116,16 +116,6 @@ def update_client_config(client: ClientType, api_key: str) -> bool:
                         if "mcpServers" not in existing_config:
                             existing_config["mcpServers"] = {}
                         existing_config["mcpServers"]["singlestore-mcp-server"] = config_data["mcpServers"]["singlestore-mcp-server"]
-                    elif client in ["cursor", "windsurf"]:
-                        if "servers" not in existing_config:
-                            existing_config["servers"] = {}
-                        existing_config["servers"]["singlestore-mcp-server"] = config_data["servers"]["singlestore-mcp-server"]
-                    elif client == "copilot":
-                        if "mcp" not in existing_config:
-                            existing_config["mcp"] = {"servers": {}}
-                        elif "servers" not in existing_config["mcp"]:
-                            existing_config["mcp"]["servers"] = {}
-                        existing_config["mcp"]["servers"]["singlestore-mcp-server"] = config_data["mcp"]["servers"]["singlestore-mcp-server"]
                     
                     config_data = existing_config
                 except json.JSONDecodeError:
@@ -144,12 +134,12 @@ def update_client_config(client: ClientType, api_key: str) -> bool:
         print(f"Error updating client config: {e}")
         return False
 
-def init_command(api_key: str, client: str = "claude") -> int:
+def init_command(api_key: Optional[str] = None, client: str = "claude") -> int:
     """
     Initialize the SingleStore MCP server for a specific client.
     
     Args:
-        api_key: SingleStore API key
+        api_key: SingleStore API key (optional, will use web auth flow if None)
         client: Name of the LLM client (claude, cursor, windsurf, copilot)
         
     Returns:
@@ -164,6 +154,17 @@ def init_command(api_key: str, client: str = "claude") -> int:
         return 1
     
     print(f"Initializing SingleStore MCP server for {client.capitalize()}...")
+    
+    # If no API key provided, use auth module to get one
+    if not api_key:
+        print("No API key provided. Launching authentication flow...")
+        api_key = get_authentication_token()
+        
+        if not api_key:
+            print("Authentication failed. Please try again or provide an API key.")
+            return 1
+        else:
+            print("Authentication successful!")
     
     # Update the client configuration
     if update_client_config(client, api_key):

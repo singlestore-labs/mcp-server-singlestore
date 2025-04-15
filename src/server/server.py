@@ -6,10 +6,10 @@ import sys
 import os
 from mcp.server.fastmcp import FastMCP
 
-# Import tools from our definitions
 from .tools import tools_dicts
 from .tools.registration import register_tools
 from .init import init_command
+from .auth import get_authentication_token
 
 # Store notes as a simple key-value dict to demonstrate state management
 notes: dict[str, str] = {}
@@ -58,11 +58,11 @@ def main():
     
     # Add start command (default behavior when no command is provided)
     start_parser = subparsers.add_parser("start", help="Start the MCP server")
-    start_parser.add_argument("api_key", help="SingleStore API key")
+    start_parser.add_argument("api_key", nargs="?", help="SingleStore API key (optional, will use web auth if not provided)")
     
     # Add init command
     init_parser = subparsers.add_parser("init", help="Initialize client configuration")
-    init_parser.add_argument("api_key", help="SingleStore API key")
+    init_parser.add_argument("api_key", nargs="?", help="SingleStore API key (optional, will use web auth if not provided)")
     init_parser.add_argument("--client", default="claude", 
                             choices=["claude", "cursor", "windsurf", "copilot"],
                             help="LLM client to configure (default: claude)")
@@ -72,18 +72,30 @@ def main():
     
     # Handle commands
     if args.command == "init":
+        # Get API key from arguments or authentication flow
+        api_key = getattr(args, "api_key", None)
+        if not api_key:
+            auth_token = get_authentication_token()
+            if auth_token:
+                api_key = auth_token
+            else:
+                # If no API key is provided and authentication fails, exit
+                print("No API key provided and authentication failed.")
+                sys.exit(1)
+            
         # Run the init command and exit with its return code
-        sys.exit(init_command(args.api_key, args.client))
+        sys.exit(init_command(api_key, args.client))
     elif args.command == "start" or args.command is None:
-        # When no command is provided, default to running the server
-        # with the API key if provided
+        
+        # First check if API key is provided as argument
         if getattr(args, "api_key", None):
+            print(f"Using provided API key: {args.api_key}")
             os.environ["SINGLESTORE_API_KEY"] = args.api_key
+                
         mcp.run()
     else:
         parser.print_help()
         sys.exit(1)
 
-# Add this block to run the main function when the script is executed directly
 if __name__ == "__main__":
     main()
