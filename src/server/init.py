@@ -14,12 +14,29 @@ CLIENT_CONFIG_PATHS = {
         "darwin": "~/Library/Application Support/Claude/claude_desktop_config.json",
         "win32": "%APPDATA%\\Claude\\claude_desktop_config.json",
         "linux": "~/.config/Claude/claude_desktop_config.json"
+    },
+    "cursor": {
+        "darwin": "~/.cursor/mcp.json",
+        "win32": "~/.cursor/mcp.json",
+        "linux": "~/.cursor/mcp.json"
     }
 }
 
 # Client-specific config templates
 CLIENT_CONFIG_TEMPLATES = {
     "claude": {
+        "mcpServers": {
+            "singlestore-mcp-server": {
+                "command": "uvx",
+                "args": [
+                    "singlestore-mcp-server",
+                    "start",
+                    "{api_key}"
+                ]
+            }
+        }
+    },
+    "cursor": {
         "mcpServers": {
             "singlestore-mcp-server": {
                 "command": "uvx",
@@ -112,7 +129,7 @@ def update_client_config(client: ClientType, api_key: str) -> bool:
                 try:
                     existing_config = json.load(f)
                     # Merge the configs based on client type
-                    if client == "claude":
+                    if client in ["claude", "cursor"]:
                         if "mcpServers" not in existing_config:
                             existing_config["mcpServers"] = {}
                         existing_config["mcpServers"]["singlestore-mcp-server"] = config_data["mcpServers"]["singlestore-mcp-server"]
