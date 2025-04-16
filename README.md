@@ -4,13 +4,20 @@
 
 [Model Context Protocol]((https://modelcontextprotocol.io/introduction)) (MCP) is a standardized protocol designed to manage context between large language models (LLMs) and external systems. This repository provides an installer and an MCP Server for Singlestore, enabling seamless integration.
 
-With MCP, you can use Claude Desktop or any compatible MCP client to interact with SingleStore using natural language, making it easier to perform complex operations effortlessly.
+With MCP, you can use Claude Desktop, Cursor, or any compatible MCP client to interact with SingleStore using natural language, making it easier to perform complex operations effortlessly.
 
-## Claude Setup
+## Requirements
 
-### Option 1: Using the Init Command (Recommended)
+- Python >= v3.11.0
+- [uvx](https://docs.astral.sh/uv/guides/tools/) installed on your python environment
+- Claude Desktop, Cursor, or another supported LLM client
 
-The simplest way to set up the MCP server for Claude Desktop is to use the built-in initialization command:
+
+## Client Setup
+
+### 1. Init Command
+
+The simplest way to set up the MCP server is to use the initialization command:
 
 ```bash
 uvx singlestore-mcp-server init
@@ -19,61 +26,57 @@ uvx singlestore-mcp-server init
 This command will:
 
 1. Authenticate the user
-2. Automatically locate the Claude Desktop configuration file for your platform
+2. Automatically locate the configuration file for your platform
 3. Create or update the configuration to include the SingleStore MCP server
 4. Provide instructions for starting the server
 
-It's also possible to explicitly pass a `<SINGLESTORE_API_KEY>`. Get your API key on SingleStore's [Helios Portal](https://portal.singlestore.com/intention/cloud)
+You can also explicitly pass a `<SINGLESTORE_API_KEY>`:
 
 ```bash
 uvx singlestore-mcp-server init <SINGLESTORE_API_KEY>
 ```
 
----
-
-You can also set up other supported LLM clients by using the `--client` flag:
+To specify a client (e.g., `claude` or `cursor`), use the `--client` flag:
 
 ```bash
-uvx singlestore-mcp-server init <SINGLESTORE_API_KEY> --client=claude
+uvx singlestore-mcp-server init <SINGLESTORE_API_KEY> --client=<client>
 ```
 
-Supported clients: For now only Claude Desktop is supported but in the future we will support cursor, windsurf and copilot.
+### 2. Installing via Smithery
 
-### Option 2: Installing via Smithery
-
-To install mcp-server-singlestore for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@singlestore-labs/mcp-server-singlestore):
+To install `mcp-server-singlestore` automatically via [Smithery](https://smithery.ai/server/@singlestore-labs/mcp-server-singlestore):
 
 ```bash
-npx -y @smithery/cli install @singlestore-labs/mcp-server-singlestore --client claude
+npx -y @smithery/cli install @singlestore-labs/mcp-server-singlestore --client=<client>
 ```
 
-## Requirements
+Replace `<client>` with `claude` or `cursor` as needed.
 
-- Python >= v3.11.0
-- [uvx](https://docs.astral.sh/uv/guides/tools/) installed on your python environment
-- Claude Desktop or another supported LLM client
+### 3. Manual Configuration
 
-## How to use locally (Manual Setup)
+#### Claude Desktop and Cursor
 
-If you prefer to manually configure your LLM client, follow these steps:
+1. Add the following configuration to your client configuration file:
 
-1. Add the following config to your Claude Desktop [config file](https://modelcontextprotocol.io/quickstart/user)
-2. Restart Claude Desktop after making changes to the configuration
+- [Claude Desktop](https://modelcontextprotocol.io/quickstart/user):
+- [Cursor](https://docs.cursor.com/context/model-context-protocol#configuration-locations)
 
-```json
-{
-  "mcpServers": {
-    "singlestore-mcp-server": {
+  ```json
+  {
+    "mcpServers": {
+     "singlestore-mcp-server": {
       "command": "uvx",
-        "args": [
-          "singlestore-mcp-server",
-          "start",
-          "<SINGLESTORE_API_KEY>"
-        ]
+      "args": [
+        "singlestore-mcp-server",
+        "start",
+        "<SINGLESTORE_API_KEY>"
+      ]
+     }
     }
   }
-}
-```
+  ```
+
+2. Restart your client after making changes to the configuration.
 
 ## Components
 
