@@ -11,15 +11,13 @@ from .classes import Tool
 from ..config import (
     SINGLESTORE_API_KEY,
     SINGLESTORE_API_BASE_URL,
-    SINGLESTORE_DB_PASSWORD,
-    SINGLESTORE_DB_USERNAME,
     SINGLESTORE_GRAPHQL_PUBLIC_ENDPOINT,
 )
 from ..auth import get_authentication_token
 import singlestoredb as s2
 
 # Global variable to store selected organization
-SELECTED_ORGANIZATION_ID = None
+SELECTED_ORGANIZATION_ID = "4f168792-6ca9-4ade-b00d-0d3dc4179926"
 SELECTED_ORGANIZATION_NAME = None
 AUTH_TOKEN = SINGLESTORE_API_KEY
 
@@ -897,8 +895,6 @@ def execute_sql(
     workspace_identifier: str,
     database: str,
     sql_query: str,
-    username: str = SINGLESTORE_DB_USERNAME,
-    password: str = SINGLESTORE_DB_PASSWORD
 ) -> Dict[str, Any]:
     """
     Execute SQL operations on a database attached to workspace within a workspace group and receive formatted results.
@@ -921,12 +917,15 @@ def execute_sql(
         workspace_identifier: ID/name of the specific workspace within the workspace group
         database: Name of the database to query
         sql_query: The SQL query to execute
-        username: Username for database access (defaults to SINGLESTORE_DB_USERNAME)
-        password: Password for database access (defaults to SINGLESTORE_DB_PASSWORD)
     
     Returns:
         Dictionary with query results and metadata
     """
+
+    # The username is the user id that we can get from the management API
+    username: str = __get_user_id()
+    password: str = AUTH_TOKEN
+
     return __execute_sql(
         workspace_group_identifier,
         workspace_identifier,
@@ -994,9 +993,7 @@ def create_virtual_workspace(
 
 def execute_sql_on_virtual_workspace(
     virtual_workspace_id: str,
-    sql_query: str,
-    username: str = SINGLESTORE_DB_USERNAME,
-    password: str = SINGLESTORE_DB_PASSWORD
+    sql_query: str
 ) -> Dict[str, Any]:
     """
     Execute SQL operations on a virtual (starter) workspace and receive formatted results.
@@ -1016,12 +1013,13 @@ def execute_sql_on_virtual_workspace(
     Args:
         virtual_workspace_id: Unique identifier of the starter workspace
         sql_query: The SQL query to execute (READ-ONLY queries only)
-        username: For accessing the starter workspace (defaults to SINGLESTORE_DB_USERNAME)
-        password: For accessing the starter workspace (defaults to SINGLESTORE_DB_PASSWORD)
     
     Returns:
         Dictionary with query results and metadata
     """
+    username: str = __get_user_id()
+    password: str = AUTH_TOKEN
+
     return __execute_sql_on_virtual_workspace(
         virtual_workspace_id,
         username,
@@ -1566,14 +1564,6 @@ tools_definitions = [
                 "sql_query": {
                     "type": "string",
                     "description": "The SQL query to execute. Must be valid SingleStore SQL.",
-                },
-                "username": {
-                    "type": "string",
-                    "description": "Optional: Username for database connection. Will use environment default if not specified.",
-                },
-                "password": {
-                    "type": "string",
-                    "description": "Optional: Password for database connection. Will use environment default if not specified.",
                 },
             },
             "required": [
