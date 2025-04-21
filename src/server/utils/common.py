@@ -1,12 +1,10 @@
 import requests
 import json
-
-from .types import Tool
-from ..config import (
+from server.config.config import (
     SINGLESTORE_API_BASE_URL,
     SINGLESTORE_GRAPHQL_PUBLIC_ENDPOINT,
 )
-from ..app_config import app_config
+from server.config.app_config import app_config
 
 # Global variable to store selected organization
 SELECTED_ORGANIZATION_ID = "4f168792-6ca9-4ade-b00d-0d3dc4179926"

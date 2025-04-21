@@ -4,12 +4,12 @@ from typing import List, Optional, Dict, Any
 import json
 
 from server.utils.common import __build_request, __get_project_id, __get_user_id, __get_workspace_endpoint, __query_graphql_organizations
-from server.app_config import AuthMethod, app_config
+from server.config.app_config import AuthMethod, app_config
 
 # Import the refresh_token function from auth.py
 from ..auth import refresh_token, TokenSet, load_credentials
 from .types import Tool
-from ..config import (
+from server.config.config import (
     SINGLESTORE_API_BASE_URL,
 )
 from ..auth import get_authentication_token
