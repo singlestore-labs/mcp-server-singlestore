@@ -35,6 +35,9 @@ async def app_lifespan(server: FastMCP) -> AsyncIterator[AppContext]:
     """Manage application lifecycle with type-safe context"""
     # Initialize on startup
     try:
+        # Start the token refresh scheduler
+        await token_refresh_scheduler.start()
+        
         yield AppContext(
             notes=notes,
             custom_text_resources=custom_text_resources,
