@@ -6,8 +6,10 @@ import sys
 import os
 from mcp.server.fastmcp import FastMCP
 
-from .tools import tools_dicts
-from .tools.registration import register_tools
+from server.utils.resources import resources
+from server.utils.tools import tools
+
+from .utils.registration import register_resources, register_tools
 from .init import init_command
 from .auth import get_authentication_token
 
@@ -48,8 +50,8 @@ mcp = FastMCP(
     dependencies=["mcp-server", "singlestoredb"]
 )
 
-# Register all tools using the registration module
-register_tools(mcp, tools_dicts)
+register_resources(mcp, resources)
+register_tools(mcp, tools)
 
 def main():
     # Set up command-line parser
