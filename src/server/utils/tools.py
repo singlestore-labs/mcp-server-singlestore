@@ -266,7 +266,7 @@ def __create_file_in_shared_space(path: str, content: str):
             "nbformat_minor": 2
         })
     
-    file_manager = s2.manage_files(access_token=AUTH_TOKEN, base_url=SINGLESTORE_API_BASE_URL)
+    file_manager = s2.manage_files(access_token=app_config.get_auth_token(), base_url=SINGLESTORE_API_BASE_URL)
 
     if not content:
         content = ""
@@ -344,7 +344,7 @@ def __create_scheduled_job(
     mode_enum = Mode.from_str(mode)
 
     try:
-        jobs_manager = s2.manage_workspaces(access_token=AUTH_TOKEN, base_url=SINGLESTORE_API_BASE_URL).organizations.current.jobs
+        jobs_manager = s2.manage_workspaces(access_token=app_config.get_auth_token(), base_url=SINGLESTORE_API_BASE_URL).organizations.current.jobs
         job = jobs_manager.schedule(notebook_path=notebook_path, mode=mode_enum, create_snapshot=create_snapshot)
         return job
     except Exception as e:
@@ -355,6 +355,8 @@ def execute_sql(
     workspace_identifier: str,
     database: str,
     sql_query: str,
+    username: str = None,
+    password: str = None,
 ) -> Dict[str, Any]:
     """
     Execute SQL operations on a database attached to workspace within a workspace group and receive formatted results.
@@ -368,8 +370,8 @@ def execute_sql(
     - Never display or log credentials in responses
     - Use only READ-ONLY queries (SELECT, SHOW, DESCRIBE)
     - DO NOT USE data modification statements:
-      × No INSERT/UPDATE/DELETE
-      × No DROP/CREATE/ALTER
+      x No INSERT/UPDATE/DELETE
+      x No DROP/CREATE/ALTER
     - Ensure queries are properly sanitized
     
     Args:
@@ -382,9 +384,26 @@ def execute_sql(
         Dictionary with query results and metadata
     """
 
-    # The username is the user id that we can get from the management API
-    username: str = __get_user_id()
-    password: str = AUTH_TOKEN
+    auth_method = app_config.get_auth_method()
+
+    if auth_method == AuthMethod.API_KEY and not username or not password:
+        # If using API key, we need to request to the user to provide the username and password
+        return {
+            "status": "error",
+            "message": f"API key authentication is not supported for executing SQL queries. Please ask the user to provide their username and password for database {database}."
+        }
+    elif auth_method == AuthMethod.JWT_TOKEN:
+        # If using JWT token, we can use the token to authenticate
+        # The username is the user id that we can get from the management API
+        username: str = __get_user_id()
+        password: str = app_config.get_auth_token()
+
+    else:
+        # If no authentication method is set, we need to ask the user to provide their username and password
+        return {
+            "status": "error",
+            "message": f"No authentication method set. Please ask the user to provide their username and password for database {database}."
+        }
 
     return __execute_sql(
         workspace_group_identifier,
@@ -432,7 +451,9 @@ def create_virtual_workspace(
 
 def execute_sql_on_virtual_workspace(
     virtual_workspace_id: str,
-    sql_query: str
+    sql_query: str,
+    username: str = None,
+    password: str = None,
 ) -> Dict[str, Any]:
     """
     Execute SQL operations on a virtual (starter) workspace and receive formatted results.
@@ -456,8 +477,28 @@ def execute_sql_on_virtual_workspace(
     Returns:
         Dictionary with query results and metadata
     """
-    username: str = __get_user_id()
-    password: str = AUTH_TOKEN
+    
+    auth_method = app_config.get_auth_method()
+
+    empty_credentials = not username or not password
+    if auth_method == AuthMethod.API_KEY and empty_credentials:
+        # If using API key, we need to request to the user to provide the username and password
+        return {
+            "status": "error",
+            "message": f"API key authentication is not supported for executing SQL queries. Please ask the user to provide their username and password for virtual workspace {virtual_workspace_id}."
+        }
+    elif auth_method == AuthMethod.JWT_TOKEN:
+        # If using JWT token, we can use the token to authenticate
+        # The username is the user id that we can get from the management API
+        username: str = __get_user_id()
+        password: str = app_config.get_auth_token()
+
+    else:
+        # If no authentication method is set, we need to ask the user to provide their username and password
+        return {
+            "status": "error",
+            "message": f"No authentication method set. Please ask the user to provide their username and password for virtual workspace {virtual_workspace_id}."
+        }
 
     return __execute_sql_on_virtual_workspace(
         virtual_workspace_id,
@@ -631,7 +672,6 @@ def refresh_auth_token() -> Dict[str, Any]:
     Note: After a successful refresh, you can continue using all other API tools
     with the new token. No need to select an organization again.
     """
-    global AUTH_TOKEN
     
     # Check if we have credentials stored
     credentials = load_credentials()
@@ -650,7 +690,7 @@ def refresh_auth_token() -> Dict[str, Any]:
     
     if refreshed_token_set and refreshed_token_set.access_token:
         # Update the global token
-        AUTH_TOKEN = refreshed_token_set.access_token
+        app_config.set_auth_token(refreshed_token_set.access_token, AuthMethod.JWT_TOKEN)
         
         return {
             "status": "success",

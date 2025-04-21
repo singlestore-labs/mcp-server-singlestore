@@ -6,13 +6,14 @@ import sys
 import os
 from mcp.server.fastmcp import FastMCP
 
-from .app_config import AuthMethod, app_config
+from server.app_config import AuthMethod, app_config
 from server.utils.resources import resources
 from server.utils.tools import tools
 
-from .utils.registration import register_resources, register_tools
-from .init import init_command
-from .auth import get_authentication_token
+from server.utils.registration import register_resources, register_tools
+from server.init import init_command
+from server.auth import get_authentication_token
+from server.token_scheduler import scheduler as token_refresh_scheduler
 
 # Store notes as a simple key-value dict to demonstrate state management
 notes: dict[str, str] = {}
@@ -35,14 +36,17 @@ async def app_lifespan(server: FastMCP) -> AsyncIterator[AppContext]:
     """Manage application lifecycle with type-safe context"""
     # Initialize on startup
     try:
+        # Start the token refresh scheduler
+        await token_refresh_scheduler.start()
+        
         yield AppContext(
             notes=notes,
             custom_text_resources=custom_text_resources,
             session_state=session_state
         )
     finally:
-        # Cleanup on shutdown
-        pass
+        # Stop the token refresh scheduler on shutdown
+        await token_refresh_scheduler.stop()
 
 # Create FastMCP server instance with lifespan
 mcp = FastMCP(

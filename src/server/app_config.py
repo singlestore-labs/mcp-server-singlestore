@@ -196,6 +196,10 @@ class AppConfig:
     def debug_mode(self, value: bool):
         """Set whether debug mode is enabled."""
         self._debug_mode = value
+
+    def get_auth_method(self) -> Optional[AuthMethod]:
+        """Get the authentication method."""
+        return self._auth_config.auth_method
     
     def get_auth_token(self) -> None:
         """Get the authentication token from the auth configuration."""
