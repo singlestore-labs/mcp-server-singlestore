@@ -15,6 +15,7 @@ from datetime import datetime
 from pathlib import Path
 
 from .config import CLIENT_ID, OAUTH_HOST, AUTH_TIMEOUT_SECONDS, ROOT_DIR
+from .app_config import app_config
 
 # Scopes that are always required
 ALWAYS_PRESENT_SCOPES = ["openid", "offline", "offline_access"]
@@ -375,7 +376,7 @@ def get_authentication_token(client_id: Optional[str] = None) -> Optional[str]:
         JWT token or API key if available, None otherwise
     """
     # First check for API key in environment
-    api_key = os.environ.get("SINGLESTORE_API_KEY")
+    api_key = app_config.get_auth_token()
     print(f"API key from environment: {api_key}")
     if api_key:
         return api_key

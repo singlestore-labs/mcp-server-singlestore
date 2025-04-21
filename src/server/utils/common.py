@@ -3,15 +3,14 @@ import json
 
 from .types import Tool
 from ..config import (
-    SINGLESTORE_API_KEY,
     SINGLESTORE_API_BASE_URL,
     SINGLESTORE_GRAPHQL_PUBLIC_ENDPOINT,
 )
+from ..app_config import app_config
 
 # Global variable to store selected organization
 SELECTED_ORGANIZATION_ID = "4f168792-6ca9-4ade-b00d-0d3dc4179926"
 SELECTED_ORGANIZATION_NAME = None
-AUTH_TOKEN = SINGLESTORE_API_KEY
 
 def __query_graphql_organizations():
     """
@@ -34,7 +33,7 @@ def __query_graphql_organizations():
     
     # Headers with authentication
     headers = {
-        "Authorization": f"Bearer {AUTH_TOKEN}",
+        "Authorization": f"Bearer {app_config.get_auth_token()}",
         "Content-Type": "application/json",
     }
     
@@ -152,7 +151,7 @@ def __build_request(type: str, endpoint: str, params: dict = None, data: dict = 
 
     # Headers with authentication
     headers = {
-        "Authorization": f"Bearer {AUTH_TOKEN}",
+        "Authorization": f"Bearer {app_config.get_auth_token()}",
         "Content-Type": "application/json",
     }
 

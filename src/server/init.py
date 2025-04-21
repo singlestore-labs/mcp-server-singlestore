@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 from typing import Optional, Literal
 from .auth import get_authentication_token
+from .app_config import AuthMethod, app_config
 
 # Supported client types
 ClientType = Literal["claude", "cursor", "windsurf", "copilot"]
@@ -151,13 +152,18 @@ def update_client_config(client: ClientType, api_key: str) -> bool:
         print(f"Error updating client config: {e}")
         return False
 
-def init_command(api_key: Optional[str] = None, client: str = "claude") -> int:
+def init_command(api_key: Optional[str] = None, jwt_token: Optional[str] = None, client: str = "claude") -> int:
     """
     Initialize the SingleStore MCP server for a specific client.
     
     Args:
-        api_key: SingleStore API key (optional, will use web auth flow if None)
+        api_key: SingleStore API key (optional)
+        jwt_token: JWT token for authentication (optional)
         client: Name of the LLM client (claude, cursor, windsurf, copilot)
+        
+    Note:
+        Either api_key or jwt_token can be provided, but not both.
+        If neither is provided, the auth module will launch a web auth flow.
         
     Returns:
         Exit code (0 for success, 1 for failure)
@@ -172,19 +178,35 @@ def init_command(api_key: Optional[str] = None, client: str = "claude") -> int:
     
     print(f"Initializing SingleStore MCP server for {client.capitalize()}...")
     
-    # If no API key provided, use auth module to get one
-    if not api_key:
-        print("No API key provided. Launching authentication flow...")
-        api_key = get_authentication_token()
+    # Both api_key and jwt_token provided - error
+    if api_key and jwt_token:
+        print("Error: Cannot provide both API key and JWT token. Choose one authentication method.")
+        return 1
         
-        if not api_key:
-            print("Authentication failed. Please try again or provide an API key.")
+    # API key provided
+    elif api_key:
+        app_config.set_auth_token(api_key, AuthMethod.API_KEY)
+        print("Using provided API key for authentication.")
+        
+    # JWT token provided
+    elif jwt_token:
+        app_config.set_auth_token(jwt_token, AuthMethod.JWT_TOKEN)
+        print("Using provided JWT token for authentication.")
+        
+    # No credentials provided, use auth module to get one
+    else:
+        print("No credentials provided. Launching authentication flow...")
+        token = get_authentication_token()
+        
+        if not token:
+            print("Authentication failed. Please try again or provide API key or JWT token.")
             return 1
-        else:
-            print("Authentication successful!")
+        
+        app_config.set_auth_token(jwt_token, AuthMethod.JWT_TOKEN)
+        print("Authentication successful!")
     
     # Update the client configuration
-    if update_client_config(client, api_key):
+    if update_client_config(client, app_config.get_auth_token()):
         print("\nSetup complete! You can now use the MCP server with your LLM client.")
         print("Restart your LLM client to apply the changes.")
         return 0

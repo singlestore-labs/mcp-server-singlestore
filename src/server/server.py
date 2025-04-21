@@ -6,6 +6,7 @@ import sys
 import os
 from mcp.server.fastmcp import FastMCP
 
+from .app_config import AuthMethod, app_config
 from server.utils.resources import resources
 from server.utils.tools import tools
 
@@ -66,7 +67,7 @@ def main():
     init_parser = subparsers.add_parser("init", help="Initialize client configuration")
     init_parser.add_argument("api_key", nargs="?", help="SingleStore API key (optional, will use web auth if not provided)")
     init_parser.add_argument("--client", default="claude", 
-                            choices=["claude", "cursor", "windsurf", "copilot"],
+                            choices=["claude", "cursor"],
                             help="LLM client to configure (default: claude)")
     
     # Parse arguments
@@ -92,7 +93,11 @@ def main():
         # First check if API key is provided as argument
         if getattr(args, "api_key", None):
             print(f"Using provided API key: {args.api_key}")
-            os.environ["SINGLESTORE_API_KEY"] = args.api_key
+            app_config.set_auth_token(args.api_key, AuthMethod.API_KEY)
+
+        elif os.getenv("SINGLESTORE_API_KEY"):
+            print("Using API key from environment variable SINGLESTORE_API_KEY")
+            app_config.set_auth_token(os.getenv("SINGLESTORE_API_KEY"), AuthMethod.API_KEY)
                 
         mcp.run()
     else:
