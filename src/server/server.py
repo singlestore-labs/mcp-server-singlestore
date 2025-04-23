@@ -8,8 +8,8 @@ from mcp.server.fastmcp import FastMCP
 
 from server.config.app_config import AuthMethod, app_config
 from server.utils.resources import resources
-from server.utils.tools import tools
-
+from server.utils.tools import tools, filter_tools
+from server.utils.middleware import apply_auth_middleware
 from server.utils.registration import register_resources, register_tools
 from server.init import init_command
 from server.auth import get_authentication_token
@@ -54,8 +54,11 @@ mcp = FastMCP(
     dependencies=["mcp-server", "singlestoredb"]
 )
 
+# Apply auth middleware to tools and filter out login/refresh tools from public API
+public_tools = apply_auth_middleware(tools)
+
 register_resources(mcp, resources)
-register_tools(mcp, tools)
+register_tools(mcp, public_tools)
 
 def main():
     # Set up command-line parser
