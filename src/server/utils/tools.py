@@ -1132,6 +1132,24 @@ def get_user_id() -> str:
     return __get_user_id()
 
 
+def filter_tools(tools_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Filter out the login and refresh_token tools from the public API.
+    
+    These tools will still be available internally but will be hidden from
+    the user as they'll be handled automatically by the auth middleware.
+    
+    Args:
+        tools_list: List of Tool objects
+        
+    Returns:
+        List of Tool objects with login and refresh_token removed
+    """
+    excluded_tools = ["login", "refresh_auth_token"]
+
+    return [tool for tool in tools_list if tool["name"] not in excluded_tools]
+
+
 # Create a list of tool definitions to maintain compatibility with existing code
 # This will allow us to iterate through tools in server.py
 tools_definitions = [
@@ -1254,5 +1272,5 @@ tools = [
         description=tool["description"],
         func=tool["func"],
     )
-    for tool in tools_definitions
+    for tool in filter_tools(tools_definitions)
 ]
