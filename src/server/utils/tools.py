@@ -386,17 +386,19 @@ def execute_sql(
 
     auth_method = app_config.get_auth_method()
 
-    if auth_method == AuthMethod.API_KEY and not username or not password:
+
+    empty_credentials = not username or not password
+    if auth_method == AuthMethod.JWT_TOKEN:
+        # If using JWT token, we can use the token to authenticate
+        # The username is the user id that we can get from the management API
+        username: str = __get_user_id()
+        password: str = app_config.get_auth_token()
+    elif auth_method == AuthMethod.API_KEY and empty_credentials:
         # If using API key, we need to request to the user to provide the username and password
         return {
             "status": "error",
             "message": f"API key authentication is not supported for executing SQL queries. Please ask the user to provide their username and password for database {database}."
         }
-    elif auth_method == AuthMethod.JWT_TOKEN:
-        # If using JWT token, we can use the token to authenticate
-        # The username is the user id that we can get from the management API
-        username: str = __get_user_id()
-        password: str = app_config.get_auth_token()
 
     else:
         # If no authentication method is set, we need to ask the user to provide their username and password
@@ -481,18 +483,17 @@ def execute_sql_on_virtual_workspace(
     auth_method = app_config.get_auth_method()
 
     empty_credentials = not username or not password
-    if auth_method == AuthMethod.API_KEY and empty_credentials:
+    if auth_method == AuthMethod.JWT_TOKEN:
+        # If using JWT token, we can use the token to authenticate
+        # The username is the user id that we can get from the management API
+        username: str = __get_user_id()
+        password: str = app_config.get_auth_token()
+    elif auth_method == AuthMethod.API_KEY and empty_credentials:
         # If using API key, we need to request to the user to provide the username and password
         return {
             "status": "error",
             "message": f"API key authentication is not supported for executing SQL queries. Please ask the user to provide their username and password for virtual workspace {virtual_workspace_id}."
         }
-    elif auth_method == AuthMethod.JWT_TOKEN:
-        # If using JWT token, we can use the token to authenticate
-        # The username is the user id that we can get from the management API
-        username: str = __get_user_id()
-        password: str = app_config.get_auth_token()
-
     else:
         # If no authentication method is set, we need to ask the user to provide their username and password
         return {
@@ -619,6 +620,8 @@ def set_organization(orgID: str) -> Dict[str, Any]:
 
 def login() -> Dict[str, Any]:
     """
+    Only call this tool if you got a 401 error from the API.
+
     Authenticate with SingleStore and obtain the necessary token for API access.
     
     This should be the first tool called before using any other SingleStore API tools.
