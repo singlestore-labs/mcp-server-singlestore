@@ -7,6 +7,7 @@ SINGLESTORE_API_KEY = os.getenv("SINGLESTORE_API_KEY")
 SINGLESTORE_API_BASE_URL = "https://api.singlestore.com"
 SINGLESTORE_GRAPHQL_PUBLIC_ENDPOINT = "https://backend.singlestore.com/public"
 
+
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Auth

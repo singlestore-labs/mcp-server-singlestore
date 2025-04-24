@@ -1,4 +1,5 @@
 from enum import Enum
+import os
 import re
 from typing import List, Optional, Dict, Any
 import json
@@ -10,10 +11,13 @@ from server.config.app_config import AuthMethod, app_config
 from ..auth import refresh_token, TokenSet, load_credentials
 from .types import Tool
 from server.config.config import (
+    ROOT_DIR,
     SINGLESTORE_API_BASE_URL,
 )
 from ..auth import get_authentication_token
 import singlestoredb as s2
+
+SAMPLE_NOTEBOOK_PATH = os.path.join(ROOT_DIR, "assets/sample_notebook.ipynb")
 
 
 def __set_selected_organization(org_identifier):
@@ -271,12 +275,12 @@ def __create_file_in_shared_space(path: str, content: str):
     if not content:
         content = ""
 
-    with open("sample_notebook.ipynb", "w") as f:
+    with open(SAMPLE_NOTEBOOK_PATH, "w") as f:
         f.write(content)
 
     try:
         # Upload the file using the SDK method
-        file_info = file_manager.shared_space.upload_file("sample_notebook.ipynb", path)
+        file_info = file_manager.shared_space.upload_file(SAMPLE_NOTEBOOK_PATH, path)
             
         return {
             "status": "success", 
