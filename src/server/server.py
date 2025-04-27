@@ -49,7 +49,7 @@ async def app_lifespan(server: FastMCP) -> AsyncIterator[AppContext]:
 
 # Create FastMCP server instance with lifespan
 mcp = FastMCP(
-    "SingleStore MCP Server", 
+    "SingleStore MCP Server",
     lifespan=app_lifespan,
     dependencies=["mcp-server", "singlestoredb"]
 )
@@ -64,21 +64,23 @@ def main():
     # Set up command-line parser
     parser = argparse.ArgumentParser(description="SingleStore MCP Server")
     subparsers = parser.add_subparsers(dest="command", help="Command to run")
-    
+
     # Add start command (default behavior when no command is provided)
     start_parser = subparsers.add_parser("start", help="Start the MCP server")
     start_parser.add_argument("api_key", nargs="?", help="SingleStore API key (optional, will use web auth if not provided)")
-    
+    start_parser.add_argument("--protocol", default="stdio", choices=["stdio", "sse"], help="Protocol to run the server on (default: stdio)")
+    start_parser.add_argument("--port", default=8000, type=int, help="Port to run the server on (default: 8000) if protocol is sse")
+
+
     # Add init command
     init_parser = subparsers.add_parser("init", help="Initialize client configuration")
     init_parser.add_argument("api_key", nargs="?", help="SingleStore API key (optional, will use web auth if not provided)")
-    init_parser.add_argument("--client", default="claude", 
+    init_parser.add_argument("--client", default="claude",
                             choices=["claude", "cursor"],
                             help="LLM client to configure (default: claude)")
-    
+
     # Parse arguments
     args = parser.parse_args()
-    
     # Handle commands
     if args.command == "init":
         # Get API key from arguments or authentication flow
@@ -90,11 +92,11 @@ def main():
                 # If no API key is provided and authentication fails, exit
                 print("No API key provided and authentication failed.")
                 sys.exit(1)
-            
+
         # Run the init command and exit with its return code
         sys.exit(init_command(api_key, auth_token, args.client))
     elif args.command == "start" or args.command is None:
-        
+
         # First check if API key is provided as argument
         if getattr(args, "api_key", None):
             print(f"Using provided API key: {args.api_key[:10]}{'*' * (len(args.api_key)-10)}")
@@ -103,8 +105,14 @@ def main():
         elif os.getenv("SINGLESTORE_API_KEY"):
             print("Using API key from environment variable SINGLESTORE_API_KEY")
             app_config.set_auth_token(os.getenv("SINGLESTORE_API_KEY"), AuthMethod.API_KEY)
-                
-        mcp.run()
+
+        if args.protocol == "sse":
+            print(f"Running server with protocol {args.protocol.upper()} on port {args.port}")
+            mcp.settings.port = args.port
+        else:
+            print(f"Running server with protocol {args.protocol.upper()}")
+
+        mcp.run(transport=args.protocol)
     else:
         parser.print_help()
         sys.exit(1)
