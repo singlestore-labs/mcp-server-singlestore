@@ -83,22 +83,21 @@ def main():
     if args.command == "init":
         # Get API key from arguments or authentication flow
         api_key = getattr(args, "api_key", None)
+        auth_token = None
         if not api_key:
             auth_token = get_authentication_token()
-            if auth_token:
-                api_key = auth_token
-            else:
+            if not auth_token:
                 # If no API key is provided and authentication fails, exit
                 print("No API key provided and authentication failed.")
                 sys.exit(1)
             
         # Run the init command and exit with its return code
-        sys.exit(init_command(api_key, args.client))
+        sys.exit(init_command(api_key, auth_token, args.client))
     elif args.command == "start" or args.command is None:
         
         # First check if API key is provided as argument
         if getattr(args, "api_key", None):
-            print(f"Using provided API key: {args.api_key}")
+            print(f"Using provided API key: {args.api_key[:10]}{'*' * (len(args.api_key)-10)}")
             app_config.set_auth_token(args.api_key, AuthMethod.API_KEY)
 
         elif os.getenv("SINGLESTORE_API_KEY"):
