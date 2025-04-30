@@ -6,9 +6,12 @@ from server.config.config import (
 )
 from server.config.app_config import app_config
 
-# Global variable to store selected organization
-SELECTED_ORGANIZATION_ID = "4f168792-6ca9-4ade-b00d-0d3dc4179926"
-SELECTED_ORGANIZATION_NAME = None
+def __set_organzation_id():
+    """
+    Set the organization ID for the current session.
+    """
+    if not app_config.is_organization_selected():
+        select_organization()
 
 def __query_graphql_organizations():
     """
@@ -74,18 +77,16 @@ def select_organization():
     Query available organizations and prompt the user to select one.
     
     This must be called after authentication and before making other API calls.
-    Sets the global SELECTED_ORGANIZATION_ID and SELECTED_ORGANIZATION_NAME variables.
+    Sets the organization ID and name in the app_config.
     
     Returns:
         Dictionary with the selected organization ID and name
     """
-    global SELECTED_ORGANIZATION_ID, SELECTED_ORGANIZATION_NAME
-    
     # If organization is already selected, return it
-    if SELECTED_ORGANIZATION_ID and SELECTED_ORGANIZATION_NAME:
+    if app_config.is_organization_selected():
         return {
-            "orgID": SELECTED_ORGANIZATION_ID,
-            "name": SELECTED_ORGANIZATION_NAME
+            "orgID": app_config.organization_id,
+            "name": app_config.organization_name
         }
     
     # Get available organizations
@@ -97,12 +98,11 @@ def select_organization():
     # If only one organization is available, select it automatically
     if len(organizations) == 1:
         org = organizations[0]
-        SELECTED_ORGANIZATION_ID = org["orgID"]
-        SELECTED_ORGANIZATION_NAME = org["name"]
+        app_config.set_organization(org["orgID"], org["name"])
         
         return {
-            "orgID": SELECTED_ORGANIZATION_ID,
-            "name": SELECTED_ORGANIZATION_NAME
+            "orgID": app_config.organization_id,
+            "name": app_config.organization_name
         }
     
     # Create a formatted list of organizations for the user to choose from
@@ -110,7 +110,7 @@ def select_organization():
     
     # This will be handled by the LLM to ask the user which organization to use
     raise ValueError(
-        f"Multiple organizations found. Please specify which organization to use either by name or ID:\n\n{org_list}"
+        f"Multiple organizations found. Please ask the user to select one:\n{org_list}"
     )
 
 def __build_request(type: str, endpoint: str, params: dict = None, data: dict = None):
@@ -127,8 +127,8 @@ def __build_request(type: str, endpoint: str, params: dict = None, data: dict = 
         JSON response from the API
     """
     # Ensure an organization is selected before making API requests
-    if not SELECTED_ORGANIZATION_ID:
-        select_organization()
+    
+    __set_organzation_id()
 
     def build_request_endpoint(endpoint: str, params: dict = None):
         url = f"{SINGLESTORE_API_BASE_URL}/v1/{endpoint}"
@@ -137,8 +137,8 @@ def __build_request(type: str, endpoint: str, params: dict = None, data: dict = 
         if params is None:
             params = {}
         
-        if SELECTED_ORGANIZATION_ID:
-            params["organizationID"] = SELECTED_ORGANIZATION_ID
+        if app_config.organization_id:
+            params["organizationID"] = app_config.organization_id
             
         if params and type == "GET":  # Only add query params for GET requests
             url += "?"
