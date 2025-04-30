@@ -3,6 +3,8 @@ import os
 import re
 from typing import List, Optional, Dict, Any
 import json
+import nbformat as nbf
+import nbformat.v4 as nbfv4
 
 from server.utils.common import __build_request, __get_project_id, __get_user_id, __get_workspace_endpoint, __query_graphql_organizations
 from server.config.app_config import AuthMethod, app_config
@@ -30,8 +32,6 @@ def __set_selected_organization(org_identifier):
     Returns:
         Dictionary with the selected organization ID and name
     """
-    global SELECTED_ORGANIZATION_ID, SELECTED_ORGANIZATION_NAME
-    
     # Get available organizations
     organizations = __query_graphql_organizations()
     
@@ -41,12 +41,11 @@ def __set_selected_organization(org_identifier):
     # Find the organization by name or ID
     for org in organizations:
         if org["orgID"] == org_identifier or org["name"] == org_identifier:
-            SELECTED_ORGANIZATION_ID = org["orgID"]
-            SELECTED_ORGANIZATION_NAME = org["name"]
+            app_config.set_organization(org["orgID"], org["name"])
             
             return {
-                "orgID": SELECTED_ORGANIZATION_ID,
-                "name": SELECTED_ORGANIZATION_NAME
+                "orgID": app_config.organization_id,
+                "name": app_config.organization_name
             }
     
     # If no matching organization is found
@@ -127,8 +126,6 @@ def __create_virtual_workspace(name: str, database_name: str, workspace_group=No
     # If workspace_group is provided as a string, try to convert it to a dict
     if isinstance(workspace_group, str):
         try:
-            import json
-
             workspace_group = json.loads(workspace_group)
         except json.JSONDecodeError:
             # If it can't be parsed as JSON, assume it's meant to be a name
@@ -232,66 +229,6 @@ def __execute_sql_on_virtual_workspace(
         }
     except Exception as e:
         return {"status": "Failed", "error": str(e)}
-
-
-def __create_file_in_shared_space(path: str, content: str):
-    """
-    Create a new file (such as a notebook) in the user's shared space.
-
-    Args:
-        path: Path to the file to create
-        content: Optional content for the file. If not provided and the file is a
-                notebook, a sample notebook will be created.
-    """
-    
-    # Check if it's a notebook and no content provided
-    if path.endswith(".ipynb") and content is None:
-        # Create a sample notebook with SingleStore connectivity example
-        content = json.dumps({
-            "cells": [
-                {
-                    "cell_type": "markdown",
-                    "metadata": {},
-                    "source": ["# SingleStore Sample Notebook\n", 
-                              "\n",
-                              "This notebook demonstrates how to connect to a SingleStore database and run queries.\n"]
-                },
-                # ...existing notebook template code...
-                {
-                    "cell_type": "code",
-                    "execution_count": None,
-                    "metadata": {},
-                    "outputs": [],
-                    "source": ["# Close the connection\n", "conn.close()"]
-                }
-            ],
-            "metadata": {},
-            "nbformat": 4,
-            "nbformat_minor": 2
-        })
-    
-    file_manager = s2.manage_files(access_token=app_config.get_auth_token(), base_url=SINGLESTORE_API_BASE_URL)
-
-    if not content:
-        content = ""
-
-    with open(SAMPLE_NOTEBOOK_PATH, "w") as f:
-        f.write(content)
-
-    try:
-        # Upload the file using the SDK method
-        file_info = file_manager.shared_space.upload_file(SAMPLE_NOTEBOOK_PATH, path)
-            
-        return {
-            "status": "success", 
-            "message": f"File {path} created successfully",
-            "path": file_info.path,
-            "type": file_info.type,
-            "format": file_info.format
-        }
-        
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
 
 
 def camel_to_snake(s: Optional[str]) -> Optional[str]:
@@ -513,50 +450,134 @@ def execute_sql_on_virtual_workspace(
     )
 
 
-def create_notebook(notebook_name: str, content: Optional[str] = None) -> Dict[str, Any]:
+def __create_file_in_shared_space(path: str, content: Optional[Dict[str, Any]] = None):
+    """
+    Create a new file (such as a notebook) in the user's shared space.
+
+    Args:
+        path: Path to the file to create
+        content: Optional JSON object with a 'cells' field containing an array of objects.
+                 Each object must have 'type' (markdown or code) and 'content' fields.
+                 If None, a sample notebook will be created for .ipynb files.
+    """
+    file_manager = s2.manage_files(
+        access_token=app_config.get_auth_token(),
+        base_url=SINGLESTORE_API_BASE_URL,
+        organization_id=app_config.organization_id
+    )
+
+    # Check if it's a notebook
+    if path.endswith(".ipynb"):
+        nb = nbfv4.new_notebook()
+        nb['cells'] = []
+
+        if content and "cells" in content:
+            for cell in content["cells"]:
+                if cell['type'] == 'markdown':
+                    nb['cells'].append(nbfv4.new_markdown_cell(cell['content']))
+                elif cell['type'] == 'code':
+                    nb['cells'].append(nbfv4.new_code_cell(cell['content']))
+                else:
+                    raise ValueError(f"Invalid cell type: {cell['type']}. Only 'markdown' and 'code' are supported.")
+        else:
+            # Create a sample notebook with SingleStore connectivity example
+            nb['cells'] = [
+                nbfv4.new_markdown_cell("# SingleStore Sample Notebook\n\nThis notebook demonstrates how to connect to a SingleStore database and run queries."),
+                nbfv4.new_code_cell("import singlestoredb as s2\n\n# Connect to your database\nconn = s2.connect('hostname', user='username', password='password', database='database')"),
+                nbfv4.new_code_cell("result = conn.execute('SELECT * FROM your_table LIMIT 10')\n\nfor row in result:\n    print(row)"),
+                nbfv4.new_code_cell("conn.close()")
+            ]
+
+        # Write notebook to file
+        with open(SAMPLE_NOTEBOOK_PATH, "w") as f:
+            nbf.write(nb, f)
+    else:
+        # For non-notebook files, just write an empty file
+        with open(SAMPLE_NOTEBOOK_PATH, "w") as f:
+            f.write("")
+
+    # Upload the file using the SDK method
+    file_info = file_manager.shared_space.upload_file(SAMPLE_NOTEBOOK_PATH, path)
+
+    return {
+        "status": "success",
+        "message": f"File {path} created successfully",
+        "path": file_info.path,
+        "type": file_info.type,
+        "format": file_info.format
+    }
+
+import json
+
+
+def check_if_file_exists(file_name: str) -> bool:
+    """
+    Check if a file (notebook) exists in the user's shared space.
+
+    Args:
+        file_name: Name of the file to check (with or without .ipynb extension)
+
+    Returns:
+        JSON object with the file existence status
+        {
+            "exists": True/False,
+            "message": "File exists" or "File does not exist"
+        }
+    """
+    
+    file_manager = s2.manage_files(
+        access_token=app_config.get_auth_token(),
+        base_url=SINGLESTORE_API_BASE_URL,
+        organization_id=app_config.organization_id
+    )
+
+    exists = file_manager.shared_space.exists(file_name)
+
+    return {
+        "exists": exists,
+        "message": f"File {file_name} {'exists' if exists else 'does not exist'}"
+    } 
+
+def create_notebook(notebook_name: str, content: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """
     Create a new Jupyter notebook in your personal space. Only supports python and markdown.
-    
+
     Parameters:
     - notebook_name (required): Name for the new notebook
       - Can include or omit .ipynb extension
       - Must be unique in your personal space
-    
-    - content (optional): Custom notebook content
-      - Must be valid Jupyter notebook JSON format
-      - If omitted, creates template with:
-      • SingleStore connection setup
-      • Basic query examples
-      • DataFrame operations
-      • Best practices
-    
-    Features:
-    - Creates notebook with specified name in personal space
-    - Automatically adds .ipynb extension if missing
-    - Provides default SingleStore template if no content given
-    - Supports custom content in Jupyter notebook format
-    - Only supports python and markdown cells
-    
-    Default template includes:
-    - SingleStore connection setup code
-    - Basic SQL query examples
-    - DataFrame operations with pandas
-    - Table creation and data insertion examples
-    - Connection management best practices
-    
-    Use this tool to:
-    1. Create data analysis notebooks using python
-    2. Build database interaction workflows and much more
-    
-    Related operations:
-    - list_notebook_samples: To find example templates
-    - list_shared_files: To check existing notebooks
-    - create_scheduled_job: To automate notebook execution
-    - get_notebook_path : To reference created notebooks
+
+    - content (optional): JSON object with the following structure:
+        {
+            "cells": [
+                {"type": "markdown", "content": "Markdown content here"},
+                {"type": "code", "content": "Python code here"}
+            ]
+        }
+        - 'type' must be either 'markdown' or 'code'
+        - 'content' is the text content of the cell
+        IMPORTANT: The content must be valid JSON.
+
+    How to use:
+        - Before creating the notebook, call check_if_file_exists tool to verify if the notebook already exists.
+        - Always install the dependencies on the first cell. Example: 
+            {
+                "cells": [
+                    {"type": "code", "content": "!pip install singlestoredb --quiet"},
+                    // other cells...
+                ]
+            }
+        - To connect to the database, use the variable "connection_url" that already exists in the notebook platform. Example:
+            {
+                "cells": [
+                    {"type": "code", "content": "conn = s2.connect(connection_url)"},
+                    // other cells...
+                ]
+            }
     """
     path = notebook_name if notebook_name.endswith(".ipynb") else f"{notebook_name}.ipynb"
-    return __create_file_in_shared_space(path, content)
 
+    return __create_file_in_shared_space(path, content)
 
 def create_scheduled_job(
     notebook_path: str,
@@ -1267,6 +1288,11 @@ tools_definitions = [
         "description": get_user_id.__doc__,
         "func": get_user_id,
     },
+    {
+        "name": "check_if_file_exists",
+        "description": check_if_file_exists.__doc__,
+        "func": check_if_file_exists,
+    }
 ]
 
 # Export the tools

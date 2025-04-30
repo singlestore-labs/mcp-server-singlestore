@@ -8,7 +8,8 @@ SINGLESTORE_API_BASE_URL = "https://api.singlestore.com"
 SINGLESTORE_GRAPHQL_PUBLIC_ENDPOINT = "https://backend.singlestore.com/public"
 
 
-ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+# The root directory of the project
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 # Auth
 CLIENT_ID = "b7dbf19e-d140-4334-bae4-e8cd03614485"

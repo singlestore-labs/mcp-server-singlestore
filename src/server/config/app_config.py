@@ -128,6 +128,65 @@ class AuthConfig:
             self._auth_method = AuthMethod.API_KEY if value else None
 
 
+class OrganizationConfig:
+    """Organization configuration class that stores organization-related information."""
+    
+    def __init__(
+        self,
+        organization_id: Optional[str] = None,
+        organization_name: Optional[str] = None
+    ):
+        """
+        Initialize the organization configuration.
+        
+        Parameters:
+        - organization_id: ID of the selected organization
+        - organization_name: Name of the selected organization
+        """
+        self._organization_id = organization_id
+        self._organization_name = organization_name
+    
+    @property
+    def organization_id(self) -> Optional[str]:
+        """Get the currently selected organization ID."""
+        return self._organization_id
+    
+    @organization_id.setter
+    def organization_id(self, value: Optional[str]):
+        """Set the currently selected organization ID."""
+        self._organization_id = value
+    
+    @property
+    def organization_name(self) -> Optional[str]:
+        """Get the currently selected organization name."""
+        return self._organization_name
+    
+    @organization_name.setter
+    def organization_name(self, value: Optional[str]):
+        """Set the currently selected organization name."""
+        self._organization_name = value
+    
+    def set_organization(self, org_id: str, org_name: str):
+        """
+        Set both organization ID and name at once.
+        
+        Parameters:
+        - org_id: Organization ID
+        - org_name: Organization name
+        """
+        self._organization_id = org_id
+        self._organization_name = org_name
+    
+    def clear_organization(self):
+        """Clear the currently selected organization."""
+        self._organization_id = None
+        self._organization_name = None
+    
+    def is_organization_selected(self) -> bool:
+        """Check if an organization is selected."""
+        return self._organization_id is not None
+
+
 class AppConfig:
     """
     Application configuration class that holds the internal state of the application.
@@ -136,6 +195,7 @@ class AppConfig:
     def __init__(
         self, 
         auth_config: Optional[AuthConfig] = None,
+        org_config: Optional[OrganizationConfig] = None,
         log_enabled: bool = False, 
         log_level: str = "INFO",
         debug_mode: bool = False
@@ -145,11 +205,13 @@ class AppConfig:
         
         Parameters:
         - auth_config: Authentication configuration
+        - org_config: Organization configuration
         - log_enabled: Whether logging is enabled
         - log_level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
         - debug_mode: Whether debug mode is enabled
         """
         self._auth_config = auth_config if auth_config else AuthConfig()
+        self._org_config = org_config if org_config else OrganizationConfig()
         self._log_enabled = log_enabled
         self._log_level = log_level
         self._debug_mode = debug_mode
@@ -196,12 +258,50 @@ class AppConfig:
     def debug_mode(self, value: bool):
         """Set whether debug mode is enabled."""
         self._debug_mode = value
+    
+    @property
+    def organization_id(self) -> Optional[str]:
+        """Get the currently selected organization ID."""
+        return self._org_config.organization_id
+    
+    @organization_id.setter
+    def organization_id(self, value: Optional[str]):
+        """Set the currently selected organization ID."""
+        self._org_config.organization_id = value
+    
+    @property
+    def organization_name(self) -> Optional[str]:
+        """Get the currently selected organization name."""
+        return self._org_config.organization_name
+    
+    @organization_name.setter
+    def organization_name(self, value: Optional[str]):
+        """Set the currently selected organization name."""
+        self._org_config.organization_name = value
+    
+    def set_organization(self, org_id: str, org_name: str):
+        """
+        Set both organization ID and name at once.
+        
+        Parameters:
+        - org_id: Organization ID
+        - org_name: Organization name
+        """
+        self._org_config.set_organization(org_id, org_name)
+    
+    def clear_organization(self):
+        """Clear the currently selected organization."""
+        self._org_config.clear_organization()
+    
+    def is_organization_selected(self) -> bool:
+        """Check if an organization is selected."""
+        return self._org_config.is_organization_selected()
 
     def get_auth_method(self) -> Optional[AuthMethod]:
         """Get the authentication method."""
         return self._auth_config.auth_method
     
-    def get_auth_token(self) -> None:
+    def get_auth_token(self) -> Optional[str]:
         """Get the authentication token from the auth configuration."""
         return self._auth_config.auth_token
     
