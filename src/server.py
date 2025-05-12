@@ -6,13 +6,13 @@ import sys
 import os
 from mcp.server.fastmcp import FastMCP
 
-from server.config.app_config import AuthMethod, app_config
-from server.utils.resources import resources
-from server.utils.tools import tools, filter_tools
-from server.utils.middleware import apply_auth_middleware
-from server.utils.registration import register_resources, register_tools
-from server.init import init_command
-from server.auth import get_authentication_token
+from src.config.app_config import AuthMethod, app_config
+from src.utils.resources import resources
+from src.utils.tools import tools, filter_tools
+from src.utils.middleware import apply_auth_middleware
+from src.utils.registration import register_resources, register_tools
+from init import init_command
+from auth import get_authentication_token
 
 # Store notes as a simple key-value dict to demonstrate state management
 notes: dict[str, str] = {}
@@ -95,9 +95,10 @@ def main():
 
         # Run the init command and exit with its return code
         sys.exit(init_command(api_key, auth_token, args.client))
-    elif args.command == "start" or args.command is None:
+    elif args.command == "start":
+        # Ensure protocol is set for the start command
+        protocol = getattr(args, "protocol", "stdio")
 
-        # First check if API key is provided as argument
         if getattr(args, "api_key", None):
             print(f"Using provided API key: {args.api_key[:10]}{'*' * (len(args.api_key)-10)}")
             app_config.set_auth_token(args.api_key, AuthMethod.API_KEY)
@@ -106,13 +107,13 @@ def main():
             print("Using API key from environment variable SINGLESTORE_API_KEY")
             app_config.set_auth_token(os.getenv("SINGLESTORE_API_KEY"), AuthMethod.API_KEY)
 
-        if args.protocol == "sse":
-            print(f"Running server with protocol {args.protocol.upper()} on port {args.port}")
+        if protocol == "sse":
+            print(f"Running server with protocol {protocol.upper()} on port {args.port}")
             mcp.settings.port = args.port
         else:
-            print(f"Running server with protocol {args.protocol.upper()}")
+            print(f"Running server with protocol {protocol.upper()}")
 
-        mcp.run(transport=args.protocol)
+        mcp.run(transport=protocol)
     else:
         parser.print_help()
         sys.exit(1)

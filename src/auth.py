@@ -13,9 +13,8 @@ from pathlib import Path
 from typing import Optional, Dict, Any, Tuple
 from datetime import datetime
 from pathlib import Path
-
-from server.config.config import CLIENT_ID, OAUTH_HOST, AUTH_TIMEOUT_SECONDS, ROOT_DIR
-from server.config.app_config import app_config
+from src.constants import CLIENT_ID, OAUTH_HOST, AUTH_TIMEOUT_SECONDS, ROOT_DIR
+from src.config.app_config import app_config
 
 # Scopes that are always required
 ALWAYS_PRESENT_SCOPES = ["openid", "offline", "offline_access"]

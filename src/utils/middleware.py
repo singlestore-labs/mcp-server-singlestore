@@ -1,7 +1,7 @@
 from functools import wraps
 from typing import Callable, Any, Dict, Optional
-from server.auth import get_authentication_token, refresh_token, load_credentials, TokenSet
-from server.config.app_config import app_config, AuthMethod
+from src.auth import get_authentication_token, refresh_token, load_credentials, TokenSet
+from src.config.app_config import app_config, AuthMethod
 
 def auth_middleware(func: Callable) -> Callable:
     """
