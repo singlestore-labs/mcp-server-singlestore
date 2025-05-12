@@ -15,10 +15,10 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.version]
-path = "src/server/version.py"
+path = "src/version.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/server"]
+packages = ["src"]
 
 [project.scripts]
 singlestore-mcp-server = "server:main"

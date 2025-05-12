@@ -31,7 +31,7 @@ jobs:
           import re
           from packaging import version
           # Read version from version.py
-          with open("src/server/version.py", "r") as f:
+          with open("src/version.py", "r") as f:
               version_content = f.read()
           
           # Extract version string from file
@@ -55,7 +55,7 @@ jobs:
                   # Compare versions
                   if version.parse(local_version) <= version.parse(pypi_version):
                       print(f"❌ Error: Local version {local_version} is not greater than PyPI version {pypi_version}")
-                      print("Please increment the version in src/server/version.py")
+                      print("Please increment the version in src/version.py")
                       sys.exit(1)
                   else:
                       print(f"✅ Version check passed: {local_version} > {pypi_version}")

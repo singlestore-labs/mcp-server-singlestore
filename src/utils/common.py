@@ -1,10 +1,10 @@
 import requests
 import json
-from server.config.config import (
+from src.config.config import (
     SINGLESTORE_API_BASE_URL,
     SINGLESTORE_GRAPHQL_PUBLIC_ENDPOINT,
 )
-from server.config.app_config import app_config
+from src.config.app_config import app_config
 
 def __set_organzation_id():
     """

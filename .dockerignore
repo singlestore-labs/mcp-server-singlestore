@@ -1,0 +1,15 @@
+# Exclude unnecessary files and directories
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+*.swp
+.DS_Store
+.env
+node_modules/
+.git/
+.vscode/
+
+dist
+build

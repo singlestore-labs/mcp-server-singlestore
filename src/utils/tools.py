@@ -6,17 +6,15 @@ import json
 import nbformat as nbf
 import nbformat.v4 as nbfv4
 
-from server.utils.common import __build_request, __get_project_id, __get_user_id, __get_workspace_endpoint, __query_graphql_organizations
-from server.config.app_config import AuthMethod, app_config
+from src.utils.common import __build_request, __get_project_id, __get_user_id, __get_workspace_endpoint, __query_graphql_organizations
+from src.config.app_config import AuthMethod, app_config
 
 # Import the refresh_token function from auth.py
-from ..auth import refresh_token, TokenSet, load_credentials
 from .types import Tool
-from server.config.config import (
+from src.config.config import (
     ROOT_DIR,
     SINGLESTORE_API_BASE_URL,
 )
-from ..auth import get_authentication_token
 import singlestoredb as s2
 
 SAMPLE_NOTEBOOK_PATH = os.path.join(ROOT_DIR, "assets/sample_notebook.ipynb")
@@ -666,6 +664,8 @@ def login() -> Dict[str, Any]:
     """
     
     # Otherwise, use the authentication flow from auth.py
+    from ..auth import get_authentication_token
+
     auth_token = get_authentication_token()
     
     if auth_token:
@@ -701,6 +701,8 @@ def refresh_auth_token() -> Dict[str, Any]:
     with the new token. No need to select an organization again.
     """
     
+    from ..auth import refresh_token, TokenSet, load_credentials
+
     # Check if we have credentials stored
     credentials = load_credentials()
     
