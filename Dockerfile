@@ -23,6 +23,6 @@ RUN pip install hatchling \
     && pip install .
 
 # Expose the port the MCP server runs on
-EXPOSE 8080
+EXPOSE 8000
 
-CMD ["python", "src/server.py", "start", "--protocol", "sse", "--port", "8080"]
+CMD ["python", "src/server.py", "start", "--protocol", "http"]

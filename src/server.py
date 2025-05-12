@@ -68,7 +68,7 @@ def main():
     # Add start command (default behavior when no command is provided)
     start_parser = subparsers.add_parser("start", help="Start the MCP server")
     start_parser.add_argument("api_key", nargs="?", help="SingleStore API key (optional, will use web auth if not provided)")
-    start_parser.add_argument("--protocol", default="stdio", choices=["stdio", "sse"], help="Protocol to run the server on (default: stdio)")
+    start_parser.add_argument("--protocol", default="stdio", choices=["stdio", "sse", "http"], help="Protocol to run the server on (default: stdio)")
     start_parser.add_argument("--port", default=8000, type=int, help="Port to run the server on (default: 8000) if protocol is sse")
 
 
@@ -108,6 +108,10 @@ def main():
             app_config.set_auth_token(os.getenv("SINGLESTORE_API_KEY"), AuthMethod.API_KEY)
 
         if protocol == "sse":
+            print(f"Running server with protocol {protocol.upper()} on port {args.port}")
+            mcp.settings.port = args.port
+        if protocol == "http":
+            protocol = "streamable-http"
             print(f"Running server with protocol {protocol.upper()} on port {args.port}")
             mcp.settings.port = args.port
         else:
