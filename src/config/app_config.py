@@ -6,6 +6,7 @@ class AuthMethod(Enum):
     """Authentication method enum"""
     API_KEY = "api_key"
     JWT_TOKEN = "jwt_token"
+    OAUTH = "oauth"
 
 
 class AuthConfig:
@@ -15,6 +16,7 @@ class AuthConfig:
         self, 
         api_key: Optional[str] = None,
         jwt_token: Optional[str] = None,
+        oauth_token: Optional[str] = None,
         token_expiration_interval: int = 3600 # Default expiration in seconds
     ):
         """
@@ -23,22 +25,27 @@ class AuthConfig:
         Parameters:
         - api_key: Optional API key for authentication
         - jwt_token: Optional JWT token for authentication
+        - oauth_token: Optional OAuth token for authentication
         - token_expiration_interval: JWT token expiration interval in seconds (default: 3600)
         
-        Note: User can authenticate with either an API key or JWT token, but not both.
+        Note: User can authenticate with either an API key, JWT token, or OAuth token, but not multiple methods.
         """
         self._api_key = api_key
         self._jwt_token = jwt_token
+        self._oauth_token = oauth_token
         self._token_expiration_interval = token_expiration_interval
 
         # Determine the authentication method based on provided credentials
-        if api_key and jwt_token:
-            raise ValueError("Cannot provide both API key and JWT token. Choose one authentication method.")
+        auth_methods_count = sum(1 for token in [api_key, jwt_token, oauth_token] if token)
+        if auth_methods_count > 1:
+            raise ValueError("Cannot provide multiple authentication tokens. Choose one authentication method.")
         
         if api_key:
             self._auth_method = AuthMethod.API_KEY
         elif jwt_token:
             self._auth_method = AuthMethod.JWT_TOKEN
+        elif oauth_token:
+            self._auth_method = AuthMethod.OAUTH
         else:
             self._auth_method = None
     
@@ -93,6 +100,22 @@ class AuthConfig:
         self._auth_method = AuthMethod.JWT_TOKEN if value else None
     
     @property
+    def oauth_token(self) -> Optional[str]:
+        """Get the OAuth token."""
+        return self._oauth_token
+    
+    @oauth_token.setter
+    def oauth_token(self, value: Optional[str]):
+        """Set the OAuth token and update auth method."""
+        if value:
+            # Clear other tokens when setting OAuth token
+            self._api_key = None
+            self._jwt_token = None
+        
+        self._oauth_token = value
+        self._auth_method = AuthMethod.OAUTH if value else None
+    
+    @property
     def token_expiration_interval(self) -> int:
         """Get the token expiration interval in seconds."""
         return self._token_expiration_interval
@@ -107,12 +130,14 @@ class AuthConfig:
     @property
     def auth_token(self) -> Optional[str]:
         """
-        Get the authentication token (either API key or JWT token) based on the current auth method.
+        Get the authentication token based on the current auth method.
         """
         if self._auth_method == AuthMethod.API_KEY:
             return self._api_key
         elif self._auth_method == AuthMethod.JWT_TOKEN:
             return self._jwt_token
+        elif self._auth_method == AuthMethod.OAUTH:
+            return self._oauth_token
         return None
     
     @auth_token.setter
@@ -123,6 +148,8 @@ class AuthConfig:
         """
         if self._auth_method == AuthMethod.JWT_TOKEN:
             self._jwt_token = value
+        elif self._auth_method == AuthMethod.OAUTH:
+            self._oauth_token = value
         else:  # Default to API key if no method or API_KEY method
             self._api_key = value
             self._auth_method = AuthMethod.API_KEY if value else None

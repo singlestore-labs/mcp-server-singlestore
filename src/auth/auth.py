@@ -10,11 +10,14 @@ import socketserver
 import urllib.parse
 import requests
 from pathlib import Path
-from typing import Optional, Dict, Any, Tuple
+from typing import Optional, Dict, Any, Tuple, TYPE_CHECKING
 from datetime import datetime
 from pathlib import Path
-from src.constants import CLIENT_ID, OAUTH_HOST, AUTH_TIMEOUT_SECONDS, ROOT_DIR
-from src.config.app_config import app_config
+from src.config.config import CLIENT_ID, OAUTH_HOST, AUTH_TIMEOUT_SECONDS, ROOT_DIR
+from src.config.app_config import app_config, AuthMethod
+
+if TYPE_CHECKING:
+    from auth_provider import SingleStoreOAuthProvider
 
 # Scopes that are always required
 ALWAYS_PRESENT_SCOPES = ["openid", "offline", "offline_access"]
@@ -376,8 +379,10 @@ def get_authentication_token(client_id: Optional[str] = None) -> Optional[str]:
     """
     # First check for API key in environment
     api_key = app_config.get_auth_token()
-    print(f"API key from environment: {api_key}")
+    auth_method = app_config.get_auth_method()
+    
     if api_key:
+        print(f"Using existing authentication token (type: {auth_method.name})")
         return api_key
     
     # Then check for saved credentials
@@ -391,12 +396,15 @@ def get_authentication_token(client_id: Optional[str] = None) -> Optional[str]:
             refreshed_token_set = refresh_token(token_set, client_id or CLIENT_ID)
             if refreshed_token_set:
                 token_set = refreshed_token_set
+                # Update app config with the refreshed token
+                app_config.set_auth_token(token_set.access_token, AuthMethod.OAUTH)
             else:
                 print("Token refresh failed, proceeding to re-authentication")
                 
         # If we have a valid token, use it
         if not token_set.is_expired() and token_set.access_token:
             print("Using saved OAuth token.")
+            app_config.set_auth_token(token_set.access_token, AuthMethod.OAUTH)
             return token_set.access_token
     
     # If no valid credentials, authenticate
@@ -405,7 +413,22 @@ def get_authentication_token(client_id: Optional[str] = None) -> Optional[str]:
     
     if success and token_set and token_set.access_token:
         print("Authentication successful!")
+        app_config.set_auth_token(token_set.access_token, AuthMethod.OAUTH)
         return token_set.access_token
     else:
         print("Authentication failed. Please try again or provide an API key.")
+        return None
+
+def get_oauth_provider() -> Optional["SingleStoreOAuthProvider"]:
+    """
+    Get the singleton instance of the OAuth provider.
+    
+    Returns:
+        The OAuth provider instance
+    """
+    try:
+        from src.auth.oauth_routes import oauth_provider
+        return oauth_provider
+    except ImportError:
+        # Handle case where oauth_routes hasn't been initialized yet
         return None

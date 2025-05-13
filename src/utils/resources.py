@@ -1,4 +1,4 @@
-from src.utils.types import Resource
+from .types import Resource
 
 
 resources_definitions = [

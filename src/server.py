@@ -6,13 +6,14 @@ import sys
 import os
 from mcp.server.fastmcp import FastMCP
 
-from src.config.app_config import AuthMethod, app_config
-from src.utils.resources import resources
-from src.utils.tools import tools, filter_tools
-from src.utils.middleware import apply_auth_middleware
-from src.utils.registration import register_resources, register_tools
-from init import init_command
-from auth import get_authentication_token
+from src.init import init_command
+from config.app_config import AuthMethod, app_config
+from auth.oauth_routes import oauth_router
+from auth.auth import get_authentication_token
+from utils.resources import resources
+from utils.tools import tools
+from utils.middleware import apply_auth_middleware
+from utils.registration import register_resources, register_tools
 
 # Store notes as a simple key-value dict to demonstrate state management
 notes: dict[str, str] = {}
@@ -59,6 +60,18 @@ public_tools = apply_auth_middleware(tools)
 
 register_resources(mcp, resources)
 register_tools(mcp, public_tools)
+
+# Include OAuth routes by adding them directly to the FastAPI app
+from fastapi import FastAPI
+if hasattr(mcp, 'app'):
+    mcp.app.include_router(oauth_router)
+elif hasattr(mcp, 'fastapi_app'):
+    mcp.fastapi_app.include_router(oauth_router)
+else:
+    # Fall back to manually getting the app
+    app: FastAPI = getattr(mcp, '_app', None)
+    if app:
+        app.include_router(oauth_router)
 
 def main():
     # Set up command-line parser

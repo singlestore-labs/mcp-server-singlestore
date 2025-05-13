@@ -8,9 +8,7 @@ import nbformat.v4 as nbfv4
 
 from src.utils.common import __build_request, __get_project_id, __get_user_id, __get_workspace_endpoint, __query_graphql_organizations
 from src.config.app_config import AuthMethod, app_config
-
-# Import the refresh_token function from auth.py
-from .types import Tool
+from src.utils.types import Tool
 from src.config.config import (
     ROOT_DIR,
     SINGLESTORE_API_BASE_URL,
@@ -1157,7 +1155,6 @@ def get_user_id() -> str:
     Cache the returned ID when making multiple API calls.
     """
     return __get_user_id()
-
 
 def filter_tools(tools_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
