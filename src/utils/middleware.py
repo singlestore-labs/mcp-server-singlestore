@@ -22,6 +22,10 @@ def auth_middleware(func: Callable) -> Callable:
     """
     @wraps(func)
     def wrapper(*args, **kwargs):
+        http_auth_header = None
+        if len(args) and hasattr(args[0], 'headers') and args[0].headers and 'Authorization' in args[0].headers:
+            http_auth_header = args[0].headers['Authorization']
+            
         # Check if we already have a valid token
         current_token = app_config.get_auth_token()
         current_method = app_config.get_auth_method()
@@ -29,7 +33,7 @@ def auth_middleware(func: Callable) -> Callable:
         # If no token, authenticate
         if not current_token:
             print("No authentication token found. Attempting to authenticate...")
-            current_token = get_authentication_token()
+            current_token = get_authentication_token(http_auth_header=http_auth_header)
             
             if not current_token:
                 # If authentication failed, return error

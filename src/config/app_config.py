@@ -1,6 +1,8 @@
 from typing import Optional
 from enum import Enum
 
+from src.config.config import SINGLESTORE_ORG_ID, SINGLESTORE_ORG_NAME
+
 
 class AuthMethod(Enum):
     """Authentication method enum"""
@@ -203,6 +205,15 @@ class OrganizationConfig:
         """
         self._organization_id = org_id
         self._organization_name = org_name
+
+    def get_organization(self) -> Optional[tuple[str]]:
+        """
+        Get the currently selected organization ID and name.
+        
+        Returns:
+        - Tuple of (organization ID, organization name)
+        """
+        return self._organization_id, self._organization_name
     
     def clear_organization(self):
         """Clear the currently selected organization."""
@@ -225,6 +236,7 @@ class AppConfig:
         org_config: Optional[OrganizationConfig] = None,
         log_enabled: bool = False, 
         log_level: str = "INFO",
+        server_port: int = 8000,
         debug_mode: bool = False
     ):
         """
@@ -242,6 +254,8 @@ class AppConfig:
         self._log_enabled = log_enabled
         self._log_level = log_level
         self._debug_mode = debug_mode
+        self._server_port = server_port
+        self._server_mode = "stdio"  # Default mode
     
     @property
     def auth_config(self) -> AuthConfig:
@@ -315,6 +329,15 @@ class AppConfig:
         - org_name: Organization name
         """
         self._org_config.set_organization(org_id, org_name)
+
+    def get_organization(self) -> Optional[tuple[str]]:
+        """
+        Get the currently selected organization ID and name.
+        
+        Returns:
+        - Tuple of (organization ID, organization name)
+        """
+        return self._org_config.get_organization()
     
     def clear_organization(self):
         """Clear the currently selected organization."""
@@ -343,6 +366,33 @@ class AppConfig:
         self._auth_config.auth_method = method
         self._auth_config.auth_token = token
 
+    def get_server_port(self) -> int:
+        """Get the server port."""
+        return self._server_port
+    
+    def set_server_port(self, port: int):
+        """Set the server port."""
+        if port <= 0 or port > 65535:
+            raise ValueError("Port must be between 1 and 65535")
+        self._server_port = port
+    
+    @property
+    def server_mode(self) -> str:
+        """Get the server mode."""
+        return self._server_mode
+    
+    @server_mode.setter
+    def server_mode(self, mode: str):
+        """Set the server mode."""
+        valid_modes = ["stdio", "http"]
+        if mode not in valid_modes:
+            raise ValueError(f"Server mode must be one of: {', '.join(valid_modes)}")
+        self._server_mode = mode
 
 # Global configuration instance
 app_config = AppConfig()
+
+if SINGLESTORE_ORG_ID:
+        print(f"Using organization ID from environment variable SINGLESTORE_ORG_ID: {SINGLESTORE_ORG_ID}")
+        app_config.set_organization(SINGLESTORE_ORG_ID, SINGLESTORE_ORG_NAME)
+        print(app_config.get_organization())

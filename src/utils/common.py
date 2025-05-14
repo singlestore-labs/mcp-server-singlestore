@@ -2,7 +2,7 @@ import requests
 import json
 from src.config.config import (
     SINGLESTORE_API_BASE_URL,
-    SINGLESTORE_GRAPHQL_PUBLIC_ENDPOINT,
+    SINGLESTORE_GRAPHQL_PUBLIC_ENDPOINT
 )
 from src.config.app_config import app_config
 
@@ -82,6 +82,8 @@ def select_organization():
     Returns:
         Dictionary with the selected organization ID and name
     """
+
+    print("select_org: ", app_config.organization_id)
     # If organization is already selected, return it
     if app_config.is_organization_selected():
         return {
@@ -137,6 +139,7 @@ def __build_request(type: str, endpoint: str, params: dict = None, data: dict = 
         if params is None:
             params = {}
         
+        print(app_config.organization_id)
         if app_config.organization_id:
             params["organizationID"] = app_config.organization_id
             

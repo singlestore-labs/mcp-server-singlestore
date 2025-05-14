@@ -15,8 +15,9 @@ from src.config.config import (
 )
 import singlestoredb as s2
 
-SAMPLE_NOTEBOOK_PATH = os.path.join(ROOT_DIR, "assets/sample_notebook.ipynb")
+from src.config.config import SINGLESTORE_ORG_ID, SINGLESTORE_ORG_NAME
 
+SAMPLE_NOTEBOOK_PATH = os.path.join(ROOT_DIR, "assets/sample_notebook.ipynb")
 
 def __set_selected_organization(org_identifier):
     """
@@ -28,23 +29,23 @@ def __set_selected_organization(org_identifier):
     Returns:
         Dictionary with the selected organization ID and name
     """
-    # Get available organizations
+    if SINGLESTORE_ORG_ID:
+        app_config.set_organization(SINGLESTORE_ORG_ID, SINGLESTORE_ORG_NAME)
+        return {
+            "orgID": app_config.organization_id,
+            "name": app_config.organization_name
+        }
+    # Fallback to manual selection if env var is not set
     organizations = __query_graphql_organizations()
-    
     if not organizations:
         raise ValueError("No organizations found. Please check your account access.")
-    
-    # Find the organization by name or ID
     for org in organizations:
         if org["orgID"] == org_identifier or org["name"] == org_identifier:
             app_config.set_organization(org["orgID"], org["name"])
-            
             return {
                 "orgID": app_config.organization_id,
                 "name": app_config.organization_name
             }
-    
-    # If no matching organization is found
     raise ValueError(f"Organization not found: {org_identifier}")
 
 def __execute_sql(
