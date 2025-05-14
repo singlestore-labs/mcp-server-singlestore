@@ -10,11 +10,14 @@ import socketserver
 import urllib.parse
 import requests
 from pathlib import Path
-from typing import Optional, Dict, Any, Tuple
+from typing import Optional, Dict, Any, Tuple, TYPE_CHECKING
 from datetime import datetime
 from pathlib import Path
-from src.constants import CLIENT_ID, OAUTH_HOST, AUTH_TIMEOUT_SECONDS, ROOT_DIR
-from src.config.app_config import app_config
+from src.config.config import CLIENT_ID, OAUTH_HOST, AUTH_TIMEOUT_SECONDS, ROOT_DIR
+from src.config.app_config import app_config, AuthMethod
+
+if TYPE_CHECKING:
+    from auth_provider import SingleStoreOAuthProvider
 
 # Scopes that are always required
 ALWAYS_PRESENT_SCOPES = ["openid", "offline", "offline_access"]
@@ -218,8 +221,9 @@ def refresh_token(token_set: TokenSet, client_id: str = CLIENT_ID) -> Optional[T
         # Create new token set
         new_token_set = TokenSet(token_data)
         
-        # Save updated credentials
-        save_credentials(new_token_set)
+        # Only save to file in stdio mode
+        if app_config.server_mode == "stdio":
+            save_credentials(new_token_set)
         
         return new_token_set
         
@@ -354,8 +358,9 @@ def authenticate(client_id: Optional[str] = None) -> Tuple[bool, Optional[TokenS
             # Create token set
             token_set = TokenSet(token_response)
             
-            # Save credentials
-            save_credentials(token_set)
+            # Only save credentials to file in stdio mode
+            if app_config.server_mode == "stdio":
+                save_credentials(token_set)
             
             return True, token_set
     
@@ -363,49 +368,94 @@ def authenticate(client_id: Optional[str] = None) -> Tuple[bool, Optional[TokenS
         print(f"Authentication failed: {e}")
         return False, None
 
-def get_authentication_token(client_id: Optional[str] = None) -> Optional[str]:
+def get_authentication_token(client_id: Optional[str] = None, http_auth_header: Optional[str] = None) -> Optional[str]:
     """
-    Get authentication token from environment or credentials file.
-    If no valid token is available, prompt for authentication.
+    Get authentication token from various sources based on server mode.
+    For HTTP mode, prioritizes auth header, then app_config, then browser auth.
+    For stdio mode, uses app_config, credentials file, then browser auth.
     
     Args:
         client_id: Optional client ID to use for authentication
+        http_auth_header: Optional HTTP Authorization header (for HTTP mode)
         
     Returns:
         JWT token or API key if available, None otherwise
     """
-    # First check for API key in environment
+    server_mode = app_config.server_mode  # "stdio" or "http"
+
+    print(f"Server mode: {server_mode}")
+    print(f"Client ID: {client_id}")
+    print(f"HTTP Authorization header: {http_auth_header}")
+    print(f"App config auth token: {app_config.get_auth_token()}")
+    
+    # For HTTP mode, first check the Authorization header
+    if server_mode == "http" and http_auth_header:
+        print("Using token from HTTP Authorization header")
+        if http_auth_header.startswith("Bearer "):
+            token = http_auth_header[7:]
+            print("Using token from HTTP Authorization header")
+            app_config.set_auth_token(token, AuthMethod.JWT_TOKEN)
+            return token
+    
+    # Next, check for existing token in app_config
     api_key = app_config.get_auth_token()
-    print(f"API key from environment: {api_key}")
+    auth_method = app_config.get_auth_method()
+    
     if api_key:
+        print(f"Using existing authentication token (type: {auth_method.name})")
         return api_key
     
-    # Then check for saved credentials
-    credentials = load_credentials()
-    if credentials and "token_set" in credentials:
-        token_set = TokenSet(credentials["token_set"])
-        
-        # If token is expired, try to refresh it
-        if token_set.is_expired() and token_set.refresh_token:
-            print("Access token expired, refreshing...")
-            refreshed_token_set = refresh_token(token_set, client_id or CLIENT_ID)
-            if refreshed_token_set:
-                token_set = refreshed_token_set
-            else:
-                print("Token refresh failed, proceeding to re-authentication")
-                
-        # If we have a valid token, use it
-        if not token_set.is_expired() and token_set.access_token:
-            print("Using saved OAuth token.")
-            return token_set.access_token
+    # For stdio mode, check saved credentials file
+    if server_mode == "stdio":
+        credentials = load_credentials()
+        if credentials and "token_set" in credentials:
+            token_set = TokenSet(credentials["token_set"])
+            
+            # If token is expired, try to refresh it
+            if token_set.is_expired() and token_set.refresh_token:
+                print("Access token expired, refreshing...")
+                refreshed_token_set = refresh_token(token_set, client_id or CLIENT_ID)
+                if refreshed_token_set:
+                    token_set = refreshed_token_set
+                    # Update app config with the refreshed token
+                    app_config.set_auth_token(token_set.access_token, AuthMethod.OAUTH)
+                else:
+                    print("Token refresh failed, proceeding to re-authentication")
+                    
+            # If we have a valid token, use it
+            if not token_set.is_expired() and token_set.access_token:
+                print("Using saved OAuth token.")
+                app_config.set_auth_token(token_set.access_token, AuthMethod.OAUTH)
+                return token_set.access_token
     
-    # If no valid credentials, authenticate
+    # If no valid credentials found, launch browser authentication
     print("No API key or valid authentication token found.")
     success, token_set = authenticate(client_id)
     
     if success and token_set and token_set.access_token:
         print("Authentication successful!")
+        app_config.set_auth_token(token_set.access_token, AuthMethod.OAUTH)
+        
+        # Only save to credentials file in stdio mode
+        # In HTTP mode, we just keep it in memory (app_config)
+        if server_mode == "stdio" and token_set:
+            save_credentials(token_set)
+        
         return token_set.access_token
     else:
         print("Authentication failed. Please try again or provide an API key.")
+        return None
+
+def get_oauth_provider() -> Optional["SingleStoreOAuthProvider"]:
+    """
+    Get the singleton instance of the OAuth provider.
+    
+    Returns:
+        The OAuth provider instance
+    """
+    try:
+        from src.auth.oauth_routes import oauth_provider
+        return oauth_provider
+    except ImportError:
+        # Handle case where oauth_routes hasn't been initialized yet
         return None
