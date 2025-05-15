@@ -166,20 +166,3 @@ docker run -d \
   --name mcp-server \
   mcp-server-singlestore
 ```
-
-### Using Docker Secrets
-
-To securely pass secrets to the container, create a Docker secret and mount it:
-
-```bash
-echo "your-secret-value" | docker secret create mcp_secret -
-```
-
-Then, run the container with the secret:
-
-```bash
-docker service create \
-  --name mcp-server \
-  --secret mcp_secret \
-  mcp-server-singlestore
-```
