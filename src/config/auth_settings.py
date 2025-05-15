@@ -1,6 +1,10 @@
 from typing import Dict, Any, List
 from pydantic import AnyHttpUrl
-from mcp.server.auth.settings import AuthSettings, RevocationOptions, ClientRegistrationOptions
+from mcp.server.auth.settings import (
+    AuthSettings,
+    RevocationOptions,
+    ClientRegistrationOptions,
+)
 
 from src.config.config import OAUTH_HOST
 from src.config.config import CLIENT_URI
@@ -12,9 +16,9 @@ auth_settings = AuthSettings(
     jwt_config={
         "algorithm": "RS256",
         "private_key_path": None,  # Path to private key if using a file-based key
-        "public_key_path": None,   # Path to public key if using a file-based key
-        "private_key": None,       # Or provide the key directly
-        "public_key": None,        # Or provide the key directly
+        "public_key_path": None,  # Path to public key if using a file-based key
+        "private_key": None,  # Or provide the key directly
+        "public_key": None,  # Or provide the key directly
     },
     token_expires_in=3600,  # 1 hour
     refresh_token_expires_in=30 * 24 * 3600,  # 30 days
@@ -25,7 +29,15 @@ auth_settings = AuthSettings(
     ),
     client_registration_options=ClientRegistrationOptions(
         enabled=True,
-        valid_scopes=["api", "admin", "read", "write", "openid", "offline", "offline_access"],
+        valid_scopes=[
+            "api",
+            "admin",
+            "read",
+            "write",
+            "openid",
+            "offline",
+            "offline_access",
+        ],
         default_scopes=["api", "read", "openid"],
     ),
     required_scopes=["api"],  # Scopes required for access

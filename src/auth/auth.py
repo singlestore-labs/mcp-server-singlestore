@@ -25,9 +25,10 @@ ALWAYS_PRESENT_SCOPES = ["openid", "offline", "offline_access"]
 # Credential file path
 CREDENTIALS_FILE = Path.home() / ".singlestore-mcp-credentials.json"
 
+
 class TokenSet:
     """Class representing an OAuth token set"""
-    
+
     def __init__(self, data: Dict[str, Any]):
         self.access_token = data.get("access_token")
         self.token_type = data.get("token_type")
@@ -35,58 +36,59 @@ class TokenSet:
         self.refresh_token = data.get("refresh_token")
         self.expires_at = data.get("expires_at")
         self.raw_data = data
-    
+
     def is_expired(self) -> bool:
         """Check if the access token is expired"""
         if not self.expires_at:
             return True
         return datetime.now().timestamp() >= self.expires_at
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert token set to dictionary for serialization"""
         return self.raw_data
 
+
 class AuthCallbackHandler(http.server.SimpleHTTPRequestHandler):
     """HTTP request handler to capture OAuth callback"""
-    
+
     def __init__(self, *args, auth_params=None, **kwargs):
         self.auth_params = auth_params or {}
         self.callback_params = None
         super().__init__(*args, **kwargs)
-    
+
     def log_message(self, format, *args):
         """Silence the default logging"""
         pass
-    
+
     def do_OPTIONS(self):
         """Handle OPTIONS requests (CORS preflight)"""
         self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
-    
+
     def do_GET(self):
         """Handle GET requests"""
-        if not self.path.startswith('/callback'):
+        if not self.path.startswith("/callback"):
             self.send_response(404)
             self.end_headers()
             return
-        
+
         parsed_path = urllib.parse.urlparse(self.path)
         self.callback_params = urllib.parse.parse_qs(parsed_path.query)
-        
+
         # Convert multi-value dict to single value dict for auth process
         self.server.callback_params = {k: v[0] for k, v in self.callback_params.items()}
-        
+
         # Send a simple response
         self.send_response(200)
-        self.send_header('Content-type', 'text/html')
+        self.send_header("Content-type", "text/html")
         self.end_headers()
-        
+
         try:
-            callback_html_path = os.path.join(ROOT_DIR, 'assets/callback.html')
-            with open(callback_html_path, 'r') as file:
+            callback_html_path = os.path.join(ROOT_DIR, "assets/callback.html")
+            with open(callback_html_path, "r") as file:
                 response = file.read()
         except Exception as e:
             print(f"Error reading callback.html: {e}")
@@ -101,11 +103,12 @@ class AuthCallbackHandler(http.server.SimpleHTTPRequestHandler):
             </body>
             </html>
             """
-        
+
         self.wfile.write(response.encode())
-        
+
         # Signal that we've received the callback
         self.server.received_callback = True
+
 
 def generate_code_verifier() -> str:
     """Generate a code verifier for PKCE"""
@@ -115,175 +118,185 @@ def generate_code_verifier() -> str:
         code_verifier = code_verifier[:128]
     return code_verifier
 
+
 def generate_code_challenge(code_verifier: str) -> str:
     """Generate a code challenge from the code verifier"""
     code_challenge = hashlib.sha256(code_verifier.encode()).digest()
-    code_challenge = base64.urlsafe_b64encode(code_challenge).decode().rstrip('=')
+    code_challenge = base64.urlsafe_b64encode(code_challenge).decode().rstrip("=")
     return code_challenge
+
 
 def generate_state() -> str:
     """Generate a state parameter for OAuth flow"""
     return secrets.token_urlsafe(32)
 
+
 def discover_oauth_server(oauth_host: str) -> Dict[str, Any]:
     """Discover OAuth server endpoints"""
-    discovery_url = f"{oauth_host}/auth/oidc/op/Customer/.well-known/openid-configuration"
+    discovery_url = (
+        f"{oauth_host}/auth/oidc/op/Customer/.well-known/openid-configuration"
+    )
     response = requests.get(discovery_url, timeout=10)
     response.raise_for_status()
     return response.json()
 
+
 def save_credentials(token_set: TokenSet) -> None:
     """
     Save authentication token to credentials file.
-    
+
     Args:
         token_set: OAuth token set
     """
     # Create credential data structure
-    creds = {
-        "token_set": token_set.to_dict(),
-        "timestamp": time.time()
-    }
-    
+    creds = {"token_set": token_set.to_dict(), "timestamp": time.time()}
+
     # Ensure directory exists
     CREDENTIALS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    
+
     # Write credentials to file with secure permissions
-    with open(CREDENTIALS_FILE, 'w') as f:
+    with open(CREDENTIALS_FILE, "w") as f:
         json.dump(creds, f, indent=2)
-    
+
     # Set secure permissions (readable only by user)
     os.chmod(CREDENTIALS_FILE, 0o600)
+
 
 def load_credentials() -> Optional[Dict[str, Any]]:
     """
     Load authentication credentials from file.
-    
+
     Returns:
         Dict containing credentials or None if not available
     """
     if not CREDENTIALS_FILE.exists():
         return None
-    
+
     try:
-        with open(CREDENTIALS_FILE, 'r') as f:
+        with open(CREDENTIALS_FILE, "r") as f:
             return json.load(f)
     except (json.JSONDecodeError, IOError):
         return None
 
-def refresh_token(token_set: TokenSet, client_id: str = CLIENT_ID) -> Optional[TokenSet]:
+
+def refresh_token(
+    token_set: TokenSet, client_id: str = CLIENT_ID
+) -> Optional[TokenSet]:
     """
     Refresh an OAuth token using the refresh token.
-    
+
     Args:
         token_set: The token set containing the refresh token
         client_id: OAuth client ID
-        
+
     Returns:
         A new token set or None if refresh failed
     """
     if not token_set.refresh_token:
         print("No refresh token available")
         return None
-    
+
     try:
         # Discover OAuth server endpoints
         oauth_config = discover_oauth_server(OAUTH_HOST)
         token_endpoint = oauth_config.get("token_endpoint")
-        
+
         if not token_endpoint:
             print("Invalid OAuth server configuration")
             return None
-        
+
         # Prepare refresh token request
         data = {
             "grant_type": "refresh_token",
             "refresh_token": token_set.refresh_token,
-            "client_id": client_id
+            "client_id": client_id,
         }
-        
+
         # Send refresh token request
         response = requests.post(
             token_endpoint,
             data=data,
             headers={"Content-Type": "application/x-www-form-urlencoded"},
-            timeout=10
+            timeout=10,
         )
         response.raise_for_status()
-        
+
         # Parse token response
         token_data = response.json()
-        
+
         # Add expires_at if we got expires_in
         if "expires_in" in token_data and not "expires_at" in token_data:
-            token_data["expires_at"] = datetime.now().timestamp() + token_data["expires_in"]
-        
+            token_data["expires_at"] = (
+                datetime.now().timestamp() + token_data["expires_in"]
+            )
+
         # Create new token set
         new_token_set = TokenSet(token_data)
-        
+
         # Only save to file in stdio mode
         if app_config.server_mode == "stdio":
             save_credentials(new_token_set)
-        
+
         return new_token_set
-        
+
     except Exception as e:
         print(f"Token refresh failed: {e}")
         return None
 
+
 def authenticate(client_id: Optional[str] = None) -> Tuple[bool, Optional[TokenSet]]:
     """
     Launch browser authentication flow and capture OAuth token.
-    
+
     Args:
         client_id: Optional client ID to use for authentication
-    
+
     Returns:
         Tuple of (success: bool, token_set: Optional[TokenSet])
     """
     # Use provided client_id or the default one
     client_id = client_id or CLIENT_ID
-    
+
     try:
         # Discover OAuth server endpoints
         print("Discovering OAuth server...")
         oauth_config = discover_oauth_server(OAUTH_HOST)
         authorization_endpoint = oauth_config.get("authorization_endpoint")
         token_endpoint = oauth_config.get("token_endpoint")
-        
+
         if not authorization_endpoint or not token_endpoint:
             print("Invalid OAuth server configuration")
             return False, None
-        
+
         # Generate PKCE code verifier and challenge
         code_verifier = generate_code_verifier()
         code_challenge = generate_code_challenge(code_verifier)
-        
+
         # Generate state for security
         state = generate_state()
-        
+
         # Find an available port for the redirect server
         with socketserver.TCPServer(("127.0.0.1", 0), None) as s:
             port = s.server_address[1]
-        
+
         # Redirect URI
         redirect_uri = f"http://127.0.0.1:{port}/callback"
-        
+
         # Create server class with additional attributes
         class CallbackServer(socketserver.TCPServer):
             def __init__(self, *args, **kwargs):
                 super().__init__(*args, **kwargs)
                 self.received_callback = False
                 self.callback_params = None
-        
+
         # Create a custom handler factory
         handler = lambda *args, **kwargs: AuthCallbackHandler(*args, **kwargs)
-        
+
         # Start a temporary web server to capture the callback
         with CallbackServer(("127.0.0.1", port), handler) as httpd:
             print(f"Starting authentication server on port {port}...")
             print("Opening browser for authentication...")
-            
+
             # Prepare authorization URL
             scopes = " ".join(ALWAYS_PRESENT_SCOPES)
             auth_params = {
@@ -293,19 +306,19 @@ def authenticate(client_id: Optional[str] = None) -> Tuple[bool, Optional[TokenS
                 "scope": scopes,
                 "state": state,
                 "code_challenge": code_challenge,
-                "code_challenge_method": "S256"
+                "code_challenge_method": "S256",
             }
-            
+
             auth_url = f"{authorization_endpoint}?{urllib.parse.urlencode(auth_params)}"
             print(f"Authenticating with client ID: {client_id}")
             print(f"Auth URL: {auth_url}")
-            
+
             # Open browser to auth URL
             webbrowser.open(auth_url)
-            
+
             # Set timeout
             httpd.timeout = 1
-            
+
             # Serve until callback is received or timeout
             start_time = time.time()
             while not httpd.received_callback:
@@ -313,71 +326,76 @@ def authenticate(client_id: Optional[str] = None) -> Tuple[bool, Optional[TokenS
                 if time.time() - start_time > AUTH_TIMEOUT_SECONDS:
                     print("Authentication timed out")
                     return False, None
-            
+
             # Process callback parameters
             if not httpd.callback_params:
                 print("No callback parameters received")
                 return False, None
-            
+
             # Check state parameter
             if httpd.callback_params.get("state") != state:
                 print("State parameter mismatch, possible CSRF attack")
                 return False, None
-            
+
             # Extract authorization code
             code = httpd.callback_params.get("code")
             if not code:
                 print("No authorization code received")
                 return False, None
-            
+
             # Exchange code for tokens
             token_data = {
                 "grant_type": "authorization_code",
                 "code": code,
                 "redirect_uri": redirect_uri,
                 "client_id": client_id,
-                "code_verifier": code_verifier
+                "code_verifier": code_verifier,
             }
-            
+
             # Send token request
             response = requests.post(
                 token_endpoint,
                 data=token_data,
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
-                timeout=10
+                timeout=10,
             )
             response.raise_for_status()
-            
+
             # Parse token response
             token_response = response.json()
-            
+
             # Add expires_at if we got expires_in
             if "expires_in" in token_response and not "expires_at" in token_response:
-                token_response["expires_at"] = datetime.now().timestamp() + token_response["expires_in"]
-            
+                token_response["expires_at"] = (
+                    datetime.now().timestamp() + token_response["expires_in"]
+                )
+
             # Create token set
             token_set = TokenSet(token_response)
-            
+
             # Only save credentials to file in stdio mode
             if app_config.server_mode == "stdio":
                 save_credentials(token_set)
-            
+
             return True, token_set
-    
+
     except Exception as e:
         print(f"Authentication failed: {e}")
         return False, None
 
-def get_authentication_token(client_id: Optional[str] = None, http_auth_header: Optional[str] = None) -> Optional[str]:
+
+def get_authentication_token(
+    client_id: Optional[str] = None, http_auth_header: Optional[str] = None
+) -> Optional[str]:
     """
     Get authentication token from various sources based on server mode.
     For HTTP mode, prioritizes auth header, then app_config, then browser auth.
     For stdio mode, uses app_config, credentials file, then browser auth.
-    
+
     Args:
         client_id: Optional client ID to use for authentication
         http_auth_header: Optional HTTP Authorization header (for HTTP mode)
-        
+
     Returns:
         JWT token or API key if available, None otherwise
     """
@@ -387,7 +405,7 @@ def get_authentication_token(client_id: Optional[str] = None, http_auth_header: 
     print(f"Client ID: {client_id}")
     print(f"HTTP Authorization header: {http_auth_header}")
     print(f"App config auth token: {app_config.get_auth_token()}")
-    
+
     # For HTTP mode, first check the Authorization header
     if server_mode == "http" and http_auth_header:
         print("Using token from HTTP Authorization header")
@@ -396,21 +414,21 @@ def get_authentication_token(client_id: Optional[str] = None, http_auth_header: 
             print("Using token from HTTP Authorization header")
             app_config.set_auth_token(token, AuthMethod.JWT_TOKEN)
             return token
-    
+
     # Next, check for existing token in app_config
     api_key = app_config.get_auth_token()
     auth_method = app_config.get_auth_method()
-    
+
     if api_key:
         print(f"Using existing authentication token (type: {auth_method.name})")
         return api_key
-    
+
     # For stdio mode, check saved credentials file
     if server_mode == "stdio":
         credentials = load_credentials()
         if credentials and "token_set" in credentials:
             token_set = TokenSet(credentials["token_set"])
-            
+
             # If token is expired, try to refresh it
             if token_set.is_expired() and token_set.refresh_token:
                 print("Access token expired, refreshing...")
@@ -421,40 +439,42 @@ def get_authentication_token(client_id: Optional[str] = None, http_auth_header: 
                     app_config.set_auth_token(token_set.access_token, AuthMethod.OAUTH)
                 else:
                     print("Token refresh failed, proceeding to re-authentication")
-                    
+
             # If we have a valid token, use it
             if not token_set.is_expired() and token_set.access_token:
                 print("Using saved OAuth token.")
                 app_config.set_auth_token(token_set.access_token, AuthMethod.OAUTH)
                 return token_set.access_token
-    
+
     # If no valid credentials found, launch browser authentication
     print("No API key or valid authentication token found.")
     success, token_set = authenticate(client_id)
-    
+
     if success and token_set and token_set.access_token:
         print("Authentication successful!")
         app_config.set_auth_token(token_set.access_token, AuthMethod.OAUTH)
-        
+
         # Only save to credentials file in stdio mode
         # In HTTP mode, we just keep it in memory (app_config)
         if server_mode == "stdio" and token_set:
             save_credentials(token_set)
-        
+
         return token_set.access_token
     else:
         print("Authentication failed. Please try again or provide an API key.")
         return None
 
+
 def get_oauth_provider() -> Optional["SingleStoreOAuthProvider"]:
     """
     Get the singleton instance of the OAuth provider.
-    
+
     Returns:
         The OAuth provider instance
     """
     try:
         from src.auth.oauth_routes import oauth_provider
+
         return oauth_provider
     except ImportError:
         # Handle case where oauth_routes hasn't been initialized yet

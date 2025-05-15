@@ -1,9 +1,7 @@
 from .types import Resource
 
 
-resources_definitions = [
-    
-]
+resources_definitions = []
 
 resources = [
     Resource(
