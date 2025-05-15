@@ -12,15 +12,15 @@ ClientType = Literal["claude", "cursor", "windsurf", "copilot"]
 # Client config file paths (platform-dependent)
 CLIENT_CONFIG_PATHS = {
     "claude": {
-        "darwin": "~/Library/Application Support/Claude/claude_desktop_config.json",
+        "darwin": ("~/Library/Application Support/Claude/claude_desktop_config.json"),
         "win32": "%APPDATA%\\Claude\\claude_desktop_config.json",
-        "linux": "~/.config/Claude/claude_desktop_config.json"
+        "linux": "~/.config/Claude/claude_desktop_config.json",
     },
     "cursor": {
         "darwin": "~/.cursor/mcp.json",
         "win32": "~/.cursor/mcp.json",
-        "linux": "~/.cursor/mcp.json"
-    }
+        "linux": "~/.cursor/mcp.json",
+    },
 }
 
 # Client-specific config templates
@@ -32,8 +32,8 @@ CLIENT_CONFIG_TEMPLATES = {
                 "args": [
                     "singlestore-mcp-server",
                     "start",
-                    "{api_key}"
-                ]
+                    "{api_key}",
+                ],
             }
         }
     },
@@ -44,20 +44,21 @@ CLIENT_CONFIG_TEMPLATES = {
                 "args": [
                     "singlestore-mcp-server",
                     "start",
-                    "{api_key}"
-                ]
+                    "{api_key}",
+                ],
             }
         }
-    }
+    },
 }
+
 
 def get_config_path(client: ClientType) -> Optional[Path]:
     """
     Get the platform-specific config path for the client.
-    
+
     Args:
         client: The LLM client name
-        
+
     Returns:
         Path to the config file or None if unsupported platform
     """
@@ -65,7 +66,7 @@ def get_config_path(client: ClientType) -> Optional[Path]:
     if platform not in CLIENT_CONFIG_PATHS[client]:
         print(f"Unsupported platform: {platform} for client: {client}")
         return None
-    
+
     # Get the raw path and expand environment variables and user directory
     raw_path = CLIENT_CONFIG_PATHS[client][platform]
     if platform == "win32":
@@ -79,13 +80,14 @@ def get_config_path(client: ClientType) -> Optional[Path]:
         # Unix-like systems
         return Path(os.path.expanduser(raw_path))
 
+
 def create_config_directory(config_path: Path) -> bool:
     """
     Create the directory for the config file if it doesn't exist.
-    
+
     Args:
         config_path: Path to the config file
-        
+
     Returns:
         True if successful, False otherwise
     """
@@ -96,115 +98,131 @@ def create_config_directory(config_path: Path) -> bool:
         print(f"Error creating config directory: {e}")
         return False
 
+
 def update_client_config(client: ClientType, api_key: str) -> bool:
     """
     Update the client configuration file to use the SingleStore MCP server.
-    
+
     Args:
         client: The LLM client name
         api_key: SingleStore API key
-        
+
     Returns:
         True if successful, False otherwise
     """
     config_path = get_config_path(client)
     if not config_path:
         return False
-    
+
     # Create directory if it doesn't exist
     if not create_config_directory(config_path):
         return False
-    
+
     # Prepare the config data
     template = CLIENT_CONFIG_TEMPLATES[client]
-    
+
     # Fill in the API key
     config_str = json.dumps(template, indent=2)
     config_str = config_str.replace('"{api_key}"', f'"{api_key}"')
     config_data = json.loads(config_str)
-    
+
     try:
         # Read existing config if available
         if config_path.exists():
-            with open(config_path, 'r') as f:
+            with open(config_path, "r") as f:
                 try:
                     existing_config = json.load(f)
                     # Merge the configs based on client type
                     if client in ["claude", "cursor"]:
                         if "mcpServers" not in existing_config:
                             existing_config["mcpServers"] = {}
-                        existing_config["mcpServers"]["singlestore-mcp-server"] = config_data["mcpServers"]["singlestore-mcp-server"]
-                    
+                        existing_config["mcpServers"]["singlestore-mcp-server"] = (
+                            config_data["mcpServers"]["singlestore-mcp-server"]
+                        )
+
                     config_data = existing_config
                 except json.JSONDecodeError:
                     # If the file exists but is invalid JSON, use our template
-                    print(f"Warning: Existing config file at {config_path} is not valid JSON. Creating a new file.")
-        
+                    print(
+                        f"Warning: Existing config file at {config_path} is not valid JSON. Creating a new file."
+                    )
+
         # Write the updated config
-        with open(config_path, 'w') as f:
+        with open(config_path, "w") as f:
             json.dump(config_data, indent=2, fp=f)
-        
-        print(f"Successfully configured {client.capitalize()} to use SingleStore MCP server.")
+
+        print(
+            f"Successfully configured {client.capitalize()} to use SingleStore MCP server."
+        )
         print(f"Config updated at: {config_path}")
         return True
-    
+
     except Exception as e:
         print(f"Error updating client config: {e}")
         return False
 
-def init_command(api_key: Optional[str] = None, jwt_token: Optional[str] = None, client: str = "claude") -> int:
+
+def init_command(
+    api_key: Optional[str] = None,
+    jwt_token: Optional[str] = None,
+    client: str = "claude",
+) -> int:
     """
     Initialize the SingleStore MCP server for a specific client.
-    
+
     Args:
         api_key: SingleStore API key (optional)
         jwt_token: JWT token for authentication (optional)
         client: Name of the LLM client (claude, cursor, windsurf, copilot)
-        
+
     Note:
         Either api_key or jwt_token can be provided, but not both.
         If neither is provided, the auth module will launch a web auth flow.
-        
+
     Returns:
         Exit code (0 for success, 1 for failure)
     """
     client = client.lower()
     valid_clients = list(CLIENT_CONFIG_TEMPLATES.keys())
-    
+
     if client not in valid_clients:
         print(f"Error: Unsupported client '{client}'")
         print(f"Supported clients: {', '.join(valid_clients)}")
         return 1
-    
+
     print(f"Initializing SingleStore MCP server for {client.capitalize()}...")
-    
+
     # Both api_key and jwt_token provided - error
     if api_key and jwt_token:
-        print("Error: Cannot provide both API key and JWT token. Choose one authentication method.")
+        print(
+            "Error: Cannot provide both API key and JWT token. Choose one authentication method."
+        )
         return 1
-        
+
     # API key provided
     elif api_key:
         app_config.set_auth_token(api_key, AuthMethod.API_KEY)
         print("Using provided API key for authentication.")
-        
+
     # JWT token provided
     elif jwt_token:
         app_config.set_auth_token(jwt_token, AuthMethod.JWT_TOKEN)
         print("Using provided JWT token for authentication.")
-        
+
     # No credentials provided, use auth module to get one
     else:
         print("No credentials provided. Launching authentication flow...")
         token = get_authentication_token()
-        
+
         if not token:
-            print("Authentication failed. Please try again or provide API key or JWT token.")
+            print(
+                "Authentication failed. Please try again or provide API key or JWT token."
+            )
             return 1
-        
+
         app_config.set_auth_token(jwt_token, AuthMethod.JWT_TOKEN)
         print("Authentication successful!")
-    
+
     # Update the client configuration
     if update_client_config(client, app_config.get_auth_token()):
         print("\nSetup complete! You can now use the MCP server with your LLM client.")

@@ -4,15 +4,18 @@ from fastapi import APIRouter, Query, Request, Response, HTTPException
 from fastapi.responses import RedirectResponse, JSONResponse
 from mcp.shared.auth import OAuthClientInformationFull
 
-from .auth_provider import SingleStoreOAuthProvider, authorization_codes
+from .auth_provider import (
+    SingleStoreOAuthProvider,
+    authorization_codes,
+)
 from src.config.auth_settings import auth_settings
-from src.config.app_config import app_config, AuthMethod
 
 # Create OAuth routes
 oauth_router = APIRouter(prefix="/auth")
 
 # Initialize the OAuth provider
 oauth_provider = SingleStoreOAuthProvider()
+
 
 # Discovery endpoint
 @oauth_router.get("/.well-known/openid-configuration")
@@ -22,18 +25,22 @@ async def openid_configuration():
     """
     return {
         "issuer": auth_settings.issuer_url,
-        "authorization_endpoint": f"{auth_settings.issuer_url}/auth/authorize",
+        "authorization_endpoint": (f"{auth_settings.issuer_url}/auth/authorize"),
         "token_endpoint": f"{auth_settings.issuer_url}/auth/token",
-        "revocation_endpoint": f"{auth_settings.issuer_url}/auth/revoke",
+        "revocation_endpoint": (f"{auth_settings.issuer_url}/auth/revoke"),
         "jwks_uri": f"{auth_settings.issuer_url}/auth/jwks",
-        "scopes_supported": auth_settings.client_registration_options.valid_scopes,
+        "scopes_supported": (auth_settings.client_registration_options.valid_scopes),
         "response_types_supported": ["code"],
-        "grant_types_supported": ["authorization_code", "refresh_token"],
+        "grant_types_supported": [
+            "authorization_code",
+            "refresh_token",
+        ],
         "token_endpoint_auth_methods_supported": ["none"],
         "revocation_endpoint_auth_methods_supported": ["none"],
         "code_challenge_methods_supported": ["S256"],
         "service_documentation": "https://singlestore.com/docs/",
     }
+
 
 # Client registration endpoint
 @oauth_router.post("/register")
@@ -43,6 +50,7 @@ async def register_client(client_info: OAuthClientInformationFull):
     """
     await oauth_provider.register_client(client_info)
     return {"status": "success", "client_id": client_info.client_id}
+
 
 # Authorize endpoint
 @oauth_router.get("/authorize")
@@ -61,7 +69,7 @@ async def authorize(
     """
     # Parse scopes
     scopes = scope.split() if scope else []
-    
+
     # Load client
     client = await oauth_provider.get_client(client_id)
     if not client:
@@ -74,7 +82,7 @@ async def authorize(
             return RedirectResponse(f"{redirect_uri}?{urlencode(error_params)}")
         else:
             raise HTTPException(status_code=400, detail="Invalid client")
-    
+
     # Create authorization params
     auth_params = {
         "redirect_uri": redirect_uri,
@@ -85,7 +93,7 @@ async def authorize(
         "code_challenge": code_challenge,
         "code_challenge_method": code_challenge_method,
     }
-    
+
     try:
         # Get authorization URL from provider
         auth_url = await oauth_provider.authorize(client, auth_params)
@@ -98,6 +106,7 @@ async def authorize(
         if state:
             error_params["state"] = state
         return RedirectResponse(f"{redirect_uri}?{urlencode(error_params)}")
+
 
 # Callback endpoint
 @oauth_router.get("/callback")
@@ -116,41 +125,44 @@ async def callback(
         return JSONResponse(
             content={
                 "error": error,
-                "error_description": error_description or "An error occurred during authentication"
+                "error_description": (
+                    error_description or "An error occurred during authentication"
+                ),
             },
-            status_code=400
+            status_code=400,
         )
-    
+
     if not code or not state:
         return JSONResponse(
             content={
                 "error": "invalid_request",
-                "error_description": "Missing required parameters"
+                "error_description": "Missing required parameters",
             },
-            status_code=400
+            status_code=400,
         )
-    
+
     # Get the authorization code from our store
     auth_code = authorization_codes.get(state)
     if not auth_code:
         return JSONResponse(
             content={
                 "error": "invalid_request",
-                "error_description": "Invalid state parameter"
+                "error_description": "Invalid state parameter",
             },
-            status_code=400
+            status_code=400,
         )
-    
+
     # Update the authorization code with the real code
     auth_code.code = code
-    
+
     # Redirect back to the client's redirect URI
     redirect_params = {
         "code": code,
-        "state": auth_code.original_state
+        "state": auth_code.original_state,
     }
-    
+
     return RedirectResponse(f"{auth_code.redirect_uri}?{urlencode(redirect_params)}")
+
 
 # Token endpoint
 @oauth_router.post("/token")
@@ -160,64 +172,67 @@ async def token(request: Request):
     """
     form_data = await request.form()
     grant_type = form_data.get("grant_type")
-    
+
     if grant_type == "authorization_code":
         client_id = form_data.get("client_id")
         code = form_data.get("code")
         redirect_uri = form_data.get("redirect_uri")
         code_verifier = form_data.get("code_verifier")
-        
+
         if not all([client_id, code, redirect_uri]):
             return JSONResponse(
                 content={
                     "error": "invalid_request",
-                    "error_description": "Missing required parameters"
+                    "error_description": ("Missing required parameters"),
                 },
-                status_code=400
+                status_code=400,
             )
-        
+
         # Load client
         client = await oauth_provider.get_client(client_id)
         if not client:
             return JSONResponse(
                 content={
                     "error": "invalid_client",
-                    "error_description": "Client not found"
+                    "error_description": "Client not found",
                 },
-                status_code=400
+                status_code=400,
             )
-        
+
         # Load authorization code
         auth_code = await oauth_provider.load_authorization_code(client, code)
         if not auth_code:
             return JSONResponse(
                 content={
                     "error": "invalid_grant",
-                    "error_description": "Invalid authorization code"
+                    "error_description": "Invalid authorization code",
                 },
-                status_code=400
+                status_code=400,
             )
-        
+
         # Verify redirect URI matches
-        if auth_code.redirect_uri_provided_explicitly and auth_code.redirect_uri != redirect_uri:
+        if (
+            auth_code.redirect_uri_provided_explicitly
+            and auth_code.redirect_uri != redirect_uri
+        ):
             return JSONResponse(
                 content={
                     "error": "invalid_grant",
-                    "error_description": "Redirect URI mismatch"
+                    "error_description": "Redirect URI mismatch",
                 },
-                status_code=400
+                status_code=400,
             )
-        
+
         # Verify PKCE code verifier if challenge was provided
         if auth_code.code_challenge and not code_verifier:
             return JSONResponse(
                 content={
                     "error": "invalid_grant",
-                    "error_description": "Code verifier required"
+                    "error_description": "Code verifier required",
                 },
-                status_code=400
+                status_code=400,
             )
-        
+
         try:
             # Exchange code for tokens
             token = await oauth_provider.exchange_authorization_code(client, auth_code)
@@ -226,71 +241,74 @@ async def token(request: Request):
             return JSONResponse(
                 content={
                     "error": "server_error",
-                    "error_description": str(e)
+                    "error_description": str(e),
                 },
-                status_code=500
+                status_code=500,
             )
-    
+
     elif grant_type == "refresh_token":
         client_id = form_data.get("client_id")
         refresh_token = form_data.get("refresh_token")
         scope = form_data.get("scope")
-        
+
         if not all([client_id, refresh_token]):
             return JSONResponse(
                 content={
                     "error": "invalid_request",
-                    "error_description": "Missing required parameters"
+                    "error_description": ("Missing required parameters"),
                 },
-                status_code=400
+                status_code=400,
             )
-        
+
         # Load client
         client = await oauth_provider.get_client(client_id)
         if not client:
             return JSONResponse(
                 content={
                     "error": "invalid_client",
-                    "error_description": "Client not found"
+                    "error_description": "Client not found",
                 },
-                status_code=400
+                status_code=400,
             )
-        
+
         # Load refresh token
         token_obj = await oauth_provider.load_refresh_token(client, refresh_token)
         if not token_obj:
             return JSONResponse(
                 content={
                     "error": "invalid_grant",
-                    "error_description": "Invalid refresh token"
+                    "error_description": "Invalid refresh token",
                 },
-                status_code=400
+                status_code=400,
             )
-        
+
         # Parse scopes
         scopes = scope.split() if scope else []
-        
+
         try:
             # Exchange refresh token for new tokens
-            token = await oauth_provider.exchange_refresh_token(client, token_obj, scopes)
+            token = await oauth_provider.exchange_refresh_token(
+                client, token_obj, scopes
+            )
             return token.model_dump()
         except Exception as e:
             return JSONResponse(
                 content={
                     "error": "server_error",
-                    "error_description": str(e)
+                    "error_description": str(e),
                 },
-                status_code=500
+                status_code=500,
             )
-    
+
     else:
         return JSONResponse(
             content={
                 "error": "unsupported_grant_type",
-                "error_description": f"Unsupported grant type: {grant_type}"
+                "error_description": (f"Unsupported grant type: {grant_type}"),
             },
-            status_code=400
+            status_code=400,
         )
+
 
 # Token revocation endpoint
 @oauth_router.post("/revoke")
@@ -302,37 +320,37 @@ async def revoke_token(request: Request):
     token = form_data.get("token")
     token_type_hint = form_data.get("token_type_hint")
     client_id = form_data.get("client_id")
-    
+
     if not token or not client_id:
         return JSONResponse(
             content={
                 "error": "invalid_request",
-                "error_description": "Missing required parameters"
+                "error_description": "Missing required parameters",
             },
-            status_code=400
+            status_code=400,
         )
-    
+
     # Load client
     client = await oauth_provider.get_client(client_id)
     if not client:
         return JSONResponse(
             content={
                 "error": "invalid_client",
-                "error_description": "Client not found"
+                "error_description": "Client not found",
             },
-            status_code=400
+            status_code=400,
         )
-    
+
     # Try to load as access token first
     token_obj = await oauth_provider.load_access_token(token)
-    
+
     # If not found and token_type_hint is refresh_token or not provided, try as refresh token
     if not token_obj and (not token_type_hint or token_type_hint == "refresh_token"):
         token_obj = await oauth_provider.load_refresh_token(client, token)
-    
+
     # If token was found, revoke it
     if token_obj:
         await oauth_provider.revoke_token(token_obj)
-    
+
     # Always return success, even if token wasn't found, to prevent token enumeration
     return Response(status_code=200)

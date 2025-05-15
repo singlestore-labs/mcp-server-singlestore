@@ -15,7 +15,6 @@ from utils.resources import resources
 from utils.tools import tools
 from utils.middleware import apply_auth_middleware
 from utils.registration import register_resources, register_tools
-from src.config.config import SINGLESTORE_ORG_ID, SINGLESTORE_ORG_NAME
 
 # Store notes as a simple key-value dict to demonstrate state management
 notes: dict[str, str] = {}
@@ -26,12 +25,15 @@ custom_text_resources: dict[str, str] = {}
 # Store session state for caching user inputs
 session_state: dict[str, dict] = {}
 
+
 @dataclass
 class AppContext:
     """Application context for lifespan management"""
+
     notes: dict[str, str]
     custom_text_resources: dict[str, str]
     session_state: dict[str, dict]
+
 
 @asynccontextmanager
 async def app_lifespan(server: FastMCP) -> AsyncIterator[AppContext]:
@@ -41,7 +43,7 @@ async def app_lifespan(server: FastMCP) -> AsyncIterator[AppContext]:
         yield AppContext(
             notes=notes,
             custom_text_resources=custom_text_resources,
-            session_state=session_state
+            session_state=session_state,
         )
     finally:
         # Cleanup on shutdown
@@ -50,11 +52,12 @@ async def app_lifespan(server: FastMCP) -> AsyncIterator[AppContext]:
         session_state.clear()
         print("Application context cleared.")
 
+
 # Create FastMCP server instance with lifespan
 mcp = FastMCP(
     "SingleStore MCP Server",
     lifespan=app_lifespan,
-    dependencies=["mcp-server", "singlestoredb"]
+    dependencies=["mcp-server", "singlestoredb"],
 )
 
 # Apply auth middleware to tools and filter out login/refresh tools from public API
@@ -64,9 +67,10 @@ register_resources(mcp, resources)
 register_tools(mcp, public_tools)
 
 # Include OAuth routes by adding them directly to the FastAPI app
-app: FastAPI = getattr(mcp, '_app', None)
+app: FastAPI = getattr(mcp, "_app", None)
 if app:
     app.include_router(oauth_router)
+
 
 def main():
     # Set up command-line parser
@@ -75,17 +79,37 @@ def main():
 
     # Add start command (default behavior when no command is provided)
     start_parser = subparsers.add_parser("start", help="Start the MCP server")
-    start_parser.add_argument("api_key", nargs="?", help="SingleStore API key (optional, will use web auth if not provided)")
-    start_parser.add_argument("--protocol", default="stdio", choices=["stdio", "sse", "http"], help="Protocol to run the server on (default: stdio)")
-    start_parser.add_argument("--port", default=8000, type=int, help="Port to run the server on (default: 8000) if protocol is sse")
-
+    start_parser.add_argument(
+        "api_key",
+        nargs="?",
+        help="SingleStore API key (optional, will use web auth if not provided)",
+    )
+    start_parser.add_argument(
+        "--protocol",
+        default="stdio",
+        choices=["stdio", "sse", "http"],
+        help="Protocol to run the server on (default: stdio)",
+    )
+    start_parser.add_argument(
+        "--port",
+        default=8000,
+        type=int,
+        help="Port to run the server on (default: 8000) if protocol is sse",
+    )
 
     # Add init command
     init_parser = subparsers.add_parser("init", help="Initialize client configuration")
-    init_parser.add_argument("api_key", nargs="?", help="SingleStore API key (optional, will use web auth if not provided)")
-    init_parser.add_argument("--client", default="claude",
-                            choices=["claude", "cursor"],
-                            help="LLM client to configure (default: claude)")
+    init_parser.add_argument(
+        "api_key",
+        nargs="?",
+        help="SingleStore API key (optional, will use web auth if not provided)",
+    )
+    init_parser.add_argument(
+        "--client",
+        default="claude",
+        choices=["claude", "cursor"],
+        help="LLM client to configure (default: claude)",
+    )
 
     # Parse arguments
     args = parser.parse_args()
@@ -108,21 +132,29 @@ def main():
         protocol = getattr(args, "protocol", "stdio")
 
         if getattr(args, "api_key", None):
-            print(f"Using provided API key: {args.api_key[:10]}{'*' * (len(args.api_key)-10)}")
+            print(
+                f"Using provided API key: {args.api_key[:10]}{'*' * (len(args.api_key) - 10)}"
+            )
             app_config.set_auth_token(args.api_key, AuthMethod.API_KEY)
 
         elif os.getenv("SINGLESTORE_API_KEY"):
             print("Using API key from environment variable SINGLESTORE_API_KEY")
-            app_config.set_auth_token(os.getenv("SINGLESTORE_API_KEY"), AuthMethod.API_KEY)
+            app_config.set_auth_token(
+                os.getenv("SINGLESTORE_API_KEY"), AuthMethod.API_KEY
+            )
 
         if protocol == "sse":
-            print(f"Running SSE server with protocol {protocol.upper()} on port {args.port}")
+            print(
+                f"Running SSE server with protocol {protocol.upper()} on port {args.port}"
+            )
             app_config.set_server_port(args.port)
             app_config.server_mode = "sse"
 
         elif protocol == "http":
             protocol = "streamable-http"
-            print(f"Running Streamable HTTP server with protocol {protocol.upper()} on port {args.port}")
+            print(
+                f"Running Streamable HTTP server with protocol {protocol.upper()} on port {args.port}"
+            )
             app_config.set_server_port(args.port)
             app_config.server_mode = "stdio"
         else:
@@ -135,6 +167,7 @@ def main():
     else:
         parser.print_help()
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
