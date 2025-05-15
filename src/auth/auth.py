@@ -8,6 +8,7 @@ import hashlib
 import http.server
 import socketserver
 import urllib.parse
+from fastapi import HTTPException
 import requests
 from pathlib import Path
 from typing import Optional, Dict, Any, Tuple, TYPE_CHECKING
@@ -16,6 +17,7 @@ from src.config.config import (
     CLIENT_ID,
     OAUTH_HOST,
     AUTH_TIMEOUT_SECONDS,
+    REDIRECT_URI,
     ROOT_DIR,
 )
 from src.config.app_config import app_config, AuthMethod
@@ -266,48 +268,48 @@ def authenticate(
     # Use provided client_id or the default one
     client_id = client_id or CLIENT_ID
 
+    # In HTTP mode, the server must not perform the OAuth flow
+    if app_config.server_mode == "http":
+        # Throw a 401 error if authentication fails
+        raise HTTPException(status_code=401, detail="Authentication failed")
+
+    # STDIO mode: keep the local browser-based flow
     try:
         # Discover OAuth server endpoints
         print("Discovering OAuth server...")
         oauth_config = discover_oauth_server(OAUTH_HOST)
         authorization_endpoint = oauth_config.get("authorization_endpoint")
         token_endpoint = oauth_config.get("token_endpoint")
-
         if not authorization_endpoint or not token_endpoint:
             print("Invalid OAuth server configuration")
             return False, None
-
         # Generate PKCE code verifier and challenge
         code_verifier = generate_code_verifier()
         code_challenge = generate_code_challenge(code_verifier)
-
         # Generate state for security
         state = generate_state()
-
-        # Find an available port for the redirect server
-        with socketserver.TCPServer(("127.0.0.1", 0), None) as s:
+        redirect_uri = REDIRECT_URI
+        parsed_uri = urllib.parse.urlparse(redirect_uri)
+        host = "127.0.0.1"
+        port = parsed_uri.port or 0
+        print(f"Using redirect URI: {redirect_uri}")
+        print(f"Using host: {host}, port: {port}")
+        with socketserver.TCPServer((host, port), None) as s:
             port = s.server_address[1]
-
-        # Redirect URI
         redirect_uri = f"http://127.0.0.1:{port}/callback"
 
-        # Create server class with additional attributes
         class CallbackServer(socketserver.TCPServer):
             def __init__(self, *args, **kwargs):
                 super().__init__(*args, **kwargs)
                 self.received_callback = False
                 self.callback_params = None
 
-        # Create a custom handler factory
         def handler(*args, **kwargs):
             return AuthCallbackHandler(*args, **kwargs)
 
-        # Start a temporary web server to capture the callback
         with CallbackServer(("127.0.0.1", port), handler) as httpd:
             print(f"Starting authentication server on port {port}...")
             print("Opening browser for authentication...")
-
-            # Prepare authorization URL
             scopes = " ".join(ALWAYS_PRESENT_SCOPES)
             auth_params = {
                 "client_id": client_id,
@@ -318,42 +320,27 @@ def authenticate(
                 "code_challenge": code_challenge,
                 "code_challenge_method": "S256",
             }
-
             auth_url = f"{authorization_endpoint}?{urllib.parse.urlencode(auth_params)}"
             print(f"Authenticating with client ID: {client_id}")
             print(f"Auth URL: {auth_url}")
-
-            # Open browser to auth URL
             webbrowser.open(auth_url)
-
-            # Set timeout
             httpd.timeout = 1
-
-            # Serve until callback is received or timeout
             start_time = time.time()
             while not httpd.received_callback:
                 httpd.handle_request()
                 if time.time() - start_time > AUTH_TIMEOUT_SECONDS:
                     print("Authentication timed out")
                     return False, None
-
-            # Process callback parameters
             if not httpd.callback_params:
                 print("No callback parameters received")
                 return False, None
-
-            # Check state parameter
             if httpd.callback_params.get("state") != state:
                 print("State parameter mismatch, possible CSRF attack")
                 return False, None
-
-            # Extract authorization code
             code = httpd.callback_params.get("code")
             if not code:
                 print("No authorization code received")
                 return False, None
-
-            # Exchange code for tokens
             token_data = {
                 "grant_type": "authorization_code",
                 "code": code,
@@ -361,8 +348,6 @@ def authenticate(
                 "client_id": client_id,
                 "code_verifier": code_verifier,
             }
-
-            # Send token request
             response = requests.post(
                 token_endpoint,
                 data=token_data,
@@ -370,25 +355,15 @@ def authenticate(
                 timeout=10,
             )
             response.raise_for_status()
-
-            # Parse token response
             token_response = response.json()
-
-            # Add expires_at if we got expires_in
             if "expires_in" in token_response and "expires_at" not in token_response:
                 token_response["expires_at"] = (
                     datetime.now().timestamp() + token_response["expires_in"]
                 )
-
-            # Create token set
             token_set = TokenSet(token_response)
-
-            # Only save credentials to file in stdio mode
             if app_config.server_mode == "stdio":
                 save_credentials(token_set)
-
             return True, token_set
-
     except Exception as e:
         print(f"Authentication failed: {e}")
         return False, None
@@ -412,68 +387,40 @@ def get_authentication_token(
     """
     server_mode = app_config.server_mode  # "stdio" or "http"
 
-    print(f"Server mode: {server_mode}")
-    print(f"Client ID: {client_id}")
-    print(f"HTTP Authorization header: {http_auth_header}")
-    print(f"App config auth token: {app_config.get_auth_token()}")
-
-    # For HTTP mode, first check the Authorization header
-    if server_mode == "http" and http_auth_header:
-        print("Using token from HTTP Authorization header")
-        if http_auth_header.startswith("Bearer "):
+    if server_mode == "http":
+        # In HTTP mode, always require Authorization header
+        if http_auth_header and http_auth_header.startswith("Bearer "):
             token = http_auth_header[7:]
-            print("Using token from HTTP Authorization header")
             app_config.set_auth_token(token, AuthMethod.JWT_TOKEN)
+            # Optionally: validate the token here (signature, expiry, etc.)
             return token
+        # No valid token provided: server must not attempt to authenticate, just return None
+        return None
 
-    # Next, check for existing token in app_config
+    # STDIO mode: local/desktop flow
     api_key = app_config.get_auth_token()
-    auth_method = app_config.get_auth_method()
-
     if api_key:
-        print(f"Using existing authentication token (type: {auth_method.name})")
         return api_key
 
-    # For stdio mode, check saved credentials file
-    if server_mode == "stdio":
-        credentials = load_credentials()
-        if credentials and "token_set" in credentials:
-            token_set = TokenSet(credentials["token_set"])
-
-            # If token is expired, try to refresh it
-            if token_set.is_expired() and token_set.refresh_token:
-                print("Access token expired, refreshing...")
-                refreshed_token_set = refresh_token(token_set, client_id or CLIENT_ID)
-                if refreshed_token_set:
-                    token_set = refreshed_token_set
-                    # Update app config with the refreshed token
-                    app_config.set_auth_token(token_set.access_token, AuthMethod.OAUTH)
-                else:
-                    print("Token refresh failed, proceeding to re-authentication")
-
-            # If we have a valid token, use it
-            if not token_set.is_expired() and token_set.access_token:
-                print("Using saved OAuth token.")
+    credentials = load_credentials()
+    if credentials and "token_set" in credentials:
+        token_set = TokenSet(credentials["token_set"])
+        if token_set.is_expired() and token_set.refresh_token:
+            refreshed_token_set = refresh_token(token_set, client_id or CLIENT_ID)
+            if refreshed_token_set:
+                token_set = refreshed_token_set
                 app_config.set_auth_token(token_set.access_token, AuthMethod.OAUTH)
-                return token_set.access_token
+        if not token_set.is_expired() and token_set.access_token:
+            app_config.set_auth_token(token_set.access_token, AuthMethod.OAUTH)
+            return token_set.access_token
 
-    # If no valid credentials found, launch browser authentication
-    print("No API key or valid authentication token found.")
+    # If no valid credentials found, launch browser authentication (stdio only)
     success, token_set = authenticate(client_id)
-
     if success and token_set and token_set.access_token:
-        print("Authentication successful!")
         app_config.set_auth_token(token_set.access_token, AuthMethod.OAUTH)
-
-        # Only save to credentials file in stdio mode
-        # In HTTP mode, we just keep it in memory (app_config)
-        if server_mode == "stdio" and token_set:
-            save_credentials(token_set)
-
+        save_credentials(token_set)
         return token_set.access_token
-    else:
-        print("Authentication failed. Please try again or provide an API key.")
-        return None
+    return None
 
 
 def get_oauth_provider() -> Optional["SingleStoreOAuthProvider"]:

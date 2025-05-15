@@ -87,7 +87,6 @@ def select_organization():
         Dictionary with the selected organization ID and name
     """
 
-    print("select_org: ", app_config.organization_id)
     # If organization is already selected, return it
     if app_config.is_organization_selected():
         return {

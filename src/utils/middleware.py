@@ -1,5 +1,7 @@
 from functools import wraps
 from typing import Callable
+
+from fastapi import HTTPException
 from src.auth.auth import (
     get_authentication_token,
     refresh_token,
@@ -38,38 +40,37 @@ def auth_middleware(func: Callable) -> Callable:
         ):
             http_auth_header = args[0].headers["Authorization"]
 
-        # Check if we already have a valid token
         current_token = app_config.get_auth_token()
         current_method = app_config.get_auth_method()
+
+        # Helper to determine if running in HTTP server mode
+        from fastapi import Request
+
+        is_http = any(isinstance(arg, Request) for arg in args)
+
+        def fail_auth():
+            if is_http:
+                raise HTTPException(status_code=401, detail="Authentication failed")
+            else:
+                raise Exception("Authentication failed")
 
         # If no token, authenticate
         if not current_token:
             print("No authentication token found. Attempting to authenticate...")
             current_token = get_authentication_token(http_auth_header=http_auth_header)
-
             if not current_token:
-                # If authentication failed, return error
-                return {
-                    "status": "error",
-                    "message": (
-                        "Authentication failed. Please try again or provide an API key."
-                    ),
-                }
+                fail_auth()
 
         # If token is OAUTH or JWT_TOKEN, check if we need to refresh
-        # API_KEY tokens don't expire, so no need to refresh
         if current_method in [AuthMethod.OAUTH, AuthMethod.JWT_TOKEN]:
             credentials = load_credentials()
             if credentials and "token_set" in credentials:
                 token_set = TokenSet(credentials["token_set"])
-
-                # If token is expired, try to refresh it
                 if token_set.is_expired():
                     print(
                         f"{current_method.name} token expired. Attempting to refresh..."
                     )
                     refreshed_token_set = refresh_token(token_set)
-
                     if refreshed_token_set and refreshed_token_set.access_token:
                         print("Successfully refreshed authentication token.")
                         app_config.set_auth_token(
@@ -77,21 +78,17 @@ def auth_middleware(func: Callable) -> Callable:
                             current_method,
                         )
                     else:
-                        # If refresh failed, try to authenticate again
                         print("Token refresh failed. Attempting to re-authenticate...")
                         current_token = get_authentication_token()
-
                         if not current_token:
-                            # If authentication failed, return error
-                            return {
-                                "status": "error",
-                                "message": (
-                                    "Authentication failed. Please try again or provide an API key."
-                                ),
-                            }
+                            fail_auth()
 
-        # Now that we have a valid token, call the original function
-        return func(*args, **kwargs)
+        # If everything is fine, call the original function
+        result = func(*args, **kwargs)
+        if is_http:
+            # If running in HTTP mode, return 200 if no exception was raised
+            return result
+        return result
 
     return wrapper
 

@@ -1,7 +1,7 @@
 from typing import Optional
 from enum import Enum
 
-from src.config.config import SINGLESTORE_ORG_ID, SINGLESTORE_ORG_NAME
+from src.config.config import SERVER_MODE, SINGLESTORE_ORG_ID, SINGLESTORE_ORG_NAME
 
 
 class AuthMethod(Enum):
@@ -410,3 +410,7 @@ if SINGLESTORE_ORG_ID:
     )
     app_config.set_organization(SINGLESTORE_ORG_ID, SINGLESTORE_ORG_NAME)
     print(app_config.get_organization())
+
+if SERVER_MODE:
+    app_config.server_mode = SERVER_MODE
+    print(f"Server mode set to {SERVER_MODE}")

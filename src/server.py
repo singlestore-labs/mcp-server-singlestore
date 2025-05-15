@@ -85,12 +85,6 @@ def main():
         help="SingleStore API key (optional, will use web auth if not provided)",
     )
     start_parser.add_argument(
-        "--protocol",
-        default="stdio",
-        choices=["stdio", "sse", "http"],
-        help="Protocol to run the server on (default: stdio)",
-    )
-    start_parser.add_argument(
         "--port",
         default=8000,
         type=int,
@@ -129,7 +123,7 @@ def main():
         sys.exit(init_command(api_key, auth_token, args.client))
     elif args.command == "start":
         # Ensure protocol is set for the start command
-        protocol = getattr(args, "protocol", "stdio")
+        protocol = os.getenv("SERVER_MODE", "stdio")
 
         if getattr(args, "api_key", None):
             print(
@@ -156,7 +150,7 @@ def main():
                 f"Running Streamable HTTP server with protocol {protocol.upper()} on port {args.port}"
             )
             app_config.set_server_port(args.port)
-            app_config.server_mode = "stdio"
+            app_config.server_mode = "http"
         else:
             print(f"Running server with protocol {protocol.upper()}")
             app_config.server_mode = "stdio"

@@ -25,4 +25,7 @@ RUN pip install hatchling \
 # Expose the port the MCP server runs on
 EXPOSE 8000
 
+# Expose the port of the authentication callback server
+EXPOSE 8001
+
 CMD ["python", "src/server.py", "start", "--protocol", "http"]
