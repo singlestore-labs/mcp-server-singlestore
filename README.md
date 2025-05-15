@@ -6,6 +6,10 @@
 
 With MCP, you can use Claude Desktop, Cursor, or any compatible MCP client to interact with SingleStore using natural language, making it easier to perform complex operations effortlessly.
 
+<a href="https://glama.ai/mcp/servers/@singlestore-labs/mcp-server-singlestore">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/@singlestore-labs/mcp-server-singlestore/badge" alt="SingleStore Server MCP server" />
+</a>
+
 ## Requirements
 
 - Python >= v3.11.0
