@@ -290,7 +290,13 @@ class AppConfig:
     @log_level.setter
     def log_level(self, value: str):
         """Set the logging level."""
-        valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+        valid_levels = [
+            "DEBUG",
+            "INFO",
+            "WARNING",
+            "ERROR",
+            "CRITICAL",
+        ]
         if value.upper() not in valid_levels:
             raise ValueError(f"Log level must be one of: {', '.join(valid_levels)}")
         self._log_level = value.upper()

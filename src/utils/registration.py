@@ -102,7 +102,11 @@ def create_mcp_concept_wrapper(function, name, description, uri=None):
 
             exec(
                 function_def,
-                {"function": function, "Optional": Optional, "Context": Context},
+                {
+                    "function": function,
+                    "Optional": Optional,
+                    "Context": Context,
+                },
                 local_namespace,
             )
 

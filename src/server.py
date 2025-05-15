@@ -15,7 +15,6 @@ from utils.resources import resources
 from utils.tools import tools
 from utils.middleware import apply_auth_middleware
 from utils.registration import register_resources, register_tools
-from src.config.config import SINGLESTORE_ORG_ID, SINGLESTORE_ORG_NAME
 
 # Store notes as a simple key-value dict to demonstrate state management
 notes: dict[str, str] = {}
@@ -134,7 +133,7 @@ def main():
 
         if getattr(args, "api_key", None):
             print(
-                f"Using provided API key: {args.api_key[:10]}{'*' * (len(args.api_key)-10)}"
+                f"Using provided API key: {args.api_key[:10]}{'*' * (len(args.api_key) - 10)}"
             )
             app_config.set_auth_token(args.api_key, AuthMethod.API_KEY)
 

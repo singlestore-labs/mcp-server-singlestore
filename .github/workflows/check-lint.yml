@@ -1,0 +1,24 @@
+name: Lint Python code with Flake8
+
+on:
+  pull_request:
+    paths:
+      - 'src/**/*.py'
+
+jobs:
+  flake8-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Flake8
+        run: pip install flake8
+
+      - name: Run Flake8
+        run: flake8 src/ --ignore=E501,W503

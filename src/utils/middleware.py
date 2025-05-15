@@ -51,7 +51,9 @@ def auth_middleware(func: Callable) -> Callable:
                 # If authentication failed, return error
                 return {
                     "status": "error",
-                    "message": "Authentication failed. Please try again or provide an API key.",
+                    "message": (
+                        "Authentication failed. Please try again or provide an API key."
+                    ),
                 }
 
         # If token is OAUTH or JWT_TOKEN, check if we need to refresh
@@ -71,7 +73,8 @@ def auth_middleware(func: Callable) -> Callable:
                     if refreshed_token_set and refreshed_token_set.access_token:
                         print("Successfully refreshed authentication token.")
                         app_config.set_auth_token(
-                            refreshed_token_set.access_token, current_method
+                            refreshed_token_set.access_token,
+                            current_method,
                         )
                     else:
                         # If refresh failed, try to authenticate again
@@ -82,7 +85,9 @@ def auth_middleware(func: Callable) -> Callable:
                             # If authentication failed, return error
                             return {
                                 "status": "error",
-                                "message": "Authentication failed. Please try again or provide an API key.",
+                                "message": (
+                                    "Authentication failed. Please try again or provide an API key."
+                                ),
                             }
 
         # Now that we have a valid token, call the original function

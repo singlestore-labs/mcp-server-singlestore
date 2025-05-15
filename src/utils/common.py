@@ -41,11 +41,17 @@ def __query_graphql_organizations():
     }
 
     # Payload for the GraphQL request
-    payload = {"operationName": "GetOrganizations", "query": query, "variables": {}}
+    payload = {
+        "operationName": "GetOrganizations",
+        "query": query,
+        "variables": {},
+    }
 
     try:
         response = requests.post(
-            f"{graphql_endpoint}?q=GetOrganizations", headers=headers, json=payload
+            f"{graphql_endpoint}?q=GetOrganizations",
+            headers=headers,
+            json=payload,
         )
 
         if response.status_code != 200:
@@ -108,7 +114,7 @@ def select_organization():
     # Create a formatted list of organizations for the user to choose from
     org_list = "\n".join(
         [
-            f"{i+1}. {org['name']} (ID: {org['orgID']})"
+            f"{i + 1}. {org['name']} (ID: {org['orgID']})"
             for i, org in enumerate(organizations)
         ]
     )

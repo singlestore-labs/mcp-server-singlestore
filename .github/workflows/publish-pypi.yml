@@ -26,7 +26,11 @@ jobs:
         python -m pip install --upgrade pip
         pip install build twine
         pip install -r requirements.txt
-        
+        pip install flake8
+
+    - name: Lint with flake8
+      run: flake8 src/
+
     - name: Build package
       run: python -m build
 

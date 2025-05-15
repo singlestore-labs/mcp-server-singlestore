@@ -12,7 +12,7 @@ ClientType = Literal["claude", "cursor", "windsurf", "copilot"]
 # Client config file paths (platform-dependent)
 CLIENT_CONFIG_PATHS = {
     "claude": {
-        "darwin": "~/Library/Application Support/Claude/claude_desktop_config.json",
+        "darwin": ("~/Library/Application Support/Claude/claude_desktop_config.json"),
         "win32": "%APPDATA%\\Claude\\claude_desktop_config.json",
         "linux": "~/.config/Claude/claude_desktop_config.json",
     },
@@ -29,7 +29,11 @@ CLIENT_CONFIG_TEMPLATES = {
         "mcpServers": {
             "singlestore-mcp-server": {
                 "command": "uvx",
-                "args": ["singlestore-mcp-server", "start", "{api_key}"],
+                "args": [
+                    "singlestore-mcp-server",
+                    "start",
+                    "{api_key}",
+                ],
             }
         }
     },
@@ -37,7 +41,11 @@ CLIENT_CONFIG_TEMPLATES = {
         "mcpServers": {
             "singlestore-mcp-server": {
                 "command": "uvx",
-                "args": ["singlestore-mcp-server", "start", "{api_key}"],
+                "args": [
+                    "singlestore-mcp-server",
+                    "start",
+                    "{api_key}",
+                ],
             }
         }
     },

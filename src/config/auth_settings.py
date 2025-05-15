@@ -1,5 +1,3 @@
-from typing import Dict, Any, List
-from pydantic import AnyHttpUrl
 from mcp.server.auth.settings import (
     AuthSettings,
     RevocationOptions,
@@ -15,8 +13,8 @@ auth_settings = AuthSettings(
     audience=CLIENT_URI,  # The intended recipient of the tokens
     jwt_config={
         "algorithm": "RS256",
-        "private_key_path": None,  # Path to private key if using a file-based key
-        "public_key_path": None,  # Path to public key if using a file-based key
+        "private_key_path": (None),  # Path to private key if using a file-based key
+        "public_key_path": (None),  # Path to public key if using a file-based key
         "private_key": None,  # Or provide the key directly
         "public_key": None,  # Or provide the key directly
     },

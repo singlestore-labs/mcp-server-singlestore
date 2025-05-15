@@ -79,7 +79,10 @@ def __execute_sql(
         raise ValueError("Singlestore Database username and password must be provided")
 
     connection = s2.connect(
-        host=endpoint, user=username, password=password, database=database
+        host=endpoint,
+        user=username,
+        password=password,
+        database=database,
     )
     cursor = connection.cursor()
     cursor.execute(sql_query)
@@ -167,7 +170,10 @@ def __create_virtual_workspace_user(
 
 
 def __execute_sql_on_virtual_workspace(
-    virtual_workspace_id: str, username: str, password: str, sql_query: str
+    virtual_workspace_id: str,
+    username: str,
+    password: str,
+    sql_query: str,
 ) -> dict:
     """
     Execute SQL operations on a connected virtual workspace.
@@ -291,10 +297,13 @@ def __create_scheduled_job(
 
     try:
         jobs_manager = s2.manage_workspaces(
-            access_token=app_config.get_auth_token(), base_url=SINGLESTORE_API_BASE_URL
+            access_token=app_config.get_auth_token(),
+            base_url=SINGLESTORE_API_BASE_URL,
         ).organizations.current.jobs
         job = jobs_manager.schedule(
-            notebook_path=notebook_path, mode=mode_enum, create_snapshot=create_snapshot
+            notebook_path=notebook_path,
+            mode=mode_enum,
+            create_snapshot=create_snapshot,
         )
         return job
     except Exception as e:
@@ -347,14 +356,18 @@ def execute_sql(
         # If using API key, we need to request to the user to provide the username and password
         return {
             "status": "error",
-            "message": f"API key authentication is not supported for executing SQL queries. Please ask the user to provide their username and password for database {database}.",
+            "message": (
+                f"API key authentication is not supported for executing SQL queries. Please ask the user to provide their username and password for database {database}."
+            ),
         }
 
     else:
         # If no authentication method is set, we need to ask the user to provide their username and password
         return {
             "status": "error",
-            "message": f"No authentication method set. Please ask the user to provide their username and password for database {database}.",
+            "message": (
+                f"No authentication method set. Please ask the user to provide their username and password for database {database}."
+            ),
         }
 
     return __execute_sql(
@@ -398,7 +411,9 @@ def create_virtual_workspace(
     return {
         "workspace": workspace_data,
         "user": __create_virtual_workspace_user(
-            workspace_data.get("virtualWorkspaceID"), username, password
+            workspace_data.get("virtualWorkspaceID"),
+            username,
+            password,
         ),
     }
 
@@ -444,13 +459,17 @@ def execute_sql_on_virtual_workspace(
         # If using API key, we need to request to the user to provide the username and password
         return {
             "status": "error",
-            "message": f"API key authentication is not supported for executing SQL queries. Please ask the user to provide their username and password for virtual workspace {virtual_workspace_id}.",
+            "message": (
+                f"API key authentication is not supported for executing SQL queries. Please ask the user to provide their username and password for virtual workspace {virtual_workspace_id}."
+            ),
         }
     else:
         # If no authentication method is set, we need to ask the user to provide their username and password
         return {
             "status": "error",
-            "message": f"No authentication method set. Please ask the user to provide their username and password for virtual workspace {virtual_workspace_id}.",
+            "message": (
+                f"No authentication method set. Please ask the user to provide their username and password for virtual workspace {virtual_workspace_id}."
+            ),
         }
 
     return __execute_sql_on_virtual_workspace(
@@ -527,9 +546,6 @@ def __create_file_in_shared_space(path: str, content: Optional[Dict[str, Any]] =
     }
 
 
-import json
-
-
 def check_if_file_exists(file_name: str) -> bool:
     """
     Check if a file (notebook) exists in the user's shared space.
@@ -555,7 +571,7 @@ def check_if_file_exists(file_name: str) -> bool:
 
     return {
         "exists": exists,
-        "message": f"File {file_name} {'exists' if exists else 'does not exist'}",
+        "message": (f"File {file_name} {'exists' if exists else 'does not exist'}"),
     }
 
 
@@ -699,12 +715,16 @@ def login() -> Dict[str, Any]:
         app_config.set_auth_token(auth_token, AuthMethod.JWT_TOKEN)
         return {
             "status": "success",
-            "message": "Successfully authenticated. Please call get_organizations next to list available organizations.",
+            "message": (
+                "Successfully authenticated. Please call get_organizations next to list available organizations."
+            ),
         }
     else:
         return {
             "status": "failed",
-            "message": "Authentication failed. Please try again with a valid API key.",
+            "message": (
+                "Authentication failed. Please try again with a valid API key."
+            ),
         }
 
 
@@ -736,7 +756,9 @@ def refresh_auth_token() -> Dict[str, Any]:
     if not credentials or "token_set" not in credentials:
         return {
             "status": "failed",
-            "message": "No existing credentials found. Please use the login tool first.",
+            "message": (
+                "No existing credentials found. Please use the login tool first."
+            ),
         }
 
     # Create a token set from the stored credentials
@@ -753,12 +775,16 @@ def refresh_auth_token() -> Dict[str, Any]:
 
         return {
             "status": "success",
-            "message": "Authentication token successfully refreshed. You can continue using SingleStore tools.",
+            "message": (
+                "Authentication token successfully refreshed. You can continue using SingleStore tools."
+            ),
         }
     else:
         return {
             "status": "failed",
-            "message": "Failed to refresh the token. Please use the login tool again to authenticate.",
+            "message": (
+                "Failed to refresh the token. Please use the login tool again to authenticate."
+            ),
         }
 
 
@@ -941,7 +967,9 @@ def workspaces_info(workspace_group_id: str) -> List[Dict[str, Any]]:
             "workspaceID": workspace["workspaceID"],
         }
         for workspace in __build_request(
-            "GET", "workspaces", {"workspaceGroupID": workspace_group_id}
+            "GET",
+            "workspaces",
+            {"workspaceGroupID": workspace_group_id},
         )
     ]
 
@@ -1127,7 +1155,9 @@ def list_job_executions(job_id: str, start: int = 1, end: int = 10) -> Dict[str,
         Dictionary with execution records
     """
     return __build_request(
-        "GET", f"jobs/{job_id}/executions", params={"start": start, "end": end}
+        "GET",
+        f"jobs/{job_id}/executions",
+        params={"start": start, "end": end},
     )
 
 
@@ -1180,7 +1210,9 @@ def get_user_id() -> str:
     return __get_user_id()
 
 
-def filter_tools(tools_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def filter_tools(
+    tools_list: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
     """
     Filter out the login and refresh_token tools from the public API.
 

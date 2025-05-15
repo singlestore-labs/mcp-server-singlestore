@@ -1,6 +1,5 @@
 from .types import Resource
 
-
 resources_definitions = []
 
 resources = [

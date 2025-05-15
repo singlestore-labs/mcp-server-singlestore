@@ -4,9 +4,11 @@ from fastapi import APIRouter, Query, Request, Response, HTTPException
 from fastapi.responses import RedirectResponse, JSONResponse
 from mcp.shared.auth import OAuthClientInformationFull
 
-from .auth_provider import SingleStoreOAuthProvider, authorization_codes
+from .auth_provider import (
+    SingleStoreOAuthProvider,
+    authorization_codes,
+)
 from src.config.auth_settings import auth_settings
-from src.config.app_config import app_config, AuthMethod
 
 # Create OAuth routes
 oauth_router = APIRouter(prefix="/auth")
@@ -23,13 +25,16 @@ async def openid_configuration():
     """
     return {
         "issuer": auth_settings.issuer_url,
-        "authorization_endpoint": f"{auth_settings.issuer_url}/auth/authorize",
+        "authorization_endpoint": (f"{auth_settings.issuer_url}/auth/authorize"),
         "token_endpoint": f"{auth_settings.issuer_url}/auth/token",
-        "revocation_endpoint": f"{auth_settings.issuer_url}/auth/revoke",
+        "revocation_endpoint": (f"{auth_settings.issuer_url}/auth/revoke"),
         "jwks_uri": f"{auth_settings.issuer_url}/auth/jwks",
-        "scopes_supported": auth_settings.client_registration_options.valid_scopes,
+        "scopes_supported": (auth_settings.client_registration_options.valid_scopes),
         "response_types_supported": ["code"],
-        "grant_types_supported": ["authorization_code", "refresh_token"],
+        "grant_types_supported": [
+            "authorization_code",
+            "refresh_token",
+        ],
         "token_endpoint_auth_methods_supported": ["none"],
         "revocation_endpoint_auth_methods_supported": ["none"],
         "code_challenge_methods_supported": ["S256"],
@@ -120,8 +125,9 @@ async def callback(
         return JSONResponse(
             content={
                 "error": error,
-                "error_description": error_description
-                or "An error occurred during authentication",
+                "error_description": (
+                    error_description or "An error occurred during authentication"
+                ),
             },
             status_code=400,
         )
@@ -150,7 +156,10 @@ async def callback(
     auth_code.code = code
 
     # Redirect back to the client's redirect URI
-    redirect_params = {"code": code, "state": auth_code.original_state}
+    redirect_params = {
+        "code": code,
+        "state": auth_code.original_state,
+    }
 
     return RedirectResponse(f"{auth_code.redirect_uri}?{urlencode(redirect_params)}")
 
@@ -174,7 +183,7 @@ async def token(request: Request):
             return JSONResponse(
                 content={
                     "error": "invalid_request",
-                    "error_description": "Missing required parameters",
+                    "error_description": ("Missing required parameters"),
                 },
                 status_code=400,
             )
@@ -230,7 +239,10 @@ async def token(request: Request):
             return token.model_dump()
         except Exception as e:
             return JSONResponse(
-                content={"error": "server_error", "error_description": str(e)},
+                content={
+                    "error": "server_error",
+                    "error_description": str(e),
+                },
                 status_code=500,
             )
 
@@ -243,7 +255,7 @@ async def token(request: Request):
             return JSONResponse(
                 content={
                     "error": "invalid_request",
-                    "error_description": "Missing required parameters",
+                    "error_description": ("Missing required parameters"),
                 },
                 status_code=400,
             )
@@ -281,7 +293,10 @@ async def token(request: Request):
             return token.model_dump()
         except Exception as e:
             return JSONResponse(
-                content={"error": "server_error", "error_description": str(e)},
+                content={
+                    "error": "server_error",
+                    "error_description": str(e),
+                },
                 status_code=500,
             )
 
@@ -289,7 +304,7 @@ async def token(request: Request):
         return JSONResponse(
             content={
                 "error": "unsupported_grant_type",
-                "error_description": f"Unsupported grant type: {grant_type}",
+                "error_description": (f"Unsupported grant type: {grant_type}"),
             },
             status_code=400,
         )

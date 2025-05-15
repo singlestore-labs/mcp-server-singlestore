@@ -12,8 +12,12 @@ import requests
 from pathlib import Path
 from typing import Optional, Dict, Any, Tuple, TYPE_CHECKING
 from datetime import datetime
-from pathlib import Path
-from src.config.config import CLIENT_ID, OAUTH_HOST, AUTH_TIMEOUT_SECONDS, ROOT_DIR
+from src.config.config import (
+    CLIENT_ID,
+    OAUTH_HOST,
+    AUTH_TIMEOUT_SECONDS,
+    ROOT_DIR,
+)
 from src.config.app_config import app_config, AuthMethod
 
 if TYPE_CHECKING:
@@ -149,7 +153,10 @@ def save_credentials(token_set: TokenSet) -> None:
         token_set: OAuth token set
     """
     # Create credential data structure
-    creds = {"token_set": token_set.to_dict(), "timestamp": time.time()}
+    creds = {
+        "token_set": token_set.to_dict(),
+        "timestamp": time.time(),
+    }
 
     # Ensure directory exists
     CREDENTIALS_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -225,7 +232,7 @@ def refresh_token(
         token_data = response.json()
 
         # Add expires_at if we got expires_in
-        if "expires_in" in token_data and not "expires_at" in token_data:
+        if "expires_in" in token_data and "expires_at" not in token_data:
             token_data["expires_at"] = (
                 datetime.now().timestamp() + token_data["expires_in"]
             )
@@ -244,7 +251,9 @@ def refresh_token(
         return None
 
 
-def authenticate(client_id: Optional[str] = None) -> Tuple[bool, Optional[TokenSet]]:
+def authenticate(
+    client_id: Optional[str] = None,
+) -> Tuple[bool, Optional[TokenSet]]:
     """
     Launch browser authentication flow and capture OAuth token.
 
@@ -290,7 +299,8 @@ def authenticate(client_id: Optional[str] = None) -> Tuple[bool, Optional[TokenS
                 self.callback_params = None
 
         # Create a custom handler factory
-        handler = lambda *args, **kwargs: AuthCallbackHandler(*args, **kwargs)
+        def handler(*args, **kwargs):
+            return AuthCallbackHandler(*args, **kwargs)
 
         # Start a temporary web server to capture the callback
         with CallbackServer(("127.0.0.1", port), handler) as httpd:
@@ -356,7 +366,7 @@ def authenticate(client_id: Optional[str] = None) -> Tuple[bool, Optional[TokenS
             response = requests.post(
                 token_endpoint,
                 data=token_data,
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                headers={"Content-Type": ("application/x-www-form-urlencoded")},
                 timeout=10,
             )
             response.raise_for_status()
@@ -365,7 +375,7 @@ def authenticate(client_id: Optional[str] = None) -> Tuple[bool, Optional[TokenS
             token_response = response.json()
 
             # Add expires_at if we got expires_in
-            if "expires_in" in token_response and not "expires_at" in token_response:
+            if "expires_in" in token_response and "expires_at" not in token_response:
                 token_response["expires_at"] = (
                     datetime.now().timestamp() + token_response["expires_in"]
                 )
@@ -385,7 +395,8 @@ def authenticate(client_id: Optional[str] = None) -> Tuple[bool, Optional[TokenS
 
 
 def get_authentication_token(
-    client_id: Optional[str] = None, http_auth_header: Optional[str] = None
+    client_id: Optional[str] = None,
+    http_auth_header: Optional[str] = None,
 ) -> Optional[str]:
     """
     Get authentication token from various sources based on server mode.

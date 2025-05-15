@@ -64,7 +64,9 @@ class SingleStoreAccessToken(AccessToken):
 
 class SingleStoreOAuthProvider(
     OAuthAuthorizationServerProvider[
-        SingleStoreAuthorizationCode, SingleStoreRefreshToken, SingleStoreAccessToken
+        SingleStoreAuthorizationCode,
+        SingleStoreRefreshToken,
+        SingleStoreAccessToken,
     ]
 ):
     """
@@ -119,7 +121,9 @@ class SingleStoreOAuthProvider(
         return code_challenge
 
     async def authorize(
-        self, client: OAuthClientInformationFull, params: AuthorizationParams
+        self,
+        client: OAuthClientInformationFull,
+        params: AuthorizationParams,
     ) -> str:
         """
         Called as part of the authorization endpoint, and returns a URL that the client
@@ -190,7 +194,9 @@ class SingleStoreOAuthProvider(
         # Prepare SingleStore authorization URL parameters
         auth_params = {
             "client_id": CLIENT_ID,
-            "redirect_uri": f"{CLIENT_URI}/auth/callback",  # Our server's callback endpoint
+            "redirect_uri": (
+                f"{CLIENT_URI}/auth/callback"
+            ),  # Our server's callback endpoint
             "response_type": "code",
             "scope": scopes_str,
             "state": singlestore_state,
@@ -204,7 +210,9 @@ class SingleStoreOAuthProvider(
         return auth_url
 
     async def load_authorization_code(
-        self, client: OAuthClientInformationFull, authorization_code: str
+        self,
+        client: OAuthClientInformationFull,
+        authorization_code: str,
     ) -> Optional[SingleStoreAuthorizationCode]:
         """
         Loads an AuthorizationCode by its code.
@@ -366,7 +374,9 @@ class SingleStoreOAuthProvider(
         singlestore_token_set = SingleStoreTokenSet(singlestore_token_data)
 
         # Refresh the SingleStore token
-        from src.auth.auth import refresh_token as refresh_singlestore_token
+        from src.auth.auth import (
+            refresh_token as refresh_singlestore_token,
+        )
 
         refreshed_token_set = refresh_singlestore_token(singlestore_token_set)
 
