@@ -162,7 +162,7 @@ To run the Docker container, use the following command:
 
 ```bash
 docker run -d \
-  -p 8080:8080 \
+  -p 8000:8000 \
   --name mcp-server \
   mcp-server-singlestore
 ```
