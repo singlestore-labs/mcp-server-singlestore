@@ -4,15 +4,18 @@ from dataclasses import dataclass
 import argparse
 import sys
 import os
-from mcp.server.fastmcp import FastMCP
+from fastapi import FastAPI
 
-from server.config.app_config import AuthMethod, app_config
-from server.utils.resources import resources
-from server.utils.tools import tools, filter_tools
-from server.utils.middleware import apply_auth_middleware
-from server.utils.registration import register_resources, register_tools
-from server.init import init_command
-from server.auth import get_authentication_token
+from mcp.server.fastmcp import FastMCP
+from src.init import init_command
+from config.app_config import AuthMethod, app_config
+from auth.oauth_routes import oauth_router
+from auth.auth import get_authentication_token
+from utils.resources import resources
+from utils.tools import tools
+from utils.middleware import apply_auth_middleware
+from utils.registration import register_resources, register_tools
+from src.config.config import SINGLESTORE_ORG_ID, SINGLESTORE_ORG_NAME
 
 # Store notes as a simple key-value dict to demonstrate state management
 notes: dict[str, str] = {}
@@ -60,6 +63,11 @@ public_tools = apply_auth_middleware(tools)
 register_resources(mcp, resources)
 register_tools(mcp, public_tools)
 
+# Include OAuth routes by adding them directly to the FastAPI app
+app: FastAPI = getattr(mcp, '_app', None)
+if app:
+    app.include_router(oauth_router)
+
 def main():
     # Set up command-line parser
     parser = argparse.ArgumentParser(description="SingleStore MCP Server")
@@ -68,7 +76,7 @@ def main():
     # Add start command (default behavior when no command is provided)
     start_parser = subparsers.add_parser("start", help="Start the MCP server")
     start_parser.add_argument("api_key", nargs="?", help="SingleStore API key (optional, will use web auth if not provided)")
-    start_parser.add_argument("--protocol", default="stdio", choices=["stdio", "sse"], help="Protocol to run the server on (default: stdio)")
+    start_parser.add_argument("--protocol", default="stdio", choices=["stdio", "sse", "http"], help="Protocol to run the server on (default: stdio)")
     start_parser.add_argument("--port", default=8000, type=int, help="Port to run the server on (default: 8000) if protocol is sse")
 
 
@@ -95,9 +103,10 @@ def main():
 
         # Run the init command and exit with its return code
         sys.exit(init_command(api_key, auth_token, args.client))
-    elif args.command == "start" or args.command is None:
+    elif args.command == "start":
+        # Ensure protocol is set for the start command
+        protocol = getattr(args, "protocol", "stdio")
 
-        # First check if API key is provided as argument
         if getattr(args, "api_key", None):
             print(f"Using provided API key: {args.api_key[:10]}{'*' * (len(args.api_key)-10)}")
             app_config.set_auth_token(args.api_key, AuthMethod.API_KEY)
@@ -106,13 +115,23 @@ def main():
             print("Using API key from environment variable SINGLESTORE_API_KEY")
             app_config.set_auth_token(os.getenv("SINGLESTORE_API_KEY"), AuthMethod.API_KEY)
 
-        if args.protocol == "sse":
-            print(f"Running server with protocol {args.protocol.upper()} on port {args.port}")
-            mcp.settings.port = args.port
-        else:
-            print(f"Running server with protocol {args.protocol.upper()}")
+        if protocol == "sse":
+            print(f"Running SSE server with protocol {protocol.upper()} on port {args.port}")
+            app_config.set_server_port(args.port)
+            app_config.server_mode = "sse"
 
-        mcp.run(transport=args.protocol)
+        elif protocol == "http":
+            protocol = "streamable-http"
+            print(f"Running Streamable HTTP server with protocol {protocol.upper()} on port {args.port}")
+            app_config.set_server_port(args.port)
+            app_config.server_mode = "stdio"
+        else:
+            print(f"Running server with protocol {protocol.upper()}")
+            app_config.server_mode = "stdio"
+
+        mcp.settings.port = app_config.get_server_port()
+
+        mcp.run(transport=protocol)
     else:
         parser.print_help()
         sys.exit(1)

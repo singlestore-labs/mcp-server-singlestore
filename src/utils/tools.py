@@ -6,21 +6,18 @@ import json
 import nbformat as nbf
 import nbformat.v4 as nbfv4
 
-from server.utils.common import __build_request, __get_project_id, __get_user_id, __get_workspace_endpoint, __query_graphql_organizations
-from server.config.app_config import AuthMethod, app_config
-
-# Import the refresh_token function from auth.py
-from ..auth import refresh_token, TokenSet, load_credentials
-from .types import Tool
-from server.config.config import (
+from src.utils.common import __build_request, __get_project_id, __get_user_id, __get_workspace_endpoint, __query_graphql_organizations
+from src.config.app_config import AuthMethod, app_config
+from src.utils.types import Tool
+from src.config.config import (
     ROOT_DIR,
     SINGLESTORE_API_BASE_URL,
 )
-from ..auth import get_authentication_token
 import singlestoredb as s2
 
-SAMPLE_NOTEBOOK_PATH = os.path.join(ROOT_DIR, "assets/sample_notebook.ipynb")
+from src.config.config import SINGLESTORE_ORG_ID, SINGLESTORE_ORG_NAME
 
+SAMPLE_NOTEBOOK_PATH = os.path.join(ROOT_DIR, "assets/sample_notebook.ipynb")
 
 def __set_selected_organization(org_identifier):
     """
@@ -32,23 +29,23 @@ def __set_selected_organization(org_identifier):
     Returns:
         Dictionary with the selected organization ID and name
     """
-    # Get available organizations
+    if SINGLESTORE_ORG_ID:
+        app_config.set_organization(SINGLESTORE_ORG_ID, SINGLESTORE_ORG_NAME)
+        return {
+            "orgID": app_config.organization_id,
+            "name": app_config.organization_name
+        }
+    # Fallback to manual selection if env var is not set
     organizations = __query_graphql_organizations()
-    
     if not organizations:
         raise ValueError("No organizations found. Please check your account access.")
-    
-    # Find the organization by name or ID
     for org in organizations:
         if org["orgID"] == org_identifier or org["name"] == org_identifier:
             app_config.set_organization(org["orgID"], org["name"])
-            
             return {
                 "orgID": app_config.organization_id,
                 "name": app_config.organization_name
             }
-    
-    # If no matching organization is found
     raise ValueError(f"Organization not found: {org_identifier}")
 
 def __execute_sql(
@@ -666,6 +663,8 @@ def login() -> Dict[str, Any]:
     """
     
     # Otherwise, use the authentication flow from auth.py
+    from ..auth import get_authentication_token
+
     auth_token = get_authentication_token()
     
     if auth_token:
@@ -701,6 +700,8 @@ def refresh_auth_token() -> Dict[str, Any]:
     with the new token. No need to select an organization again.
     """
     
+    from ..auth import refresh_token, TokenSet, load_credentials
+
     # Check if we have credentials stored
     credentials = load_credentials()
     
@@ -1155,7 +1156,6 @@ def get_user_id() -> str:
     Cache the returned ID when making multiple API calls.
     """
     return __get_user_id()
-
 
 def filter_tools(tools_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """

@@ -145,3 +145,41 @@ The server implements the following tools:
 - **list_job_executions**: List execution history for a specific job
   - Arguments: `job_id`, `start` (optional), `end` (optional)
   - Returns execution history for the specified job
+
+## Dockerization
+
+### Building the Docker Image
+
+To build the Docker image for the MCP server, run the following command in the project root:
+
+```bash
+docker build -t mcp-server-singlestore .
+```
+
+### Running the Docker Container
+
+To run the Docker container, use the following command:
+
+```bash
+docker run -d \
+  -p 8080:8080 \
+  --name mcp-server \
+  mcp-server-singlestore
+```
+
+### Using Docker Secrets
+
+To securely pass secrets to the container, create a Docker secret and mount it:
+
+```bash
+echo "your-secret-value" | docker secret create mcp_secret -
+```
+
+Then, run the container with the secret:
+
+```bash
+docker service create \
+  --name mcp-server \
+  --secret mcp_secret \
+  mcp-server-singlestore
+```

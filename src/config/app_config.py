@@ -1,11 +1,14 @@
 from typing import Optional
 from enum import Enum
 
+from src.config.config import SINGLESTORE_ORG_ID, SINGLESTORE_ORG_NAME
+
 
 class AuthMethod(Enum):
     """Authentication method enum"""
     API_KEY = "api_key"
     JWT_TOKEN = "jwt_token"
+    OAUTH = "oauth"
 
 
 class AuthConfig:
@@ -15,6 +18,7 @@ class AuthConfig:
         self, 
         api_key: Optional[str] = None,
         jwt_token: Optional[str] = None,
+        oauth_token: Optional[str] = None,
         token_expiration_interval: int = 3600 # Default expiration in seconds
     ):
         """
@@ -23,22 +27,27 @@ class AuthConfig:
         Parameters:
         - api_key: Optional API key for authentication
         - jwt_token: Optional JWT token for authentication
+        - oauth_token: Optional OAuth token for authentication
         - token_expiration_interval: JWT token expiration interval in seconds (default: 3600)
         
-        Note: User can authenticate with either an API key or JWT token, but not both.
+        Note: User can authenticate with either an API key, JWT token, or OAuth token, but not multiple methods.
         """
         self._api_key = api_key
         self._jwt_token = jwt_token
+        self._oauth_token = oauth_token
         self._token_expiration_interval = token_expiration_interval
 
         # Determine the authentication method based on provided credentials
-        if api_key and jwt_token:
-            raise ValueError("Cannot provide both API key and JWT token. Choose one authentication method.")
+        auth_methods_count = sum(1 for token in [api_key, jwt_token, oauth_token] if token)
+        if auth_methods_count > 1:
+            raise ValueError("Cannot provide multiple authentication tokens. Choose one authentication method.")
         
         if api_key:
             self._auth_method = AuthMethod.API_KEY
         elif jwt_token:
             self._auth_method = AuthMethod.JWT_TOKEN
+        elif oauth_token:
+            self._auth_method = AuthMethod.OAUTH
         else:
             self._auth_method = None
     
@@ -93,6 +102,22 @@ class AuthConfig:
         self._auth_method = AuthMethod.JWT_TOKEN if value else None
     
     @property
+    def oauth_token(self) -> Optional[str]:
+        """Get the OAuth token."""
+        return self._oauth_token
+    
+    @oauth_token.setter
+    def oauth_token(self, value: Optional[str]):
+        """Set the OAuth token and update auth method."""
+        if value:
+            # Clear other tokens when setting OAuth token
+            self._api_key = None
+            self._jwt_token = None
+        
+        self._oauth_token = value
+        self._auth_method = AuthMethod.OAUTH if value else None
+    
+    @property
     def token_expiration_interval(self) -> int:
         """Get the token expiration interval in seconds."""
         return self._token_expiration_interval
@@ -107,12 +132,14 @@ class AuthConfig:
     @property
     def auth_token(self) -> Optional[str]:
         """
-        Get the authentication token (either API key or JWT token) based on the current auth method.
+        Get the authentication token based on the current auth method.
         """
         if self._auth_method == AuthMethod.API_KEY:
             return self._api_key
         elif self._auth_method == AuthMethod.JWT_TOKEN:
             return self._jwt_token
+        elif self._auth_method == AuthMethod.OAUTH:
+            return self._oauth_token
         return None
     
     @auth_token.setter
@@ -123,6 +150,8 @@ class AuthConfig:
         """
         if self._auth_method == AuthMethod.JWT_TOKEN:
             self._jwt_token = value
+        elif self._auth_method == AuthMethod.OAUTH:
+            self._oauth_token = value
         else:  # Default to API key if no method or API_KEY method
             self._api_key = value
             self._auth_method = AuthMethod.API_KEY if value else None
@@ -176,6 +205,15 @@ class OrganizationConfig:
         """
         self._organization_id = org_id
         self._organization_name = org_name
+
+    def get_organization(self) -> Optional[tuple[str]]:
+        """
+        Get the currently selected organization ID and name.
+        
+        Returns:
+        - Tuple of (organization ID, organization name)
+        """
+        return self._organization_id, self._organization_name
     
     def clear_organization(self):
         """Clear the currently selected organization."""
@@ -198,6 +236,7 @@ class AppConfig:
         org_config: Optional[OrganizationConfig] = None,
         log_enabled: bool = False, 
         log_level: str = "INFO",
+        server_port: int = 8000,
         debug_mode: bool = False
     ):
         """
@@ -215,6 +254,8 @@ class AppConfig:
         self._log_enabled = log_enabled
         self._log_level = log_level
         self._debug_mode = debug_mode
+        self._server_port = server_port
+        self._server_mode = "stdio"  # Default mode
     
     @property
     def auth_config(self) -> AuthConfig:
@@ -288,6 +329,15 @@ class AppConfig:
         - org_name: Organization name
         """
         self._org_config.set_organization(org_id, org_name)
+
+    def get_organization(self) -> Optional[tuple[str]]:
+        """
+        Get the currently selected organization ID and name.
+        
+        Returns:
+        - Tuple of (organization ID, organization name)
+        """
+        return self._org_config.get_organization()
     
     def clear_organization(self):
         """Clear the currently selected organization."""
@@ -316,6 +366,33 @@ class AppConfig:
         self._auth_config.auth_method = method
         self._auth_config.auth_token = token
 
+    def get_server_port(self) -> int:
+        """Get the server port."""
+        return self._server_port
+    
+    def set_server_port(self, port: int):
+        """Set the server port."""
+        if port <= 0 or port > 65535:
+            raise ValueError("Port must be between 1 and 65535")
+        self._server_port = port
+    
+    @property
+    def server_mode(self) -> str:
+        """Get the server mode."""
+        return self._server_mode
+    
+    @server_mode.setter
+    def server_mode(self, mode: str):
+        """Set the server mode."""
+        valid_modes = ["stdio", "http"]
+        if mode not in valid_modes:
+            raise ValueError(f"Server mode must be one of: {', '.join(valid_modes)}")
+        self._server_mode = mode
 
 # Global configuration instance
 app_config = AppConfig()
+
+if SINGLESTORE_ORG_ID:
+        print(f"Using organization ID from environment variable SINGLESTORE_ORG_ID: {SINGLESTORE_ORG_ID}")
+        app_config.set_organization(SINGLESTORE_ORG_ID, SINGLESTORE_ORG_NAME)
+        print(app_config.get_organization())
