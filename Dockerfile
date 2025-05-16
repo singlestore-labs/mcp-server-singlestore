@@ -1,5 +1,5 @@
 # Use an official Python runtime as a parent image
-FROM python:3.11-alpine
+FROM --platform=linux/amd64 python:3.11-alpine
 
 # Set the working directory in the container
 WORKDIR /app
@@ -21,6 +21,8 @@ RUN pip install --upgrade pip \
 # Install project using Hatchling build
 RUN pip install hatchling \
     && pip install .
+
+ENV SERVER_MODE=http
 
 # Expose the port the MCP server runs on
 EXPOSE 8000
