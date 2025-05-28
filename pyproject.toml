@@ -3,7 +3,7 @@ name = "singlestore_mcp_server"
 dynamic = ["version"]
 description = "SingleStore MCP server"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dependencies = [
  "black>=25.1.0",
  "fastapi>=0.115.12",
@@ -12,6 +12,9 @@ dependencies = [
  "nbformat>=5.10.4",
  "singlestoredb>=1.12.0",
 ]
+
+[project.scripts]
+singlestore-mcp-server = "server:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -23,9 +26,10 @@ path = "src/version.py"
 [tool.hatch.build.targets.wheel]
 packages = ["src"]
 
-[project.scripts]
-singlestore-mcp-server = "server:main"
-
 [tool.flake8]
 # line too long
 ignore="E501"
+
+[tool.uv]
+dev-dependencies = ["pyright>=1.1.391", "pytest>=8.3.4", "ruff>=0.8.5"]
+
