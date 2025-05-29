@@ -21,10 +21,10 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.version]
-path = "src/version.py"
+path = "src/mcp_server/version.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src"]
+packages = ["src/mcp_server"]
 
 [tool.flake8]
 # line too long
