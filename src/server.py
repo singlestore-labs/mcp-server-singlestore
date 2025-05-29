@@ -4,17 +4,15 @@ from dataclasses import dataclass
 import argparse
 import sys
 import os
-from fastapi import FastAPI
 
 from mcp.server.fastmcp import FastMCP
-from src.init import init_command
+from scripts.init import init_command
 from config.app_config import AuthMethod, app_config
-from auth.oauth_routes import oauth_router
-from auth.auth import get_authentication_token
-from utils.resources import resources
-from utils.tools import tools
+from auth import get_authentication_token
+from src.api.resources import resources
+from src.api.tools import tools, register_tools
 from utils.middleware import apply_auth_middleware
-from utils.registration import register_resources, register_tools
+from src.api.resources import register_resources
 
 # Store notes as a simple key-value dict to demonstrate state management
 notes: dict[str, str] = {}
@@ -65,11 +63,6 @@ public_tools = apply_auth_middleware(tools)
 
 register_resources(mcp, resources)
 register_tools(mcp, public_tools)
-
-# Include OAuth routes by adding them directly to the FastAPI app
-app: FastAPI = getattr(mcp, "_app", None)
-if app:
-    app.include_router(oauth_router)
 
 
 def main():
@@ -167,7 +160,3 @@ def main():
     else:
         parser.print_help()
         sys.exit(1)
-
-
-if __name__ == "__main__":
-    main()

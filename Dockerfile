@@ -1,30 +1,16 @@
-# Use an official Python runtime as a parent image
-FROM --platform=linux/amd64 python:3.11-alpine
+FROM python:3.12-slim-bookworm
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-# Set the working directory in the container
+# Copy the project into the image
+ADD . /app
+
+# Sync the project into a new environment, asserting the lockfile is up to date
 WORKDIR /app
-
-# Install build dependencies
-RUN apk add --no-cache gcc musl-dev linux-headers
-
-# Copy project files into the container
-COPY pyproject.toml .
-COPY requirements.txt .
-COPY README.md .
-COPY src/ ./src/
-COPY uv.lock ./
-
-# Install Python dependencies
-RUN pip install --upgrade pip \
-    && pip install --ignore-installed -r requirements.txt || true
-
-# Install project using Hatchling build
-RUN pip install hatchling \
-    && pip install .
+RUN uv sync --locked
 
 ENV SERVER_MODE=http
 
 # Expose the port the MCP server runs on
 EXPOSE 8000
 
-CMD ["python", "src/server.py", "start", "--protocol", "http"]
+CMD ["uv", "run", "src/__main__.py", "start", "--protocol", "http"]
