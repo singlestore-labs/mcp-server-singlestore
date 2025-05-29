@@ -1,239 +1,62 @@
+import os
 from typing import Optional
 from enum import Enum
+from pydantic import Field
+from pydantic_settings import BaseSettings
 
-from src.config.config import SINGLESTORE_ORG_ID, SINGLESTORE_ORG_NAME
-
-
-class AuthMethod(Enum):
-    """Authentication method enum"""
-
-    API_KEY = "api_key"
-    JWT_TOKEN = "jwt_token"
-    OAUTH = "oauth"
+from src.config.auth_config import AuthConfig, AuthMethod
+from src.config.org_config import OrganizationConfig
 
 
-class AuthConfig:
-    """Authentication configuration class that handles authentication state."""
+class AppSettings(BaseSettings):
+    # SingleStore
+    singlestore_api_key: Optional[str] = Field(None, env="SINGLESTORE_API_KEY")
+    singlestore_org_id: Optional[str] = Field(None, env="SINGLESTORE_ORG_ID")
+    singlestore_org_name: str = Field(
+        "Default Organization", env="SINGLESTORE_ORG_NAME"
+    )
+    singlestore_api_base_url: str = "https://api.singlestore.com"
+    singlestore_graphql_public_endpoint: str = "https://backend.singlestore.com/public"
 
-    def __init__(
-        self,
-        api_key: Optional[str] = None,
-        jwt_token: Optional[str] = None,
-        oauth_token: Optional[str] = None,
-        token_expiration_interval: int = 3600,  # Default expiration in seconds
-    ):
-        """
-        Initialize the authentication configuration.
+    # Auth
+    client_id: str = Field("b7dbf19e-d140-4334-bae4-e8cd03614485", env="CLIENT_ID")
+    oauth_host: str = Field("https://authsvc.singlestore.com/", env="OAUTH_HOST")
+    auth_timeout_seconds: int = 60
+    client_uri: str = Field("http://localhost:8000", env="CLIENT_URI")
 
-        Parameters:
-        - api_key: Optional API key for authentication
-        - jwt_token: Optional JWT token for authentication
-        - oauth_token: Optional OAuth token for authentication
-        - token_expiration_interval: JWT token expiration interval in seconds (default: 3600)
+    # App
+    log_enabled: bool = False
+    log_level: str = "INFO"
+    debug_mode: bool = False
+    server_port: int = 8000
+    server_mode: str = "stdio"
 
-        Note: User can authenticate with either an API key, JWT token, or OAuth token, but not multiple methods.
-        """
-        self._api_key = api_key
-        self._jwt_token = jwt_token
-        self._oauth_token = oauth_token
-        self._token_expiration_interval = token_expiration_interval
+    # OAuth/JWT
+    token_expiration_interval: int = 3600
 
-        # Determine the authentication method based on provided credentials
-        auth_methods_count = sum(
-            1 for token in [api_key, jwt_token, oauth_token] if token
-        )
-        if auth_methods_count > 1:
-            raise ValueError(
-                "Cannot provide multiple authentication tokens. Choose one authentication method."
-            )
+    # Root directory of the project
+    root_dir: str = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
-        if api_key:
-            self._auth_method = AuthMethod.API_KEY
-        elif jwt_token:
-            self._auth_method = AuthMethod.JWT_TOKEN
-        elif oauth_token:
-            self._auth_method = AuthMethod.OAUTH
-        else:
-            self._auth_method = None
-
-    @property
-    def auth_method(self) -> Optional[AuthMethod]:
-        """Get the current authentication method."""
-        return self._auth_method
-
-    @auth_method.setter
-    def auth_method(self, value: AuthMethod):
-        """Set the authentication method."""
-        if value not in AuthMethod:
-            raise ValueError(f"Invalid authentication method: {value}")
-
-        self._auth_method = value
-
-        # Clear credentials if auth method is set to None
-        if value is None:
-            self._api_key = None
-            self._jwt_token = None
-        elif value == AuthMethod.API_KEY:
-            self._jwt_token = None
-        elif value == AuthMethod.JWT_TOKEN:
-            self._api_key = None
-
-    @property
-    def api_key(self) -> Optional[str]:
-        """Get the API key."""
-        return self._api_key
-
-    @api_key.setter
-    def api_key(self, value: Optional[str]):
-        """Set the API key and update auth method."""
-        if value and self._jwt_token:
-            self._jwt_token = None  # Clear JWT token when setting API key
-
-        self._api_key = value
-        self._auth_method = AuthMethod.API_KEY if value else None
-
-    @property
-    def jwt_token(self) -> Optional[str]:
-        """Get the JWT token."""
-        return self._jwt_token
-
-    @jwt_token.setter
-    def jwt_token(self, value: Optional[str]):
-        """Set the JWT token and update auth method."""
-        if value and self._api_key:
-            self._api_key = None  # Clear API key when setting JWT token
-
-        self._jwt_token = value
-        self._auth_method = AuthMethod.JWT_TOKEN if value else None
-
-    @property
-    def oauth_token(self) -> Optional[str]:
-        """Get the OAuth token."""
-        return self._oauth_token
-
-    @oauth_token.setter
-    def oauth_token(self, value: Optional[str]):
-        """Set the OAuth token and update auth method."""
-        if value:
-            # Clear other tokens when setting OAuth token
-            self._api_key = None
-            self._jwt_token = None
-
-        self._oauth_token = value
-        self._auth_method = AuthMethod.OAUTH if value else None
-
-    @property
-    def token_expiration_interval(self) -> int:
-        """Get the token expiration interval in seconds."""
-        return self._token_expiration_interval
-
-    @token_expiration_interval.setter
-    def token_expiration_interval(self, value: int):
-        """Set the token expiration interval."""
-        if value <= 0:
-            raise ValueError("Expiration interval must be a positive integer")
-        self._token_expiration_interval = value
-
-    @property
-    def auth_token(self) -> Optional[str]:
-        """
-        Get the authentication token based on the current auth method.
-        """
-        if self._auth_method == AuthMethod.API_KEY:
-            return self._api_key
-        elif self._auth_method == AuthMethod.JWT_TOKEN:
-            return self._jwt_token
-        elif self._auth_method == AuthMethod.OAUTH:
-            return self._oauth_token
-        return None
-
-    @auth_token.setter
-    def auth_token(self, value: Optional[str]):
-        """
-        Set the authentication token based on the current auth method.
-        If no method is set, defaults to API key.
-        """
-        if self._auth_method == AuthMethod.JWT_TOKEN:
-            self._jwt_token = value
-        elif self._auth_method == AuthMethod.OAUTH:
-            self._oauth_token = value
-        else:  # Default to API key if no method or API_KEY method
-            self._api_key = value
-            self._auth_method = AuthMethod.API_KEY if value else None
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
 
 
-class OrganizationConfig:
-    """Organization configuration class that stores organization-related information."""
-
-    def __init__(
-        self,
-        organization_id: Optional[str] = None,
-        organization_name: Optional[str] = None,
-    ):
-        """
-        Initialize the organization configuration.
-
-        Parameters:
-        - organization_id: ID of the selected organization
-        - organization_name: Name of the selected organization
-        """
-        self._organization_id = organization_id
-        self._organization_name = organization_name
-
-    @property
-    def organization_id(self) -> Optional[str]:
-        """Get the currently selected organization ID."""
-        return self._organization_id
-
-    @organization_id.setter
-    def organization_id(self, value: Optional[str]):
-        """Set the currently selected organization ID."""
-        self._organization_id = value
-
-    @property
-    def organization_name(self) -> Optional[str]:
-        """Get the currently selected organization name."""
-        return self._organization_name
-
-    @organization_name.setter
-    def organization_name(self, value: Optional[str]):
-        """Set the currently selected organization name."""
-        self._organization_name = value
-
-    def set_organization(self, org_id: str, org_name: str):
-        """
-        Set both organization ID and name at once.
-
-        Parameters:
-        - org_id: Organization ID
-        - org_name: Organization name
-        """
-        self._organization_id = org_id
-        self._organization_name = org_name
-
-    def get_organization(self) -> Optional[tuple[str]]:
-        """
-        Get the currently selected organization ID and name.
-
-        Returns:
-        - Tuple of (organization ID, organization name)
-        """
-        return self._organization_id, self._organization_name
-
-    def clear_organization(self):
-        """Clear the currently selected organization."""
-        self._organization_id = None
-        self._organization_name = None
-
-    def is_organization_selected(self) -> bool:
-        """Check if an organization is selected."""
-        return self._organization_id is not None
+# Usage: instantiate once and inject as needed
+settings = AppSettings()
 
 
 class AppConfig:
     """
     Application configuration class that holds the internal state of the application.
     """
+
+    class LogLevel(str, Enum):
+        DEBUG = "DEBUG"
+        INFO = "INFO"
+        WARNING = "WARNING"
+        ERROR = "ERROR"
+        CRITICAL = "CRITICAL"
 
     def __init__(
         self,
@@ -261,6 +84,7 @@ class AppConfig:
         self._debug_mode = debug_mode
         self._server_port = server_port
         self._server_mode = "stdio"  # Default mode
+        self.settings: AppSettings = settings
 
     @property
     def auth_config(self) -> AuthConfig:
@@ -290,15 +114,14 @@ class AppConfig:
     @log_level.setter
     def log_level(self, value: str):
         """Set the logging level."""
-        valid_levels = [
-            "DEBUG",
-            "INFO",
-            "WARNING",
-            "ERROR",
-            "CRITICAL",
-        ]
-        if value.upper() not in valid_levels:
-            raise ValueError(f"Log level must be one of: {', '.join(valid_levels)}")
+
+        try:
+            value = AppConfig.LogLevel(value.upper())
+        except ValueError:
+            raise ValueError(
+                f"Log level must be one of: {', '.join([level.value for level in AppConfig.LogLevel])}"
+            )
+        self._log_level = value.value
         self._log_level = value.upper()
 
     @property
@@ -402,11 +225,28 @@ class AppConfig:
 
 
 # Global configuration instance
-app_config = AppConfig()
+app_config = AppConfig(
+    auth_config=AuthConfig(
+        api_key=settings.singlestore_api_key,
+        jwt_token=None,
+        oauth_token=None,
+        token_expiration_interval=settings.token_expiration_interval,
+    ),
+    org_config=OrganizationConfig(
+        organization_id=settings.singlestore_org_id,
+        organization_name=settings.singlestore_org_name,
+    ),
+    log_enabled=settings.log_enabled,
+    log_level=settings.log_level,
+    server_port=settings.server_port,
+    debug_mode=settings.debug_mode,
+)
 
-if SINGLESTORE_ORG_ID:
+if settings.singlestore_org_id:
     print(
-        f"Using organization ID from environment variable SINGLESTORE_ORG_ID: {SINGLESTORE_ORG_ID}"
+        f"Using organization ID from environment variable SINGLESTORE_ORG_ID: {settings.singlestore_org_id}"
     )
-    app_config.set_organization(SINGLESTORE_ORG_ID, SINGLESTORE_ORG_NAME)
+    app_config.set_organization(
+        settings.singlestore_org_id, settings.singlestore_org_name
+    )
     print(app_config.get_organization())

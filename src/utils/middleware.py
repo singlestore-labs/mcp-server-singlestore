@@ -6,7 +6,7 @@ from src.auth.auth import (
     load_credentials,
     TokenSet,
 )
-from src.config.app_config import app_config, AuthMethod
+from src.config import app_config, AuthMethod
 
 
 def auth_middleware(func: Callable) -> Callable:
@@ -58,7 +58,10 @@ def auth_middleware(func: Callable) -> Callable:
 
         # If token is OAUTH or JWT_TOKEN, check if we need to refresh
         # API_KEY tokens don't expire, so no need to refresh
-        if current_method in [AuthMethod.OAUTH, AuthMethod.JWT_TOKEN]:
+        if current_method in [
+            AuthMethod.OAUTH,
+            AuthMethod.JWT_TOKEN,
+        ]:
             credentials = load_credentials()
             if credentials and "token_set" in credentials:
                 token_set = TokenSet(credentials["token_set"])

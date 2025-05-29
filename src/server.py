@@ -7,7 +7,7 @@ import os
 
 from mcp.server.fastmcp import FastMCP
 from scripts.init import init_command
-from config.app_config import AuthMethod, app_config
+from src.config import app_config, AuthMethod
 from auth import get_authentication_token
 from src.api.resources import resources
 from src.api.tools import tools, register_tools

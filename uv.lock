@@ -967,6 +967,7 @@ dependencies = [
     { name = "flake8" },
     { name = "mcp", extra = ["cli"] },
     { name = "nbformat" },
+    { name = "pydantic-settings" },
     { name = "singlestoredb" },
 ]
 
@@ -984,6 +985,7 @@ requires-dist = [
     { name = "flake8", specifier = ">=7.2.0" },
     { name = "mcp", extras = ["cli"], specifier = ">=1.8.1" },
     { name = "nbformat", specifier = ">=5.10.4" },
+    { name = "pydantic-settings", specifier = ">=2.9.1" },
     { name = "singlestoredb", specifier = ">=1.12.0" },
 ]
 

@@ -1,10 +1,6 @@
 import requests
 import json
-from src.config.config import (
-    SINGLESTORE_API_BASE_URL,
-    SINGLESTORE_GRAPHQL_PUBLIC_ENDPOINT,
-)
-from src.config.app_config import app_config
+from src.config import app_config
 
 
 def __set_organzation_id():
@@ -22,7 +18,7 @@ def __query_graphql_organizations():
     Returns:
         List of organizations with their IDs and names
     """
-    graphql_endpoint = SINGLESTORE_GRAPHQL_PUBLIC_ENDPOINT
+    graphql_endpoint = app_config.settings.singlestore_graphql_public_endpoint
 
     # GraphQL query for organizations
     query = """
@@ -143,7 +139,7 @@ def __build_request(type: str, endpoint: str, params: dict = None, data: dict = 
     __set_organzation_id()
 
     def build_request_endpoint(endpoint: str, params: dict = None):
-        url = f"{SINGLESTORE_API_BASE_URL}/v1/{endpoint}"
+        url = f"{app_config.settings.singlestore_api_base_url}/v1/{endpoint}"
 
         # Add organization ID as a query parameter
         if params is None:
