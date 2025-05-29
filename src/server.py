@@ -9,10 +9,10 @@ from mcp.server.fastmcp import FastMCP
 from scripts.init import init_command
 from config.app_config import AuthMethod, app_config
 from auth import get_authentication_token
-from utils.resources import resources
-from utils.tools import tools
+from src.api.resources import resources
+from src.api.tools import tools, register_tools
 from utils.middleware import apply_auth_middleware
-from utils.registration import register_resources, register_tools
+from src.api.resources import register_resources
 
 # Store notes as a simple key-value dict to demonstrate state management
 notes: dict[str, str] = {}

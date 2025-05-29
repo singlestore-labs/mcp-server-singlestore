@@ -707,7 +707,7 @@ def login() -> Dict[str, Any]:
     """
 
     # Otherwise, use the authentication flow from auth.py
-    from ..auth import get_authentication_token
+    from ...auth import get_authentication_token
 
     auth_token = get_authentication_token()
 
@@ -748,7 +748,7 @@ def refresh_auth_token() -> Dict[str, Any]:
     with the new token. No need to select an organization again.
     """
 
-    from ..auth import refresh_token, TokenSet, load_credentials
+    from ...auth import refresh_token, TokenSet, load_credentials
 
     # Check if we have credentials stored
     credentials = load_credentials()
