@@ -14,17 +14,17 @@ dependencies = [
 ]
 
 [project.scripts]
-singlestore-mcp-server = "server:main"
+singlestore-mcp-server = "src.mcp_server.server:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.version]
-path = "src/mcp_server/version.py"
+path = "src/version.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/mcp_server"]
+packages = ["src"]
 
 [tool.flake8]
 # line too long
