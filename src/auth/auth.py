@@ -10,18 +10,9 @@ import socketserver
 import urllib.parse
 import requests
 from pathlib import Path
-from typing import Optional, Dict, Any, Tuple, TYPE_CHECKING
+from typing import Optional, Dict, Any, Tuple
 from datetime import datetime
-from src.config.config import (
-    CLIENT_ID,
-    OAUTH_HOST,
-    AUTH_TIMEOUT_SECONDS,
-    ROOT_DIR,
-)
-from src.config.app_config import app_config, AuthMethod
-
-if TYPE_CHECKING:
-    from auth_provider import SingleStoreOAuthProvider
+from src.config import app_config, AuthMethod
 
 # Scopes that are always required
 ALWAYS_PRESENT_SCOPES = ["openid", "offline", "offline_access"]
@@ -91,7 +82,9 @@ class AuthCallbackHandler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
 
         try:
-            callback_html_path = os.path.join(ROOT_DIR, "assets/callback.html")
+            callback_html_path = os.path.join(
+                app_config.settings.root_dir, "assets/callback.html"
+            )
             with open(callback_html_path, "r") as file:
                 response = file.read()
         except Exception as e:
@@ -187,7 +180,7 @@ def load_credentials() -> Optional[Dict[str, Any]]:
 
 
 def refresh_token(
-    token_set: TokenSet, client_id: str = CLIENT_ID
+    token_set: TokenSet, client_id: str = app_config.settings.client_id
 ) -> Optional[TokenSet]:
     """
     Refresh an OAuth token using the refresh token.
@@ -205,7 +198,7 @@ def refresh_token(
 
     try:
         # Discover OAuth server endpoints
-        oauth_config = discover_oauth_server(OAUTH_HOST)
+        oauth_config = discover_oauth_server(app_config.settings.oauth_host)
         token_endpoint = oauth_config.get("token_endpoint")
 
         if not token_endpoint:
@@ -264,12 +257,12 @@ def authenticate(
         Tuple of (success: bool, token_set: Optional[TokenSet])
     """
     # Use provided client_id or the default one
-    client_id = client_id or CLIENT_ID
+    client_id = client_id or app_config.settings.client_id
 
     try:
         # Discover OAuth server endpoints
         print("Discovering OAuth server...")
-        oauth_config = discover_oauth_server(OAUTH_HOST)
+        oauth_config = discover_oauth_server(app_config.settings.oauth_host)
         authorization_endpoint = oauth_config.get("authorization_endpoint")
         token_endpoint = oauth_config.get("token_endpoint")
 
@@ -333,7 +326,7 @@ def authenticate(
             start_time = time.time()
             while not httpd.received_callback:
                 httpd.handle_request()
-                if time.time() - start_time > AUTH_TIMEOUT_SECONDS:
+                if time.time() - start_time > app_config.settings.auth_timeout_seconds:
                     print("Authentication timed out")
                     return False, None
 
@@ -443,7 +436,9 @@ def get_authentication_token(
             # If token is expired, try to refresh it
             if token_set.is_expired() and token_set.refresh_token:
                 print("Access token expired, refreshing...")
-                refreshed_token_set = refresh_token(token_set, client_id or CLIENT_ID)
+                refreshed_token_set = refresh_token(
+                    token_set, client_id or app_config.settings.client_id
+                )
                 if refreshed_token_set:
                     token_set = refreshed_token_set
                     # Update app config with the refreshed token
@@ -473,20 +468,4 @@ def get_authentication_token(
         return token_set.access_token
     else:
         print("Authentication failed. Please try again or provide an API key.")
-        return None
-
-
-def get_oauth_provider() -> Optional["SingleStoreOAuthProvider"]:
-    """
-    Get the singleton instance of the OAuth provider.
-
-    Returns:
-        The OAuth provider instance
-    """
-    try:
-        from src.auth.oauth_routes import oauth_provider
-
-        return oauth_provider
-    except ImportError:
-        # Handle case where oauth_routes hasn't been initialized yet
         return None

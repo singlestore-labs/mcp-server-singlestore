@@ -4,13 +4,12 @@ from mcp.server.auth.settings import (
     ClientRegistrationOptions,
 )
 
-from src.config.config import OAUTH_HOST
-from src.config.config import CLIENT_URI
+from src.config import settings
 
 # Define authentication settings for OAuth server
 auth_settings = AuthSettings(
-    issuer_url=OAUTH_HOST,
-    audience=CLIENT_URI,  # The intended recipient of the tokens
+    issuer_url=settings.oauth_host,
+    audience=settings.client_uri,  # The intended recipient of the tokens
     jwt_config={
         "algorithm": "RS256",
         "private_key_path": (None),  # Path to private key if using a file-based key

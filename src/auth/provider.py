@@ -28,8 +28,7 @@ from src.auth.auth import (
     ALWAYS_PRESENT_SCOPES,
     TokenSet as SingleStoreTokenSet,
 )
-from src.config.app_config import app_config, AuthMethod
-from src.config.config import CLIENT_ID, OAUTH_HOST, CLIENT_URI
+from src.config import app_config, AuthMethod
 
 # Store authorization codes, refresh tokens, and access tokens in memory
 # In a production environment, these should be stored in a database
@@ -161,7 +160,7 @@ class SingleStoreOAuthProvider(
         code_challenge = self._generate_code_challenge(code_verifier)
 
         # Discover SingleStore OAuth endpoints
-        oauth_config = discover_oauth_server(OAUTH_HOST)
+        oauth_config = discover_oauth_server(app_config.settings.oauth_host)
         authorization_endpoint = oauth_config.get("authorization_endpoint")
 
         if not authorization_endpoint:
@@ -193,9 +192,9 @@ class SingleStoreOAuthProvider(
 
         # Prepare SingleStore authorization URL parameters
         auth_params = {
-            "client_id": CLIENT_ID,
+            "client_id": app_config.settings.client_id,
             "redirect_uri": (
-                f"{CLIENT_URI}/auth/callback"
+                f"{app_config.settings.client_uri}/auth/callback"
             ),  # Our server's callback endpoint
             "response_type": "code",
             "scope": scopes_str,

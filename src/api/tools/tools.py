@@ -13,17 +13,13 @@ from src.utils.common import (
     __get_workspace_endpoint,
     __query_graphql_organizations,
 )
-from src.config.app_config import AuthMethod, app_config
+from src.config import app_config, AuthMethod
 from src.utils.types import Tool
-from src.config.config import (
-    ROOT_DIR,
-    SINGLESTORE_API_BASE_URL,
-)
 import singlestoredb as s2
 
-from src.config.config import SINGLESTORE_ORG_ID, SINGLESTORE_ORG_NAME
-
-SAMPLE_NOTEBOOK_PATH = os.path.join(ROOT_DIR, "assets/sample_notebook.ipynb")
+SAMPLE_NOTEBOOK_PATH = os.path.join(
+    app_config.settings.root_dir, "assets/sample_notebook.ipynb"
+)
 
 
 def __set_selected_organization(org_identifier):
@@ -36,8 +32,11 @@ def __set_selected_organization(org_identifier):
     Returns:
         Dictionary with the selected organization ID and name
     """
-    if SINGLESTORE_ORG_ID:
-        app_config.set_organization(SINGLESTORE_ORG_ID, SINGLESTORE_ORG_NAME)
+    if app_config.settings.singlestore_org_id:
+        app_config.set_organization(
+            app_config.settings.singlestore_org_id,
+            app_config.settings.singlestore_org_name,
+        )
         return {
             "orgID": app_config.organization_id,
             "name": app_config.organization_name,
@@ -298,7 +297,7 @@ def __create_scheduled_job(
     try:
         jobs_manager = s2.manage_workspaces(
             access_token=app_config.get_auth_token(),
-            base_url=SINGLESTORE_API_BASE_URL,
+            base_url=app_config.settings.singlestore_api_base_url,
         ).organizations.current.jobs
         job = jobs_manager.schedule(
             notebook_path=notebook_path,
@@ -492,7 +491,7 @@ def __create_file_in_shared_space(path: str, content: Optional[Dict[str, Any]] =
     """
     file_manager = s2.manage_files(
         access_token=app_config.get_auth_token(),
-        base_url=SINGLESTORE_API_BASE_URL,
+        base_url=app_config.settings.singlestore_api_base_url,
         organization_id=app_config.organization_id,
     )
 
@@ -563,7 +562,7 @@ def check_if_file_exists(file_name: str) -> bool:
 
     file_manager = s2.manage_files(
         access_token=app_config.get_auth_token(),
-        base_url=SINGLESTORE_API_BASE_URL,
+        base_url=app_config.settings.singlestore_api_base_url,
         organization_id=app_config.organization_id,
     )
 
