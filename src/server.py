@@ -1,18 +1,14 @@
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-import argparse
-import sys
-import os
 
+import sys
 from mcp.server.fastmcp import FastMCP
-from scripts.init import init_command
-from src.config import app_config, AuthMethod
-from auth import get_authentication_token
 from src.api.resources import resources
 from src.api.tools import tools, register_tools
 from utils.middleware import apply_auth_middleware
 from src.api.resources import register_resources
+from src.commands import register_all_commands
 
 # Store notes as a simple key-value dict to demonstrate state management
 notes: dict[str, str] = {}
@@ -66,97 +62,17 @@ register_tools(mcp, public_tools)
 
 
 def main():
-    # Set up command-line parser
+    import argparse
+
     parser = argparse.ArgumentParser(description="SingleStore MCP Server")
     subparsers = parser.add_subparsers(dest="command", help="Command to run")
 
-    # Add start command (default behavior when no command is provided)
-    start_parser = subparsers.add_parser("start", help="Start the MCP server")
-    start_parser.add_argument(
-        "api_key",
-        nargs="?",
-        help="SingleStore API key (optional, will use web auth if not provided)",
-    )
-    start_parser.add_argument(
-        "--protocol",
-        default="stdio",
-        choices=["stdio", "sse", "http"],
-        help="Protocol to run the server on (default: stdio)",
-    )
-    start_parser.add_argument(
-        "--port",
-        default=8000,
-        type=int,
-        help="Port to run the server on (default: 8000) if protocol is sse",
-    )
+    # Register all commands from commands.py
+    register_all_commands(subparsers)
 
-    # Add init command
-    init_parser = subparsers.add_parser("init", help="Initialize client configuration")
-    init_parser.add_argument(
-        "api_key",
-        nargs="?",
-        help="SingleStore API key (optional, will use web auth if not provided)",
-    )
-    init_parser.add_argument(
-        "--client",
-        default="claude",
-        choices=["claude", "cursor"],
-        help="LLM client to configure (default: claude)",
-    )
-
-    # Parse arguments
     args = parser.parse_args()
-    # Handle commands
-    if args.command == "init":
-        # Get API key from arguments or authentication flow
-        api_key = getattr(args, "api_key", None)
-        auth_token = None
-        if not api_key:
-            auth_token = get_authentication_token()
-            if not auth_token:
-                # If no API key is provided and authentication fails, exit
-                print("No API key provided and authentication failed.")
-                sys.exit(1)
-
-        # Run the init command and exit with its return code
-        sys.exit(init_command(api_key, auth_token, args.client))
-    elif args.command == "start":
-        # Ensure protocol is set for the start command
-        protocol = getattr(args, "protocol", "stdio")
-
-        if getattr(args, "api_key", None):
-            print(
-                f"Using provided API key: {args.api_key[:10]}{'*' * (len(args.api_key) - 10)}"
-            )
-            app_config.set_auth_token(args.api_key, AuthMethod.API_KEY)
-
-        elif os.getenv("SINGLESTORE_API_KEY"):
-            print("Using API key from environment variable SINGLESTORE_API_KEY")
-            app_config.set_auth_token(
-                os.getenv("SINGLESTORE_API_KEY"), AuthMethod.API_KEY
-            )
-
-        if protocol == "sse":
-            print(
-                f"Running SSE server with protocol {protocol.upper()} on port {args.port}"
-            )
-            app_config.set_server_port(args.port)
-            app_config.server_mode = "sse"
-
-        elif protocol == "http":
-            protocol = "streamable-http"
-            print(
-                f"Running Streamable HTTP server with protocol {protocol.upper()} on port {args.port}"
-            )
-            app_config.set_server_port(args.port)
-            app_config.server_mode = "stdio"
-        else:
-            print(f"Running server with protocol {protocol.upper()}")
-            app_config.server_mode = "stdio"
-
-        mcp.settings.port = app_config.get_server_port()
-
-        mcp.run(transport=protocol)
+    if hasattr(args, "func"):
+        args.func(args, mcp)
     else:
         parser.print_help()
         sys.exit(1)
