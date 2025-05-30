@@ -86,11 +86,7 @@ class SimpleSingleStoreOAuthProvider(OAuthAuthorizationServerProvider):
             "redirect_uri_provided_explicitly": str(
                 params.redirect_uri_provided_explicitly
             ),
-            "client_id": (
-                client.client_id
-                if client.client_id != self.settings.singlestore_client_id
-                else "bc8e2e3f-4599-4ffe-8714-c7f04e6b5dbd"
-            ),
+            "client_id": client.client_id,
         }
 
         # Generate PKCE code verifier and challenge for our own use with

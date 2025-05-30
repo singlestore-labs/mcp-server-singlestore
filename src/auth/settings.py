@@ -19,8 +19,12 @@ class ServerSettings(BaseSettings):
         ),
     )
 
-    singlestore_client_id: str = Field(None, env="SINGLESTORE_CLIENT_ID")
-    singlestore_org_id: str = Field(None, env="SINGLESTORE_ORG_ID")
+    singlestore_client_id: str = Field(
+        "b7dbf19e-d140-4334-bae4-e8cd03614485", env="SINGLESTORE_CLIENT_ID"
+    )
+    singlestore_org_id: str = Field(
+        "4f168792-6ca9-4ade-b00d-0d3dc4179926", env="SINGLESTORE_ORG_ID"
+    )
     singlestore_callback_path: AnyHttpUrl = AnyHttpUrl(
         f"http://{app_config.settings.server_host}:{app_config.settings.server_port}/callback"
     )
@@ -36,12 +40,7 @@ class ServerSettings(BaseSettings):
     singlestore_code_verifier: str = ""
 
     def __init__(self, **data):
-        """Initialize settings with values from environment variables.
-
-        Note: client_id is required but can be
-        loaded automatically from environment variables (MCP_SINGLESTORE_SINGLESTORE_CLIENT_ID
-        and don't need to be passed explicitly.
-        """
+        """Initialize settings with values from environment variables."""
         super().__init__(**data)
 
         self.singlestore_auth_url, self.singlestore_token_url = (
