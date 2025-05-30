@@ -1,8 +1,11 @@
-from src.config import app_config, AuthMethod
 import os
 
+from argparse import ArgumentParser
+from fastmcp import FastMCP
+from src.config import app_config, AuthMethod
 
-def register_start_command(subparsers):
+
+def register_start_command(subparsers: ArgumentParser):
     parser = subparsers.add_parser("start", help="Start the MCP server")
     parser.add_argument(
         "api_key",
@@ -24,7 +27,7 @@ def register_start_command(subparsers):
     parser.set_defaults(func=handle_start_command)
 
 
-def handle_start_command(args, mcp):
+def handle_start_command(args, mcp: FastMCP | None = None):
     protocol = getattr(args, "protocol", "stdio")
     if getattr(args, "api_key", None):
         print(
@@ -34,6 +37,7 @@ def handle_start_command(args, mcp):
     elif os.getenv("SINGLESTORE_API_KEY"):
         print("Using API key from environment variable SINGLESTORE_API_KEY")
         app_config.set_auth_token(os.getenv("SINGLESTORE_API_KEY"), AuthMethod.API_KEY)
+
     if protocol == "sse":
         print(
             f"Running SSE server with protocol {protocol.upper()} on port {args.port}"
@@ -46,9 +50,10 @@ def handle_start_command(args, mcp):
             f"Running Streamable HTTP server with protocol {protocol.upper()} on port {args.port}"
         )
         app_config.set_server_port(args.port)
-        app_config.server_mode = "stdio"
+        app_config.server_mode = "http"
     else:
         print(f"Running server with protocol {protocol.upper()}")
         app_config.server_mode = "stdio"
+
     mcp.settings.port = app_config.get_server_port()
     mcp.run(transport=protocol)

@@ -1,9 +1,10 @@
+from argparse import ArgumentParser
 import sys
 from scripts.init import init_command
-from auth import get_authentication_token
+from auth.local_auth import get_authentication_token
 
 
-def register_init_command(subparsers):
+def register_init_command(subparsers: ArgumentParser):
     parser = subparsers.add_parser("init", help="Initialize client configuration")
     parser.add_argument(
         "api_key",
@@ -19,7 +20,7 @@ def register_init_command(subparsers):
     parser.set_defaults(func=handle_init_command)
 
 
-def handle_init_command(args, mcp=None):
+def handle_init_command(args):
     api_key = getattr(args, "api_key", None)
     auth_token = None
     if not api_key:

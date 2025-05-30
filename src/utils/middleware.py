@@ -1,6 +1,6 @@
 from functools import wraps
 from typing import Callable
-from src.auth.auth import (
+from src.auth.local_auth import (
     get_authentication_token,
     refresh_token,
     load_credentials,

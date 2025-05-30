@@ -3,7 +3,7 @@ import json
 import sys
 from pathlib import Path
 from typing import Optional, Literal
-from src.auth.auth import get_authentication_token
+from src.auth.local_auth import get_authentication_token
 from src.config import app_config, AuthMethod
 
 # Supported client types

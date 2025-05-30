@@ -683,110 +683,6 @@ def set_organization(orgID: str) -> Dict[str, Any]:
     return __set_selected_organization(orgID)
 
 
-def login() -> Dict[str, Any]:
-    """
-    Only call this tool if you got a 401 error from the API.
-
-    Authenticate with SingleStore and obtain the necessary token for API access.
-
-    This should be the first tool called before using any other SingleStore API tools.
-    You can provide an API key directly, or if left empty, the tool will attempt to:
-    1. Use any existing API key from the environment
-    2. Use any saved credentials
-    3. Launch browser-based authentication if needed
-
-    Args:
-        api_key: Optional SingleStore API key. If provided, it will be used instead of
-                launching the browser authentication flow.
-
-    Returns:
-        Dictionary with authentication status and instructions for next steps
-
-    After successful authentication, you can call get_organizations to list available organizations.
-    """
-
-    # Otherwise, use the authentication flow from auth.py
-    from ...auth import get_authentication_token
-
-    auth_token = get_authentication_token()
-
-    if auth_token:
-        app_config.set_auth_token(auth_token, AuthMethod.JWT_TOKEN)
-        return {
-            "status": "success",
-            "message": (
-                "Successfully authenticated. Please call get_organizations next to list available organizations."
-            ),
-        }
-    else:
-        return {
-            "status": "failed",
-            "message": (
-                "Authentication failed. Please try again with a valid API key."
-            ),
-        }
-
-
-def refresh_auth_token() -> Dict[str, Any]:
-    """
-    Refresh the current authentication token with SingleStore.
-
-    Use this tool when:
-    1. Your current token has expired
-    2. You encounter authentication errors with other API calls
-    3. You want to ensure you have a fresh token for an extended session
-
-    This tool will attempt to refresh the existing token using the refresh token
-    stored during the initial authentication. If no valid refresh token exists,
-    you'll need to call the login tool again.
-
-    Returns:
-        Dictionary with refresh status and instructions
-
-    Note: After a successful refresh, you can continue using all other API tools
-    with the new token. No need to select an organization again.
-    """
-
-    from ...auth import refresh_token, TokenSet, load_credentials
-
-    # Check if we have credentials stored
-    credentials = load_credentials()
-
-    if not credentials or "token_set" not in credentials:
-        return {
-            "status": "failed",
-            "message": (
-                "No existing credentials found. Please use the login tool first."
-            ),
-        }
-
-    # Create a token set from the stored credentials
-    token_set = TokenSet(credentials["token_set"])
-
-    # Try to refresh the token
-    refreshed_token_set = refresh_token(token_set)
-
-    if refreshed_token_set and refreshed_token_set.access_token:
-        # Update the global token
-        app_config.set_auth_token(
-            refreshed_token_set.access_token, AuthMethod.JWT_TOKEN
-        )
-
-        return {
-            "status": "success",
-            "message": (
-                "Authentication token successfully refreshed. You can continue using SingleStore tools."
-            ),
-        }
-    else:
-        return {
-            "status": "failed",
-            "message": (
-                "Failed to refresh the token. Please use the login tool again to authenticate."
-            ),
-        }
-
-
 def __get_notebook_path_by_name(notebook_name: str, location: str = "personal") -> str:
     """
     Find a notebook by its name and return its full path.
@@ -1232,16 +1128,6 @@ def filter_tools(
 # Create a list of tool definitions to maintain compatibility with existing code
 # This will allow us to iterate through tools in server.py
 tools_definitions = [
-    {
-        "name": "login",
-        "description": login.__doc__,
-        "func": login,
-    },
-    {
-        "name": "refresh_auth_token",
-        "description": refresh_auth_token.__doc__,
-        "func": refresh_auth_token,
-    },
     {
         "name": "set_organization",
         "description": set_organization.__doc__,

@@ -20,7 +20,9 @@ class AppSettings(BaseSettings):
 
     # Auth
     client_id: str = Field("b7dbf19e-d140-4334-bae4-e8cd03614485", env="CLIENT_ID")
-    oauth_host: str = Field("https://authsvc.singlestore.com/", env="OAUTH_HOST")
+    oauth_issuer_url: str = Field(
+        "https://authsvc.singlestore.com/", env="OAUTH_ISSUER_URL"
+    )
     auth_timeout_seconds: int = 60
     client_uri: str = Field("http://localhost:8000", env="CLIENT_URI")
 
@@ -28,6 +30,7 @@ class AppSettings(BaseSettings):
     log_enabled: bool = False
     log_level: str = "INFO"
     debug_mode: bool = False
+    server_host: str = "localhost"
     server_port: int = 8000
     server_mode: str = "stdio"
 
@@ -218,7 +221,7 @@ class AppConfig:
     @server_mode.setter
     def server_mode(self, mode: str):
         """Set the server mode."""
-        valid_modes = ["stdio", "http"]
+        valid_modes = ["stdio", "sse", "http"]
         if mode not in valid_modes:
             raise ValueError(f"Server mode must be one of: {', '.join(valid_modes)}")
         self._server_mode = mode
