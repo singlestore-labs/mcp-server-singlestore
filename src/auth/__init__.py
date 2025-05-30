@@ -1,3 +1,3 @@
-from .provider import SimpleSingleStoreOAuthProvider
+from .provider import SingleStoreOAuthProvider
 
-__all__ = ["SimpleSingleStoreOAuthProvider"]
+__all__ = ["SingleStoreOAuthProvider"]

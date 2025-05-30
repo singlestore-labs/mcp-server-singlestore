@@ -22,7 +22,7 @@ from src.config import app_config
 from src.config.auth_config import AuthMethod
 
 
-class SimpleSingleStoreOAuthProvider(OAuthAuthorizationServerProvider):
+class SingleStoreOAuthProvider(OAuthAuthorizationServerProvider):
     """Simple SingleStore OAuth provider with essential functionality."""
 
     def __init__(self, settings: ServerSettings):

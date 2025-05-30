@@ -1,8 +1,78 @@
 import os
 
 from argparse import ArgumentParser
-from fastmcp import FastMCP
+
+from src import logger
 from src.config import app_config, AuthMethod
+from src.auth.settings import ServerSettings
+from src.auth import SingleStoreOAuthProvider
+from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions
+from src.api.resources import resources, register_resources
+from src.api.tools import tools, register_tools
+from utils.middleware import apply_auth_middleware
+from fastmcp import FastMCP
+from src.server import app_lifespan  # Import app_lifespan for FastMCP
+from starlette.exceptions import HTTPException
+from starlette.requests import Request
+from starlette.responses import JSONResponse, RedirectResponse, Response
+
+
+def make_singlestore_callback_handler(oauth_provider: SingleStoreOAuthProvider):
+    async def singlestore_callback_handler(request: Request) -> Response:
+        code = request.query_params.get("code")
+        state = request.query_params.get("state")
+
+        if not code:
+            raise HTTPException(400, "Missing code parameter")
+        if not state:
+            raise HTTPException(400, "Missing state parameter")
+
+        try:
+            redirect_uri = await oauth_provider.handle_singlestore_callback(code, state)
+            return RedirectResponse(status_code=302, url=redirect_uri)
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error("Unexpected error", exc_info=e)
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "error": "server_error",
+                    "error_description": "Unexpected error",
+                },
+            )
+
+    return singlestore_callback_handler
+
+
+class MCPFactory:
+    def __init__(self, settings, oauth_provider, auth_settings):
+        self.settings = settings
+        self.oauth_provider = oauth_provider
+        self.auth_settings = auth_settings
+
+    def create_remote_mcp(self):
+        mcp = FastMCP(
+            "SingleStore MCP Server",
+            lifespan=app_lifespan,
+            auth_server_provider=self.oauth_provider,
+            auth=self.auth_settings,
+            host=self.settings.host,
+            port=self.settings.port,
+        )
+        register_resources(mcp, resources)
+        public_tools = apply_auth_middleware(tools)
+        register_tools(mcp, public_tools)
+
+        # Register the callback handler with the captured oauth_provider
+        mcp.custom_route("/callback", methods=["GET"])(
+            make_singlestore_callback_handler(self.oauth_provider)
+        )
+
+        return mcp
+
+    def create_local_mcp(self):
+        raise NotImplementedError("Local MCP creation is not implemented yet.")
 
 
 def register_start_command(subparsers: ArgumentParser):
@@ -27,7 +97,7 @@ def register_start_command(subparsers: ArgumentParser):
     parser.set_defaults(func=handle_start_command)
 
 
-def handle_start_command(args, mcp: FastMCP | None = None):
+def handle_start_command(args):
     protocol = getattr(args, "protocol", "stdio")
     if getattr(args, "api_key", None):
         print(
@@ -55,5 +125,25 @@ def handle_start_command(args, mcp: FastMCP | None = None):
         print(f"Running server with protocol {protocol.upper()}")
         app_config.server_mode = "stdio"
 
-    mcp.settings.port = app_config.get_server_port()
+    settings = ServerSettings(
+        host=app_config.settings.server_host, port=app_config.settings.server_port
+    )
+    oauth_provider = SingleStoreOAuthProvider(settings)
+    client_registration_options = ClientRegistrationOptions(
+        enabled=True,
+    )
+    auth_settings = AuthSettings(
+        issuer_url=settings.server_url,
+        required_scopes=[settings.mcp_scope],
+        client_registration_options=client_registration_options,
+    )
+    mcp_factory = MCPFactory(settings, oauth_provider, auth_settings)
+
+    if app_config.is_remote():
+        print("Running in remote mode, MCP will connect to remote server.")
+        mcp = mcp_factory.create_remote_mcp()
+    else:
+        print("Running in local mode, MCP will start a local server.")
+        mcp = mcp_factory.create_local_mcp()
+
     mcp.run(transport=protocol)

@@ -226,6 +226,15 @@ class AppConfig:
             raise ValueError(f"Server mode must be one of: {', '.join(valid_modes)}")
         self._server_mode = mode
 
+    def is_remote(self) -> bool:
+        """
+        Check if the application is running in remote mode.
+
+        Returns:
+        - True if remote mode, False otherwise
+        """
+        return self._server_mode in ["sse", "http"]
+
 
 # Global configuration instance
 app_config = AppConfig(
