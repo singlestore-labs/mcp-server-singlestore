@@ -32,6 +32,7 @@ htmlcov/
 # Environment variables
 .env
 .env.local
+.env.remote
 
 # Logs
 *.log

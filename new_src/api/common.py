@@ -1,5 +1,9 @@
 import requests
 import json
+
+from fastmcp.server.dependencies import get_http_request
+
+from new_src.config.config import get_settings
 import src.config.config as config
 
 
@@ -127,7 +131,6 @@ def __build_request(
     params: dict = None,
     auth_token: str = None,
     data: dict = None,
-    settings: config.Settings = None,
 ):
     """
     Make an API request to the SingleStore Management API.
@@ -143,17 +146,19 @@ def __build_request(
     """
     # Ensure an organization is selected before making API requests
 
-    __set_organzation_id()
+    # __set_organzation_id()
+
+    settings = get_settings()
 
     def build_request_endpoint(endpoint: str, params: dict = None):
-        url = f"{settings.server.s2_api_base_url}/v1/{endpoint}"
+        url = f"{settings.s2_api_base_url}/v1/{endpoint}"
 
         # Add organization ID as a query parameter
         if params is None:
             params = {}
 
-        if settings.server.org_id:
-            params["organizationID"] = settings.server.org_id
+        if settings.is_remote:
+            params["organizationID"] = settings.org_id
 
         if params and type == "GET":  # Only add query params for GET requests
             url += "?"
@@ -270,15 +275,25 @@ def __get_project_id():
     return project_id
 
 
-def __get_user_id(settings: config.Settings = None) -> str:
+def __get_user_id() -> str:
     """
     Get the current user's ID from the management API.
 
     Returns:
         str: The user ID
     """
+
+    settings = get_settings()
+
+    auth_token: str
+    if settings.is_remote:
+        request = get_http_request()
+        auth_token = request.headers.get("Authorization", "").replace("Bearer ", "")
+    else:
+        auth_token = settings.api_key
+
     # Get all users in the organization
-    users = __build_request("GET", "users", settings=settings)
+    users = __build_request("GET", "users", auth_token=auth_token)
 
     # Find the current user
     # Since we can't directly get the current user ID, we'll use the first user

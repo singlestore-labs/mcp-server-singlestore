@@ -17,16 +17,14 @@ from pydantic import AnyHttpUrl
 from starlette.exceptions import HTTPException
 from urllib.parse import urlencode
 
-from src.auth.settings import ServerSettings
-from src.config import app_config
-from src.config.auth_config import AuthMethod
+from src.config.config import Settings
 
 
 class SingleStoreOAuthProvider(OAuthAuthorizationServerProvider):
     """Simple SingleStore OAuth provider with essential functionality."""
 
-    def __init__(self, settings: ServerSettings):
-        self.settings: ServerSettings = settings
+    def __init__(self, settings: Settings):
+        self.settings = settings
         self.clients: dict[str, OAuthClientInformationFull] = {
             # Predefined client for SingleStore MCP server
             # Claude Desktop Client
@@ -36,8 +34,6 @@ class SingleStoreOAuthProvider(OAuthAuthorizationServerProvider):
                 redirect_uris=[AnyHttpUrl("http://localhost:18089/oauth/callback")],
                 response_types=["code"],
                 grant_types=["authorization_code", "refresh_token"],
-                token_endpoint_auth_method="none",
-                scope=self.settings.mcp_scope,
             )
         }
         self.auth_codes: dict[str, AuthorizationCode] = {}
@@ -95,10 +91,10 @@ class SingleStoreOAuthProvider(OAuthAuthorizationServerProvider):
         code_challenge = self._generate_code_challenge(code_verifier)
 
         auth_params = {
-            "client_id": self.settings.singlestore_client_id,
-            "redirect_uri": self.settings.singlestore_callback_path,  # Our server's callback endpoint
+            "client_id": self.settings.client_id,
+            "redirect_uri": self.settings.callback_path,  # Our server's callback endpoint
             "response_type": "code",
-            "scope": self.settings.singlestore_scope,
+            "scope": self.settings.required_scopes[0],  # Use the first scope
             "state": state,
             "code_challenge": code_challenge,
             "code_challenge_method": "S256",
@@ -130,7 +126,7 @@ class SingleStoreOAuthProvider(OAuthAuthorizationServerProvider):
             redirect_uri=AnyHttpUrl(redirect_uri),
             redirect_uri_provided_explicitly=redirect_uri_provided_explicitly,
             expires_at=time.time() + 300,
-            scopes=[self.settings.mcp_scope],
+            scopes=[self.settings.required_scopes[0]],  # Use the first scope
             code_challenge=code_challenge,
         )
         self.auth_codes[new_code] = auth_code
@@ -159,11 +155,11 @@ class SingleStoreOAuthProvider(OAuthAuthorizationServerProvider):
                 params={
                     "grant_type": "authorization_code",
                     "code_verifier": self.singlestore_code_verifier,
-                    "client_id": self.settings.singlestore_client_id,
+                    "client_id": self.settings.client_id,
                 },
                 data={
                     "code": authorization_code.code,
-                    "redirect_uri": self.settings.singlestore_callback_path,
+                    "redirect_uri": self.settings.callback_path,
                 },
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
@@ -218,8 +214,6 @@ class SingleStoreOAuthProvider(OAuthAuthorizationServerProvider):
 
         del self.singlestore_code_verifier  # Remove after use
         del self.auth_codes[authorization_code.code]
-
-        app_config.set_auth_token(mcp_token, AuthMethod.API_KEY)
 
         return OAuthToken(
             access_token=mcp_token,
