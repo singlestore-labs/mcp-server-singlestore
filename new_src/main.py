@@ -1,3 +1,4 @@
+import sys
 import click
 import logging
 
@@ -9,6 +10,7 @@ from new_src.auth.callback import make_auth_callback_handler
 import new_src.config.config as config
 from new_src.api.tools import register_tools
 from new_src.auth.provider import SingleStoreOAuthProvider
+from new_src.scripts.init import init_command
 
 
 @click.group()
@@ -20,7 +22,8 @@ def cli():
 @click.option(
     "--transport",
     type=click.Choice(["stdio", "sse", "http"], case_sensitive=True),
-    required=True,
+    required=False,
+    default="stdio",
     help="Transport mode: stdio (local) or sse/http (remote)",
 )
 @click.option(
@@ -65,9 +68,24 @@ def start(transport: config.Transport, api_key: str | None):
 
 
 @cli.command()
-def init():
-    # Placeholder for init command logic
-    click.echo("Init command placeholder")
+@click.option(
+    "--api-key",
+    type=str,
+    required=True,
+    help="API key for authentication on stdio transport",
+)
+@click.option(
+    "--client",
+    type=click.Choice(["claude", "cursor"], case_sensitive=False),
+    required=False,
+    default="claude",
+    help="LLM client to configure (default: claude)",
+)
+def init(api_key: str, client: str):
+    """
+    Initialize the MCP server with the given API key and client.
+    """
+    sys.exit(init_command(api_key, client))
 
 
 if __name__ == "__main__":

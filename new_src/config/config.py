@@ -16,9 +16,9 @@ class Transport(str, Enum):
 
 class Settings(ABC, BaseSettings):
     host: str = "localhost"
-    port: int
-    s2_api_base_url: str
-    graphql_public_endpoint: str
+    port: int = 8000
+    s2_api_base_url: str = "https://api.singlestore.com"
+    graphql_public_endpoint: str = "https://backend.singlestore.com/public"
     transport: Transport = Transport.STDIO
 
 
