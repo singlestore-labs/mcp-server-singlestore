@@ -2,7 +2,7 @@ import inspect
 from typing import List, Optional
 from mcp.server.fastmcp import FastMCP, Context
 
-from src.utils.types import Tool
+from src.api.tools.tools import Tool
 
 
 def register_tools(mcp: FastMCP, tools: List[Tool]) -> None:

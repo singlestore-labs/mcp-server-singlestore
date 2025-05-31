@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from enum import Enum
 import os
 import re
@@ -14,8 +15,15 @@ from src.utils.common import (
     __query_graphql_organizations,
 )
 from src.config import app_config, AuthMethod
-from src.utils.types import Tool
 import singlestoredb as s2
+
+
+@dataclass
+class Tool:
+    name: str
+    description: str
+    func: callable
+
 
 SAMPLE_NOTEBOOK_PATH = os.path.join(
     app_config.settings.root_dir, "assets/sample_notebook.ipynb"

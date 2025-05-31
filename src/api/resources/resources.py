@@ -1,4 +1,13 @@
-from utils.types import Resource
+from dataclasses import dataclass
+
+
+@dataclass
+class Resource:
+    name: str
+    description: str
+    func: callable
+    uri: str
+
 
 resources_definitions = []
 

@@ -2,7 +2,7 @@ import inspect
 from typing import List
 from mcp.server.fastmcp import FastMCP
 
-from src.utils.types import Resource
+from src.api.resources.resources import Resource
 
 
 def register_resources(mcp: FastMCP, resources: List[Resource]) -> None:
