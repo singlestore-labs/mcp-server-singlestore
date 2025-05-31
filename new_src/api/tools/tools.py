@@ -2,6 +2,7 @@ from fastmcp import Context
 from new_src.api.common import (
     __get_user_id,
 )
+from new_src.api.tools.types import Tool
 
 
 def get_user_id(ctx: Context) -> str:
@@ -20,5 +21,7 @@ def get_user_id(ctx: Context) -> str:
     return __get_user_id()
 
 
+tools_definition = [{"func": get_user_id}]
+
 # Export the tools
-tools = [get_user_id]
+tools = [Tool(**tool) for tool in tools_definition]
