@@ -46,17 +46,18 @@ def make_singlestore_callback_handler(oauth_provider: SingleStoreOAuthProvider):
 
 
 class MCPFactory:
-    def __init__(self, settings, oauth_provider, auth_settings):
+    def __init__(
+        self, settings: ServerSettings, oauth_provider: SingleStoreOAuthProvider
+    ):
         self.settings = settings
         self.oauth_provider = oauth_provider
-        self.auth_settings = auth_settings
 
     def create_remote_mcp(self):
         mcp = FastMCP(
             "SingleStore MCP Server",
             lifespan=app_lifespan,
             auth_server_provider=self.oauth_provider,
-            auth=self.auth_settings,
+            auth=self.settings.auth_settings,
             host=self.settings.host,
             port=self.settings.port,
         )
@@ -125,19 +126,24 @@ def handle_start_command(args):
         print(f"Running server with protocol {protocol.upper()}")
         app_config.server_mode = "stdio"
 
-    settings = ServerSettings(
-        host=app_config.settings.server_host, port=app_config.settings.server_port
-    )
-    oauth_provider = SingleStoreOAuthProvider(settings)
     client_registration_options = ClientRegistrationOptions(
         enabled=True,
     )
-    auth_settings = AuthSettings(
+
+    settings = ServerSettings(
+        host=app_config.settings.server_host,
+        port=app_config.settings.server_port,
+    )
+
+    settings.auth_settings = AuthSettings(
         issuer_url=settings.server_url,
         required_scopes=[settings.mcp_scope],
         client_registration_options=client_registration_options,
     )
-    mcp_factory = MCPFactory(settings, oauth_provider, auth_settings)
+
+    oauth_provider = SingleStoreOAuthProvider(settings)
+
+    mcp_factory = MCPFactory(settings, oauth_provider)
 
     if app_config.is_remote():
         print("Running in remote mode, MCP will connect to remote server.")

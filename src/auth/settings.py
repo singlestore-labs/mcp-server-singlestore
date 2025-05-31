@@ -2,6 +2,7 @@ import requests
 
 from pydantic import AnyHttpUrl, Field
 from pydantic_settings import BaseSettings
+from mcp.server.auth.settings import AuthSettings
 
 from src.config import app_config
 
@@ -38,6 +39,11 @@ class ServerSettings(BaseSettings):
 
     # Stores temporarily generated code verifier for PKCE. Will be deleted after use.
     singlestore_code_verifier: str = ""
+
+    auth_settings: AuthSettings | None = Field(
+        default=None,
+        description="Authentication settings for the server",
+    )
 
     def __init__(self, **data):
         """Initialize settings with values from environment variables."""
