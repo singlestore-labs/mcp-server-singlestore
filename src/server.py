@@ -10,7 +10,7 @@ from fastmcp import FastMCP
 from src.api.tools import tools, register_tools
 from utils.middleware import apply_auth_middleware
 from src.api.resources import register_resources """
-from src.commands import register_all_commands
+from src.cli.commands import register_all_commands
 
 
 # Store notes as a simple key-value dict to demonstrate state management
