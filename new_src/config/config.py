@@ -1,3 +1,4 @@
+from typing import List
 import requests
 
 from abc import ABC
@@ -37,7 +38,7 @@ class RemoteSettings(Settings):
     is_remote: bool = True
 
     issuer_url: str
-    required_scopes: str
+    required_scopes: List[str]
 
     server_url: AnyHttpUrl | None = None
 
