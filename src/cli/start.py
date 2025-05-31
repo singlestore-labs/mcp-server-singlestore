@@ -2,7 +2,7 @@ import os
 
 from argparse import ArgumentParser
 
-from src import logger
+from src.utils import logger
 from src.config import app_config, AuthMethod
 from src.auth.settings import ServerSettings
 from src.auth import SingleStoreOAuthProvider
