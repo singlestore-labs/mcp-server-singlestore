@@ -1025,7 +1025,7 @@ def get_user_id(ctx: Context) -> str:
 
 
 tools_definition = [
-    {"func": get_user_id},
+    {"func": get_user_id, "deprecated": True},
     {"func": workspace_groups_info},
     {"func": workspaces_info},
     {"func": organization_info},
