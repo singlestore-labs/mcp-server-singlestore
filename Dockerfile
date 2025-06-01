@@ -8,9 +8,7 @@ ADD . /app
 WORKDIR /app
 RUN uv sync --locked
 
-ENV SERVER_MODE=http
-
 # Expose the port the MCP server runs on
 EXPOSE 8000
 
-CMD ["uv", "run", "src/__main__.py", "start", "--protocol", "http"]
+CMD ["uv", "run", "src/main.py", "start", "--transport", "sse"]
