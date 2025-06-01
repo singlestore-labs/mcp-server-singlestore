@@ -8,7 +8,7 @@ from .types import Tool
 
 def filter_tools(tools: list[Tool]) -> list[Tool]:
     """
-    Filter tools to only include those that are not already registered.
+    Filter tools to exclude deprecated ones.
     """
     return [tool for tool in tools if not tool.deprecated]
 
