@@ -1,16 +1,10 @@
 from functools import wraps
-from typing import Callable
+from typing import Callable, List
 from mcp.server.fastmcp import FastMCP
 
-from .tools import tools as tool_list
+from src.api.common import filter_mcp_concepts
 from .types import Tool
-
-
-def filter_tools(tools: list[Tool]) -> list[Tool]:
-    """
-    Filter tools to exclude deprecated ones.
-    """
-    return [tool for tool in tools if not tool.deprecated]
+from .tools import tools as tool_list
 
 
 def create_tool_wrapper(func: Callable, name: str, description: str):
@@ -24,10 +18,10 @@ def create_tool_wrapper(func: Callable, name: str, description: str):
 
 
 def register_tools(mcp: FastMCP) -> None:
-    filtered_tool = filter_tools(tool_list)
+    filtered_tool: List[Tool] = filter_mcp_concepts(tool_list)
 
     for tool in filtered_tool:
-        func: Callable = tool.func
+        func = tool.func
         # Add context support for MCP
         wrapper = create_tool_wrapper(func, func.__name__, func.__doc__ or "")
 

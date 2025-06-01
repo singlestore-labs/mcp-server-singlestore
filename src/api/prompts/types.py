@@ -5,9 +5,6 @@ from src.api.types import MCPConcept
 
 
 @dataclass(kw_only=True)
-class Resource(MCPConcept):
+class Prompt(MCPConcept):
     deprecated: bool
-    name: str
-    description: str
     func: Callable
-    uri: str

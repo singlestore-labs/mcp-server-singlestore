@@ -1,9 +1,10 @@
+from src.api.resources.register import register_resources
+import src.config.config as config
+
 from fastmcp import FastMCP
 from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions
 
-
 from src.auth.callback import make_auth_callback_handler
-import src.config.config as config
 from src.api.tools import register_tools
 from src.auth.provider import SingleStoreOAuthProvider
 
@@ -31,6 +32,7 @@ def start_command(transport, api_key):
     mcp = FastMCP(**mcp_args)
 
     register_tools(mcp)
+    register_resources(mcp)
 
     if settings.is_remote:
         # Register the callback handler with the captured oauth_provider

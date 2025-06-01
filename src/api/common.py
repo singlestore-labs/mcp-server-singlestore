@@ -1,10 +1,19 @@
+from typing import List
 import requests
 import json
 
 from starlette.exceptions import HTTPException
 from fastmcp.server.dependencies import get_http_request
 
+from src.api.types import MCPConcept
 from src.config.config import get_settings
+
+
+def filter_mcp_concepts(mcp_concepts: List[MCPConcept]) -> List[MCPConcept]:
+    """
+    Filter mcp concepts to exclude deprecated ones.
+    """
+    return [mcp_concept for mcp_concept in mcp_concepts if not mcp_concept.deprecated]
 
 
 def __query_graphql_organizations():
