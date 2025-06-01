@@ -17,13 +17,13 @@ from pydantic import AnyHttpUrl
 from starlette.exceptions import HTTPException
 from urllib.parse import urlencode
 
-from src.config.config import Settings
+from src.config.config import RemoteSettings
 
 
 class SingleStoreOAuthProvider(OAuthAuthorizationServerProvider):
     """Simple SingleStore OAuth provider with essential functionality."""
 
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: RemoteSettings):
         self.settings = settings
         self.clients: dict[str, OAuthClientInformationFull] = {
             # Predefined client for SingleStore MCP server
@@ -212,6 +212,8 @@ class SingleStoreOAuthProvider(OAuthAuthorizationServerProvider):
         if singlestore_token:
             self.token_mapping[mcp_token] = singlestore_token
 
+        print(self.token_mapping)
+
         del self.singlestore_code_verifier  # Remove after use
         del self.auth_codes[authorization_code.code]
 
@@ -225,6 +227,8 @@ class SingleStoreOAuthProvider(OAuthAuthorizationServerProvider):
     async def load_access_token(self, token: str) -> AccessToken | None:
         """Load and validate an access token."""
         access_token = self.tokens.get(token)
+        print(f"Loading access token: {token} -> {access_token}")
+
         if not access_token:
             return None
 

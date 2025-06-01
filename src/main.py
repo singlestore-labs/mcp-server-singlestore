@@ -1,89 +1,16 @@
-"""import logging
 import sys
-
-from contextlib import asynccontextmanager
-from collections.abc import AsyncIterator
-from dataclasses import dataclass
-from fastmcp import FastMCP
-
-from src.api.resources import resources
-from src.api.tools import tools, register_tools
-from utils.middleware import apply_auth_middleware
-from src.api.resources import register_resources
-from src.cli.commands import register_all_commands
-
-
-# Store notes as a simple key-value dict to demonstrate state management
-notes: dict[str, str] = {}
-
-# Store custom text resources
-custom_text_resources: dict[str, str] = {}
-
-# Store session state for caching user inputs
-session_state: dict[str, dict] = {}
-
-
-@dataclass
-class AppContext:
-    Application context for lifespan management
-
-    notes: dict[str, str]
-    custom_text_resources: dict[str, str]
-    session_state: dict[str, dict]
-
-
-@asynccontextmanager
-async def app_lifespan(server: FastMCP) -> AsyncIterator[AppContext]:
-    Manage application lifecycle with type-safe context
-    # Initialize on startup
-    try:
-        yield AppContext(
-            notes=notes,
-            custom_text_resources=custom_text_resources,
-            session_state=session_state,
-        )
-    finally:
-        # Cleanup on shutdown
-        notes.clear()
-        custom_text_resources.clear()
-        session_state.clear()
-        print("Application context cleared.")
-
-
-# Apply auth middleware to tools and filter out login/refresh tools from public API
-public_tools = apply_auth_middleware(tools)
-
-register_resources(mcp, resources)
-register_tools(mcp, public_tools)
-
-
-def main():
-    import argparse
-
-    logging.basicConfig(level=logging.INFO)
-
-    parser = argparse.ArgumentParser(description="SingleStore MCP Server")
-    subparsers = parser.add_subparsers(dest="command", help="Command to run")
-
-    # Register all commands from commands.py
-    register_all_commands(subparsers)
-
-    args = parser.parse_args()
-    if hasattr(args, "func"):
-        args.func(args)
-    else:
-        parser.print_help()
-        sys.exit(1)"""
-
 import click
 import logging
 
 from fastmcp import FastMCP
 from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions
 
-from src.auth.provider import SingleStoreOAuthProvider
+
+from src.auth.callback import make_auth_callback_handler
 import src.config.config as config
-from src.api.tools.registery import register_tools
+from src.api.tools import register_tools
+from src.auth.provider import SingleStoreOAuthProvider
+from src.scripts.init import init_command
 
 
 @click.group()
@@ -95,38 +22,70 @@ def cli():
 @click.option(
     "--transport",
     type=click.Choice(["stdio", "sse", "http"], case_sensitive=True),
-    required=True,
+    required=False,
+    default="stdio",
     help="Transport mode: stdio (local) or sse/http (remote)",
 )
-def start(transport):
-
-    config.init_settings(transport=transport)
+@click.option(
+    "--api-key",
+    type=str,
+    default=None,
+    help="API key for authentication on stdio transport",
+)
+def start(transport: config.Transport, api_key: str | None):
+    config.init_settings(transport=transport, api_key=api_key)
     logging.info(f"Starting MCP server with transport={transport}")
 
-    auth_settings = AuthSettings(
-        issuer_url=config.settings.server_url,
-        required_scopes=config.settings.required_scopes.split(","),
-        client_registration_options=ClientRegistrationOptions(enabled=True),
-    )
+    settings = config.get_settings()
 
-    oauth_provider = SingleStoreOAuthProvider(settings=config.settings)
+    mcp_args = {
+        "name": "SingleStore MCP Server",
+    }
 
-    mcp = mcp = FastMCP(
-        "SingleStore MCP Server",
-        # lifespan=app_lifespan,
-        auth_server_provider=oauth_provider,
-        auth=auth_settings,
-    )
+    if settings.is_remote:
+        mcp_args["auth"] = AuthSettings(
+            issuer_url=settings.server_url,
+            required_scopes=settings.required_scopes,
+            client_registration_options=ClientRegistrationOptions(enabled=True),
+        )
+
+        provider = SingleStoreOAuthProvider(settings=settings)
+
+        mcp_args["auth_server_provider"] = provider
+
+    mcp = mcp = FastMCP(**mcp_args)
 
     register_tools(mcp)
 
-    mcp.run(transport=transport, host=config.settings.host, port=config.settings.port)
+    if settings.is_remote:
+        # Register the callback handler with the captured oauth_provider
+        mcp.custom_route("/callback", methods=["GET"])(
+            make_auth_callback_handler(provider)
+        )
+        mcp.run(transport=transport, host=settings.host, port=settings.port)
+    else:
+        mcp.run(transport=transport)
 
 
 @cli.command()
-def init():
-    # Placeholder for init command logic
-    click.echo("Init command placeholder")
+@click.option(
+    "--api-key",
+    type=str,
+    required=True,
+    help="API key for authentication on stdio transport",
+)
+@click.option(
+    "--client",
+    type=click.Choice(["claude", "cursor"], case_sensitive=False),
+    required=False,
+    default="claude",
+    help="LLM client to configure (default: claude)",
+)
+def init(api_key: str, client: str):
+    """
+    Initialize the MCP server with the given API key and client.
+    """
+    sys.exit(init_command(api_key, client))
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 import logging
-from new_src.auth.provider import SingleStoreOAuthProvider
+from src.auth.provider import SingleStoreOAuthProvider
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.responses import JSONResponse, RedirectResponse, Response

@@ -1,14 +1,10 @@
 import requests
 import json
-import src.config.config as config
 
+from starlette.exceptions import HTTPException
+from fastmcp.server.dependencies import get_http_request
 
-def __set_organzation_id():
-    """
-    Set the organization ID for the current session.
-    """
-    if not config.settings.is_organization_selected():
-        select_organization()
+from src.config.config import get_settings
 
 
 def __query_graphql_organizations():
@@ -18,7 +14,9 @@ def __query_graphql_organizations():
     Returns:
         List of organizations with their IDs and names
     """
-    graphql_endpoint = config.settings.graphql_public_endpoint
+    settings = get_settings()
+
+    graphql_endpoint = settings.graphql_public_endpoint
 
     # GraphQL query for organizations
     query = """
@@ -32,7 +30,7 @@ def __query_graphql_organizations():
 
     # Headers with authentication
     headers = {
-        "Authorization": f"Bearer {config.get_auth_token()}",
+        "Authorization": f"Bearer {__get_access_token()}",
         "Content-Type": "application/json",
     }
 
@@ -72,62 +70,11 @@ def __query_graphql_organizations():
         raise ValueError(f"Failed to query organizations: {str(e)}")
 
 
-def select_organization():
-    """
-    Query available organizations and prompt the user to select one.
-
-    This must be called after authentication and before making other API calls.
-    Sets the organization ID and name in the config.
-
-    Returns:
-        Dictionary with the selected organization ID and name
-    """
-
-    print("select_org: ", config.organization_id)
-    # If organization is already selected, return it
-    if config.is_organization_selected():
-        return {
-            "orgID": config.organization_id,
-            "name": config.organization_name,
-        }
-
-    # Get available organizations
-    organizations = __query_graphql_organizations()
-
-    if not organizations:
-        raise ValueError("No organizations found. Please check your account access.")
-
-    # If only one organization is available, select it automatically
-    if len(organizations) == 1:
-        org = organizations[0]
-        config.set_organization(org["orgID"], org["name"])
-
-        return {
-            "orgID": config.organization_id,
-            "name": config.organization_name,
-        }
-
-    # Create a formatted list of organizations for the user to choose from
-    org_list = "\n".join(
-        [
-            f"{i + 1}. {org['name']} (ID: {org['orgID']})"
-            for i, org in enumerate(organizations)
-        ]
-    )
-
-    # This will be handled by the LLM to ask the user which organization to use
-    raise ValueError(
-        f"Multiple organizations found. Please ask the user to select one:\n{org_list}"
-    )
-
-
 def __build_request(
     type: str,
     endpoint: str,
     params: dict = None,
-    auth_token: str = None,
     data: dict = None,
-    settings: config.Settings = None,
 ):
     """
     Make an API request to the SingleStore Management API.
@@ -143,17 +90,19 @@ def __build_request(
     """
     # Ensure an organization is selected before making API requests
 
-    __set_organzation_id()
+    # __set_organzation_id()
+
+    settings = get_settings()
 
     def build_request_endpoint(endpoint: str, params: dict = None):
-        url = f"{settings.server.s2_api_base_url}/v1/{endpoint}"
+        url = f"{settings.s2_api_base_url}/v1/{endpoint}"
 
         # Add organization ID as a query parameter
         if params is None:
             params = {}
 
-        if settings.server.org_id:
-            params["organizationID"] = settings.server.org_id
+        if settings.is_remote:
+            params["organizationID"] = settings.org_id
 
         if params and type == "GET":  # Only add query params for GET requests
             url += "?"
@@ -167,8 +116,10 @@ def __build_request(
         "Content-Type": "application/json",
     }
 
-    if auth_token is not None:
-        headers["Authorization"] = f"Bearer {auth_token}"
+    access_token = __get_access_token()
+
+    if access_token is not None:
+        headers["Authorization"] = f"Bearer {access_token}"
 
     request_endpoint = build_request_endpoint(endpoint, params)
 
@@ -253,32 +204,16 @@ def __get_workspace_endpoint(
     return workspace["endpoint"]
 
 
-def __get_project_id():
-    """
-    Get the organization ID (project ID) from the management API.
-
-    Returns:
-        str: The organization ID
-    """
-    # Get current organization info to extract the project ID
-    org_info = __build_request("GET", "organizations/current")
-    project_id = org_info.get("orgID")
-
-    if not project_id:
-        raise ValueError("Could not retrieve organization ID from the API")
-
-    return project_id
-
-
-def __get_user_id(settings: config.Settings = None) -> str:
+def __get_user_id() -> str:
     """
     Get the current user's ID from the management API.
 
     Returns:
         str: The user ID
     """
+
     # Get all users in the organization
-    users = __build_request("GET", "users", settings=settings)
+    users = __build_request("GET", "users")
 
     # Find the current user
     # Since we can't directly get the current user ID, we'll use the first user
@@ -289,3 +224,44 @@ def __get_user_id(settings: config.Settings = None) -> str:
             return user_id
 
     raise ValueError("Could not retrieve user ID from the API")
+
+
+def __get_org_id() -> str:
+    """
+    Get the organization ID from the management API.
+
+    Returns:
+        str: The organization ID
+    """
+    settings = get_settings()
+
+    if settings.is_remote:
+        return settings.org_id
+    else:
+        organization = __build_request("GET", "organizations/current")
+        if "orgID" in organization:
+            return organization["orgID"]
+        else:
+            raise ValueError("Could not retrieve organization ID from the API")
+
+
+def __get_access_token() -> str:
+    """
+    Get the access token for the current session.
+
+    Returns:
+        str: The access token
+    """
+    settings = get_settings()
+
+    access_token: str
+    if settings.is_remote:
+        request = get_http_request()
+        access_token = request.headers.get("Authorization", "").replace("Bearer ", "")
+    else:
+        access_token = settings.api_key
+
+    if not access_token:
+        raise HTTPException(401, "Unauthorized: No access token provided")
+
+    return access_token

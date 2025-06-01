@@ -1,44 +1,58 @@
-# config.py
+from typing import List
+import requests
 
 from abc import ABC
+from contextvars import ContextVar
 from enum import Enum
 from pydantic import AnyHttpUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import Optional
-
-import requests
 
 
 class Transport(str, Enum):
     STDIO = "stdio"
     SSE = "sse"
-    HTTP = "http"
+    HTTP = "streamable-http"
 
 
 class Settings(ABC, BaseSettings):
     host: str = "localhost"
-    port: int
-    org_id: str
-    s2_api_base_url: str
-    graphql_public_endpoint: str
+    port: int = 8000
+    s2_api_base_url: str = "https://api.singlestore.com"
+    graphql_public_endpoint: str = "https://backend.singlestore.com/public"
+    transport: Transport = Transport.STDIO
+
+
+class LocalSettings(Settings):
+    api_key: str
     transport: Transport = Transport.STDIO
     is_remote: bool = False
 
-    issuer_url: str
-    required_scopes: str
+    model_config = SettingsConfigDict(env_prefix="MCP_", env_file=".env.local")
 
-    model_config = SettingsConfigDict(env_prefix="MCP_", env_file=".env")
+
+class RemoteSettings(Settings):
+    host: str
+
+    org_id: str
+
+    is_remote: bool = True
+
+    issuer_url: str
+    required_scopes: List[str]
 
     server_url: AnyHttpUrl | None = None
 
     client_id: str
     callback_path: AnyHttpUrl | None = None
+
     # SingleStore OAuth URLs
     singlestore_auth_url: str | None = None
     singlestore_token_url: str | None = None
 
     # Stores temporarily generated code verifier for PKCE. Will be deleted after use.
     singlestore_code_verifier: str = ""
+
+    model_config = SettingsConfigDict(env_prefix="MCP_", env_file=".env.remote")
 
     def __init__(self, **data):
         """Initialize settings with values from environment variables."""
@@ -69,29 +83,25 @@ class Settings(ABC, BaseSettings):
         return authorization_endpoint, token_endpoint
 
 
-class LocalSettings(Settings):
-    graphql_public_endpoint: Optional[str] = None
-    s2_api_base_url: Optional[str] = None
-    transport: Transport = Transport.STDIO
-    is_remote: bool = False
+_settings_ctx: ContextVar[Settings] = ContextVar("settings", default=None)
 
 
-class RemoteSettings(Settings):
-    host: str
-    mode: Transport
-    is_remote: bool = True
+def init_settings(transport: Transport, api_key: str | None = None) -> None:
+    match transport:
+        case Transport.HTTP:
+            _settings_ctx.set(RemoteSettings(transport=Transport.HTTP))
+        case Transport.SSE:
+            _settings_ctx.set(RemoteSettings(transport=Transport.SSE))
+        case Transport.STDIO:
+            if not api_key:
+                raise ValueError("API key must be provided for stdio transport")
+            _settings_ctx.set(LocalSettings(api_key=api_key))
+        case _:
+            raise ValueError(f"Unsupported transport mode: {transport}")
 
 
-settings = None
-
-
-def init_settings(transport: Transport = Transport.STDIO):
-    global settings
-    if transport == Transport.HTTP:
-        settings = RemoteSettings(mode=Transport.HTTP)
-    elif transport == Transport.SSE:
-        settings = RemoteSettings(mode=Transport.SSE)
-    elif transport == Transport.STDIO:
-        settings = LocalSettings()
-    else:
-        raise ValueError(f"Unsupported transport mode: {transport}")
+def get_settings() -> Settings:
+    settings = _settings_ctx.get()
+    if settings is None:
+        raise RuntimeError("Settings have not been initialized.")
+    return settings
