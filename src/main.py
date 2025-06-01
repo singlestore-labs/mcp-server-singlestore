@@ -88,5 +88,12 @@ def init(api_key: str, client: str):
     sys.exit(init_command(api_key, client))
 
 
-if __name__ == "__main__":
+def main():
+    """
+    Main entry point for the MCP server CLI.
+    """
     cli()
+
+
+if __name__ == "__main__":
+    main()

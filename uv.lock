@@ -1009,6 +1009,7 @@ dev = [
     { name = "pyright" },
     { name = "pytest" },
     { name = "ruff" },
+    { name = "singlestore-mcp-server" },
 ]
 
 [package.metadata]
@@ -1029,6 +1030,7 @@ dev = [
     { name = "pyright", specifier = ">=1.1.391" },
     { name = "pytest", specifier = ">=8.3.4" },
     { name = "ruff", specifier = ">=0.8.5" },
+    { name = "singlestore-mcp-server", editable = "." },
 ]
 
 [[package]]

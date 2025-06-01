@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.scripts]
-singlestore-mcp-server = "src.mcp_server.server:main"
+singlestore-mcp-server = "src.main:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -34,5 +34,13 @@ packages = ["src"]
 ignore="E501"
 
 [tool.uv]
-dev-dependencies = ["pyright>=1.1.391", "pytest>=8.3.4", "ruff>=0.8.5"]
+dev-dependencies = [
+    "pyright>=1.1.391",
+ "pytest>=8.3.4",
+ "ruff>=0.8.5",
+ "singlestore-mcp-server",
+]
+
+[tool.uv.sources]
+singlestore-mcp-server = { workspace = true }
 
