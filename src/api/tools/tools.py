@@ -1,58 +1,26 @@
 from enum import Enum
+import json
 import os
 import re
-from typing import List, Optional, Dict, Any
-import json
+import singlestoredb as s2
 import nbformat as nbf
 import nbformat.v4 as nbfv4
 
-from src.utils.common import (
+from typing import Any, Dict, List, Optional
+from fastmcp import Context
+from src.api.common import (
     __build_request,
-    __get_project_id,
+    __get_org_id,
     __get_user_id,
     __get_workspace_endpoint,
-    __query_graphql_organizations,
 )
-from src.config import app_config, AuthMethod
-from src.utils.types import Tool
-import singlestoredb as s2
+from src.api.tools.types import Tool
+from src.config.config import get_settings
+
 
 SAMPLE_NOTEBOOK_PATH = os.path.join(
-    app_config.settings.root_dir, "assets/sample_notebook.ipynb"
+    os.path.dirname(os.path.abspath(__file__)), "sample_notebook.ipynb"
 )
-
-
-def __set_selected_organization(org_identifier):
-    """
-    Set the selected organization by name or ID.
-
-    Args:
-        org_identifier: Organization name or ID
-
-    Returns:
-        Dictionary with the selected organization ID and name
-    """
-    if app_config.settings.singlestore_org_id:
-        app_config.set_organization(
-            app_config.settings.singlestore_org_id,
-            app_config.settings.singlestore_org_name,
-        )
-        return {
-            "orgID": app_config.organization_id,
-            "name": app_config.organization_name,
-        }
-    # Fallback to manual selection if env var is not set
-    organizations = __query_graphql_organizations()
-    if not organizations:
-        raise ValueError("No organizations found. Please check your account access.")
-    for org in organizations:
-        if org["orgID"] == org_identifier or org["name"] == org_identifier:
-            app_config.set_organization(org["orgID"], org["name"])
-            return {
-                "orgID": app_config.organization_id,
-                "name": app_config.organization_name,
-            }
-    raise ValueError(f"Organization not found: {org_identifier}")
 
 
 def __execute_sql(
@@ -272,9 +240,7 @@ class Mode(Enum):
 
 
 def __create_scheduled_job(
-    notebook_path: str,
-    mode: str,
-    create_snapshot: bool,
+    notebook_path: str, mode: str, create_snapshot: bool, access_token: str = None
 ):
     """
     Create a new scheduled job for running a notebook periodically.
@@ -294,10 +260,12 @@ def __create_scheduled_job(
 
     mode_enum = Mode.from_str(mode)
 
+    settings = get_settings()
+
     try:
         jobs_manager = s2.manage_workspaces(
-            access_token=app_config.get_auth_token(),
-            base_url=app_config.settings.singlestore_api_base_url,
+            access_token=access_token,
+            base_url=settings.s2_api_base_url,
         ).organizations.current.jobs
         job = jobs_manager.schedule(
             notebook_path=notebook_path,
@@ -316,6 +284,7 @@ def execute_sql(
     sql_query: str,
     username: str = None,
     password: str = None,
+    access_token: str = None,
 ) -> Dict[str, Any]:
     """
     Execute SQL operations on a database attached to workspace within a workspace group and receive formatted results.
@@ -343,15 +312,15 @@ def execute_sql(
         Dictionary with query results and metadata
     """
 
-    auth_method = app_config.get_auth_method()
+    settings = get_settings()
 
     empty_credentials = not username or not password
-    if auth_method == AuthMethod.JWT_TOKEN:
+    if settings.is_remote:
         # If using JWT token, we can use the token to authenticate
         # The username is the user id that we can get from the management API
         username: str = __get_user_id()
-        password: str = app_config.get_auth_token()
-    elif auth_method == AuthMethod.API_KEY and empty_credentials:
+        password: str = access_token
+    elif empty_credentials:
         # If using API key, we need to request to the user to provide the username and password
         return {
             "status": "error",
@@ -422,6 +391,7 @@ def execute_sql_on_virtual_workspace(
     sql_query: str,
     username: str = None,
     password: str = None,
+    access_token: str = None,
 ) -> Dict[str, Any]:
     """
     Execute SQL operations on a virtual (starter) workspace and receive formatted results.
@@ -446,15 +416,15 @@ def execute_sql_on_virtual_workspace(
         Dictionary with query results and metadata
     """
 
-    auth_method = app_config.get_auth_method()
+    settings = get_settings()
 
     empty_credentials = not username or not password
-    if auth_method == AuthMethod.JWT_TOKEN:
+    if settings.is_remote:
         # If using JWT token, we can use the token to authenticate
         # The username is the user id that we can get from the management API
         username: str = __get_user_id()
-        password: str = app_config.get_auth_token()
-    elif auth_method == AuthMethod.API_KEY and empty_credentials:
+        password: str = access_token
+    elif empty_credentials:
         # If using API key, we need to request to the user to provide the username and password
         return {
             "status": "error",
@@ -479,7 +449,9 @@ def execute_sql_on_virtual_workspace(
     )
 
 
-def __create_file_in_shared_space(path: str, content: Optional[Dict[str, Any]] = None):
+def __create_file_in_shared_space(
+    path: str, content: Optional[Dict[str, Any]] = None, access_token: str = None
+) -> Dict[str, Any]:
     """
     Create a new file (such as a notebook) in the user's shared space.
 
@@ -489,10 +461,14 @@ def __create_file_in_shared_space(path: str, content: Optional[Dict[str, Any]] =
                  Each object must have 'type' (markdown or code) and 'content' fields.
                  If None, a sample notebook will be created for .ipynb files.
     """
+    settings = get_settings()
+
+    org_id = __get_org_id()
+
     file_manager = s2.manage_files(
-        access_token=app_config.get_auth_token(),
-        base_url=app_config.settings.singlestore_api_base_url,
-        organization_id=app_config.organization_id,
+        access_token=access_token,
+        base_url=settings.s2_api_base_url,
+        organization_id=org_id,
     )
 
     # Check if it's a notebook
@@ -545,7 +521,7 @@ def __create_file_in_shared_space(path: str, content: Optional[Dict[str, Any]] =
     }
 
 
-def check_if_file_exists(file_name: str) -> bool:
+def check_if_file_exists(file_name: str, access_token: str = None) -> Dict[str, Any]:
     """
     Check if a file (notebook) exists in the user's shared space.
 
@@ -560,10 +536,14 @@ def check_if_file_exists(file_name: str) -> bool:
         }
     """
 
+    org_id = __get_org_id()
+
+    settings = get_settings()
+
     file_manager = s2.manage_files(
-        access_token=app_config.get_auth_token(),
-        base_url=app_config.settings.singlestore_api_base_url,
-        organization_id=app_config.organization_id,
+        access_token=access_token,
+        base_url=settings.s2_api_base_url,
+        organization_id=org_id,
     )
 
     exists = file_manager.shared_space.exists(file_name)
@@ -662,131 +642,6 @@ def create_scheduled_job(
     return __create_scheduled_job(notebook_path, mode, create_snapshot)
 
 
-def set_organization(orgID: str) -> Dict[str, Any]:
-    """
-    Select which SingleStore organization to use for all subsequent API calls.
-
-    This tool must be called after logging in and before making other API requests.
-    Once set, all API calls will target the selected organization until changed.
-
-    Args:
-        orgID: Name or ID of the organization to select
-
-    Returns:
-        Dictionary with the selected organization ID and name
-
-    Usage:
-    - Call get_organizations first to see available options
-    - Then call this tool with either the organization's name or ID
-    - All subsequent API calls will use the selected organization
-    """
-    return __set_selected_organization(orgID)
-
-
-def login() -> Dict[str, Any]:
-    """
-    Only call this tool if you got a 401 error from the API.
-
-    Authenticate with SingleStore and obtain the necessary token for API access.
-
-    This should be the first tool called before using any other SingleStore API tools.
-    You can provide an API key directly, or if left empty, the tool will attempt to:
-    1. Use any existing API key from the environment
-    2. Use any saved credentials
-    3. Launch browser-based authentication if needed
-
-    Args:
-        api_key: Optional SingleStore API key. If provided, it will be used instead of
-                launching the browser authentication flow.
-
-    Returns:
-        Dictionary with authentication status and instructions for next steps
-
-    After successful authentication, you can call get_organizations to list available organizations.
-    """
-
-    # Otherwise, use the authentication flow from auth.py
-    from ...auth import get_authentication_token
-
-    auth_token = get_authentication_token()
-
-    if auth_token:
-        app_config.set_auth_token(auth_token, AuthMethod.JWT_TOKEN)
-        return {
-            "status": "success",
-            "message": (
-                "Successfully authenticated. Please call get_organizations next to list available organizations."
-            ),
-        }
-    else:
-        return {
-            "status": "failed",
-            "message": (
-                "Authentication failed. Please try again with a valid API key."
-            ),
-        }
-
-
-def refresh_auth_token() -> Dict[str, Any]:
-    """
-    Refresh the current authentication token with SingleStore.
-
-    Use this tool when:
-    1. Your current token has expired
-    2. You encounter authentication errors with other API calls
-    3. You want to ensure you have a fresh token for an extended session
-
-    This tool will attempt to refresh the existing token using the refresh token
-    stored during the initial authentication. If no valid refresh token exists,
-    you'll need to call the login tool again.
-
-    Returns:
-        Dictionary with refresh status and instructions
-
-    Note: After a successful refresh, you can continue using all other API tools
-    with the new token. No need to select an organization again.
-    """
-
-    from ...auth import refresh_token, TokenSet, load_credentials
-
-    # Check if we have credentials stored
-    credentials = load_credentials()
-
-    if not credentials or "token_set" not in credentials:
-        return {
-            "status": "failed",
-            "message": (
-                "No existing credentials found. Please use the login tool first."
-            ),
-        }
-
-    # Create a token set from the stored credentials
-    token_set = TokenSet(credentials["token_set"])
-
-    # Try to refresh the token
-    refreshed_token_set = refresh_token(token_set)
-
-    if refreshed_token_set and refreshed_token_set.access_token:
-        # Update the global token
-        app_config.set_auth_token(
-            refreshed_token_set.access_token, AuthMethod.JWT_TOKEN
-        )
-
-        return {
-            "status": "success",
-            "message": (
-                "Authentication token successfully refreshed. You can continue using SingleStore tools."
-            ),
-        }
-    else:
-        return {
-            "status": "failed",
-            "message": (
-                "Failed to refresh the token. Please use the login tool again to authenticate."
-            ),
-        }
-
-
 def __get_notebook_path_by_name(notebook_name: str, location: str = "personal") -> str:
     """
     Find a notebook by its name and return its full path.
@@ -861,38 +716,14 @@ def __get_notebook_path_by_name(notebook_name: str, location: str = "personal") 
 
         # Format for personal space: {projectID}/_internal-s2-personal/{userID}/{path}
         return f"_internal-s2-personal/{user_id}/{notebook_path}"
-    elif location.lower() == "shared":
+    """ elif location.lower() == "shared":
         project_id = __get_project_id()
 
         # Format for shared space: {projectID}/{path}
-        return f"{project_id}/{notebook_path}"
+        return f"{project_id}/{notebook_path}" """
 
     # If we couldn't get the IDs or format correctly, return the raw path
     return notebook_path
-
-
-def get_organizations() -> List[Dict[str, Any]]:
-    """
-    List all available SingleStore organizations your account has access to.
-
-    After logging in, this tool must be called first to identify which organization
-    your queries should run against. Returns a list of organizations with:
-
-    - orgID: Unique identifier for the organization
-    - name: Display name of the organization
-
-    Use this tool when:
-    1. Starting a new session to see available organizations
-    2. To verify permissions across multiple organizations
-    3. Before switching context to a different organization
-
-    After viewing the list, list the organization list presenting the name and ID
-    to the user and ask them to select one.
-    - If only one organization is available, select it automatically
-    - If multiple organizations are available, prompt the user to select one by name or ID
-    - If no organizations are available, raise an error
-    """
-    return __query_graphql_organizations()
 
 
 def workspace_groups_info() -> List[Dict[str, Any]]:
@@ -1177,23 +1008,7 @@ def get_notebook_path(notebook_name: str, location: str = "personal") -> str:
     return __get_notebook_path_by_name(notebook_name, location)
 
 
-def get_project_id() -> str:
-    """
-    Retrieve the organization's unique identifier (project ID).
-
-    Returns:
-        str: The organization's unique identifier
-
-    Required for:
-    - Constructing paths or references to shared resources
-
-    Performance Tip:
-    Cache the returned ID when making multiple API calls.
-    """
-    return __get_project_id()
-
-
-def get_user_id() -> str:
+def get_user_id(ctx: Context) -> str:
     """
     Retrieve the current user's unique identifier.
 
@@ -1209,152 +1024,23 @@ def get_user_id() -> str:
     return __get_user_id()
 
 
-def filter_tools(
-    tools_list: List[Dict[str, Any]],
-) -> List[Dict[str, Any]]:
-    """
-    Filter out the login and refresh_token tools from the public API.
-
-    These tools will still be available internally but will be hidden from
-    the user as they'll be handled automatically by the auth middleware.
-
-    Args:
-        tools_list: List of Tool objects
-
-    Returns:
-        List of Tool objects with login and refresh_token removed
-    """
-    excluded_tools = ["login", "refresh_auth_token"]
-
-    return [tool for tool in tools_list if tool["name"] not in excluded_tools]
-
-
-# Create a list of tool definitions to maintain compatibility with existing code
-# This will allow us to iterate through tools in server.py
-tools_definitions = [
-    {
-        "name": "login",
-        "description": login.__doc__,
-        "func": login,
-    },
-    {
-        "name": "refresh_auth_token",
-        "description": refresh_auth_token.__doc__,
-        "func": refresh_auth_token,
-    },
-    {
-        "name": "set_organization",
-        "description": set_organization.__doc__,
-        "func": set_organization,
-    },
-    {
-        "name": "execute_sql",
-        "description": execute_sql.__doc__,
-        "func": execute_sql,
-    },
-    {
-        "name": "create_virtual_workspace",
-        "description": create_virtual_workspace.__doc__,
-        "func": create_virtual_workspace,
-    },
-    {
-        "name": "execute_sql_on_virtual_workspace",
-        "description": execute_sql_on_virtual_workspace.__doc__,
-        "func": execute_sql_on_virtual_workspace,
-    },
-    {
-        "name": "create_notebook",
-        "description": create_notebook.__doc__,
-        "func": create_notebook,
-    },
-    {
-        "name": "create_scheduled_job",
-        "description": create_scheduled_job.__doc__,
-        "func": create_scheduled_job,
-    },
-    {
-        "name": "get_organizations",
-        "description": get_organizations.__doc__,
-        "func": get_organizations,
-    },
-    {
-        "name": "workspace_groups_info",
-        "description": workspace_groups_info.__doc__,
-        "func": workspace_groups_info,
-    },
-    {
-        "name": "workspaces_info",
-        "description": workspaces_info.__doc__,
-        "func": workspaces_info,
-    },
-    {
-        "name": "organization_info",
-        "description": organization_info.__doc__,
-        "func": organization_info,
-    },
-    {
-        "name": "list_of_regions",
-        "description": list_of_regions.__doc__,
-        "func": list_of_regions,
-    },
-    {
-        "name": "list_virtual_workspaces",
-        "description": list_virtual_workspaces.__doc__,
-        "func": list_virtual_workspaces,
-    },
-    {
-        "name": "organization_billing_usage",
-        "description": organization_billing_usage.__doc__,
-        "func": organization_billing_usage,
-    },
-    {
-        "name": "list_notebook_samples",
-        "description": list_notebook_samples.__doc__,
-        "func": list_notebook_samples,
-    },
-    {
-        "name": "list_shared_files",
-        "description": list_shared_files.__doc__,
-        "func": list_shared_files,
-    },
-    {
-        "name": "get_job_details",
-        "description": get_job_details.__doc__,
-        "func": get_job_details,
-    },
-    {
-        "name": "list_job_executions",
-        "description": list_job_executions.__doc__,
-        "func": list_job_executions,
-    },
-    {
-        "name": "get_notebook_path",
-        "description": get_notebook_path.__doc__,
-        "func": get_notebook_path,
-    },
-    {
-        "name": "get_project_id",
-        "description": get_project_id.__doc__,
-        "func": get_project_id,
-    },
-    {
-        "name": "get_user_id",
-        "description": get_user_id.__doc__,
-        "func": get_user_id,
-    },
-    {
-        "name": "check_if_file_exists",
-        "description": check_if_file_exists.__doc__,
-        "func": check_if_file_exists,
-    },
+tools_definition = [
+    {"func": get_user_id, "deprecated": True},
+    {"func": workspace_groups_info},
+    {"func": workspaces_info},
+    {"func": organization_info},
+    {"func": list_of_regions},
+    {"func": list_virtual_workspaces},
+    {"func": organization_billing_usage},
+    {"func": list_notebook_samples},
+    {"func": list_shared_files},
+    {"func": create_notebook},
+    {"func": check_if_file_exists},
+    {"func": create_scheduled_job},
+    {"func": get_job_details},
+    {"func": list_job_executions},
+    {"func": get_notebook_path},
 ]
 
 # Export the tools
-tools = [
-    Tool(
-        name=tool["name"],
-        description=tool["description"],
-        func=tool["func"],
-    )
-    for tool in filter_tools(tools_definitions)
-]
+tools = [Tool(**tool) for tool in tools_definition]
