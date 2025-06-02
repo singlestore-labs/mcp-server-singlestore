@@ -1,18 +1,15 @@
-from src.api.resources.register import register_resources
-import src.config.config as config
-
 from fastmcp import FastMCP
 from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions
 
 from src.auth.callback import make_auth_callback_handler
 from src.api.tools import register_tools
 from src.auth.provider import SingleStoreOAuthProvider
+from src.api.resources.register import register_resources
+import src.config.config as config
 
 
 def start_command(transport, api_key):
-    config.init_settings(transport=transport, api_key=api_key)
-
-    settings = config.get_settings()
+    settings = config.init_settings(transport=transport, api_key=api_key)
 
     mcp_args = {
         "name": "SingleStore MCP Server",
@@ -22,7 +19,11 @@ def start_command(transport, api_key):
         mcp_args["auth"] = AuthSettings(
             issuer_url=settings.server_url,
             required_scopes=settings.required_scopes,
-            client_registration_options=ClientRegistrationOptions(enabled=True),
+            client_registration_options=ClientRegistrationOptions(
+                enabled=True,
+                valid_scopes=settings.required_scopes,
+                default_scopes=settings.required_scopes,
+            ),
         )
 
         provider = SingleStoreOAuthProvider(settings=settings)

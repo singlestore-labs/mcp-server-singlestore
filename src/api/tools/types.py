@@ -4,7 +4,6 @@ from typing import Callable
 from src.api.types import MCPConcept
 
 
-@dataclass(kw_only=True)
+@dataclass()
 class Tool(MCPConcept):
-    deprecated: bool
-    func: Callable
+    func: Callable = None

@@ -4,10 +4,7 @@ from typing import Callable
 from src.api.types import MCPConcept
 
 
-@dataclass(kw_only=True)
+@dataclass()
 class Resource(MCPConcept):
-    deprecated: bool
-    name: str
-    description: str
-    func: Callable
-    uri: str
+    func: Callable = None
+    uri: str = None
