@@ -9,7 +9,7 @@ import nbformat.v4 as nbfv4
 from typing import Any, Dict, List, Optional
 from fastmcp import Context
 from src.api.common import (
-    __build_request,
+    build_request,
     __get_org_id,
     __get_user_id,
     __get_workspace_endpoint,
@@ -83,9 +83,7 @@ def __get_virtual_workspace(virtual_workspace_id: str):
     """
     Get information about a specific virtual workspace.
     """
-    return __build_request(
-        "GET", f"sharedtier/virtualWorkspaces/{virtual_workspace_id}"
-    )
+    return build_request("GET", f"sharedtier/virtualWorkspaces/{virtual_workspace_id}")
 
 
 def __create_virtual_workspace(name: str, database_name: str, workspace_group=None):
@@ -119,7 +117,7 @@ def __create_virtual_workspace(name: str, database_name: str, workspace_group=No
         "workspaceGroup": workspace_group,
     }
 
-    return __build_request("POST", "sharedtier/virtualWorkspaces", data=payload)
+    return build_request("POST", "sharedtier/virtualWorkspaces", data=payload)
 
 
 def __create_virtual_workspace_user(
@@ -129,7 +127,7 @@ def __create_virtual_workspace_user(
     Create a new user for a virtual workspace.
     """
     payload = {"userName": username, "password": password}
-    return __build_request(
+    return build_request(
         "POST",
         f"sharedtier/virtualWorkspaces/{virtual_workspace_id}/users",
         data=payload,
@@ -664,9 +662,9 @@ def __get_notebook_path_by_name(notebook_name: str, location: str = "personal") 
 
     # Get all files from the specified location
     if location.lower() == "personal":
-        files_response = __build_request("GET", "files/fs/personal")
+        files_response = build_request("GET", "files/fs/personal")
     elif location.lower() == "shared":
-        files_response = __build_request("GET", "files/fs/shared")
+        files_response = build_request("GET", "files/fs/shared")
     else:
         raise ValueError(
             f"Invalid location: {location}. Must be 'personal' or 'shared'"
@@ -759,7 +757,7 @@ def workspace_groups_info() -> List[Dict[str, Any]]:
             "regionID": group["regionID"],
             "updateWindow": group["updateWindow"],
         }
-        for group in __build_request("GET", "workspaceGroups")
+        for group in build_request("GET", "workspaceGroups")
     ]
 
 
@@ -796,7 +794,7 @@ def workspaces_info(workspace_group_id: str) -> List[Dict[str, Any]]:
             "workspaceGroupID": workspace["workspaceGroupID"],
             "workspaceID": workspace["workspaceID"],
         }
-        for workspace in __build_request(
+        for workspace in build_request(
             "GET",
             "workspaces",
             {"workspaceGroupID": workspace_group_id},
@@ -812,7 +810,7 @@ def organization_info() -> Dict[str, Any]:
     - orgID: Unique identifier for the organization
     - name: Organization display name
     """
-    return __build_request("GET", "organizations/current")
+    return build_request("GET", "organizations/current")
 
 
 def list_of_regions() -> List[Dict[str, Any]]:
@@ -832,7 +830,7 @@ def list_of_regions() -> List[Dict[str, Any]]:
        - Available cloud providers
     2. Plan multi-region deployments
     """
-    return __build_request("GET", "regions")
+    return build_request("GET", "regions")
 
 
 def list_virtual_workspaces() -> List[Dict[str, Any]]:
@@ -853,7 +851,7 @@ def list_virtual_workspaces() -> List[Dict[str, Any]]:
     2. Check starter workspace availability and status
     3. Obtain connection details for database access
     """
-    return __build_request("GET", "sharedtier/virtualWorkspaces")
+    return build_request("GET", "sharedtier/virtualWorkspaces")
 
 
 def organization_billing_usage(
@@ -875,7 +873,7 @@ def organization_billing_usage(
     Returns:
         Usage metrics and billing information
     """
-    return __build_request(
+    return build_request(
         "GET",
         "billing/usage",
         {
@@ -907,7 +905,7 @@ def list_notebook_samples() -> List[Dict[str, Any]]:
     5. Performance monitoring
     6. Best practices demonstrations
     """
-    return __build_request("GET", "spaces/notebooks")
+    return build_request("GET", "spaces/notebooks")
 
 
 def list_shared_files() -> Dict[str, Any]:
@@ -932,7 +930,7 @@ def list_shared_files() -> Dict[str, Any]:
     3. Check file timestamps and sizes
     4. Determine file permissions
     """
-    return __build_request("GET", "files/fs/shared")
+    return build_request("GET", "files/fs/shared")
 
 
 def get_job_details(job_id: str) -> Dict[str, Any]:
@@ -958,7 +956,7 @@ def get_job_details(job_id: str) -> Dict[str, Any]:
     Returns:
         Dictionary with job details
     """
-    return __build_request("GET", f"jobs/{job_id}")
+    return build_request("GET", f"jobs/{job_id}")
 
 
 def list_job_executions(job_id: str, start: int = 1, end: int = 10) -> Dict[str, Any]:
@@ -984,7 +982,7 @@ def list_job_executions(job_id: str, start: int = 1, end: int = 10) -> Dict[str,
     Returns:
         Dictionary with execution records
     """
-    return __build_request(
+    return build_request(
         "GET",
         f"jobs/{job_id}/executions",
         params={"start": start, "end": end},

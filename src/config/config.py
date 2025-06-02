@@ -19,7 +19,8 @@ class Settings(ABC, BaseSettings):
     port: int = 8000
     s2_api_base_url: str = "https://api.singlestore.com"
     graphql_public_endpoint: str = "https://backend.singlestore.com/public"
-    transport: Transport = Transport.STDIO
+    transport: Transport
+    is_remote: bool
 
 
 class LocalSettings(Settings):
@@ -86,21 +87,26 @@ class RemoteSettings(Settings):
 _settings_ctx: ContextVar[Settings] = ContextVar("settings", default=None)
 
 
-def init_settings(transport: Transport, api_key: str | None = None) -> None:
+def init_settings(
+    transport: Transport, api_key: str | None = None
+) -> RemoteSettings | LocalSettings:
     match transport:
         case Transport.HTTP:
-            _settings_ctx.set(RemoteSettings(transport=Transport.HTTP))
+            settings = RemoteSettings(transport=Transport.HTTP)
         case Transport.SSE:
-            _settings_ctx.set(RemoteSettings(transport=Transport.SSE))
+            settings = RemoteSettings(transport=Transport.SSE)
         case Transport.STDIO:
             if not api_key:
                 raise ValueError("API key must be provided for stdio transport")
-            _settings_ctx.set(LocalSettings(api_key=api_key))
+            settings = LocalSettings(api_key=api_key)
         case _:
             raise ValueError(f"Unsupported transport mode: {transport}")
 
+    _settings_ctx.set(settings)
+    return settings
 
-def get_settings() -> Settings:
+
+def get_settings() -> RemoteSettings | LocalSettings:
     settings = _settings_ctx.get()
     if settings is None:
         raise RuntimeError("Settings have not been initialized.")

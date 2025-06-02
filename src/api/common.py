@@ -1,10 +1,19 @@
+from typing import List
 import requests
 import json
 
 from starlette.exceptions import HTTPException
 from fastmcp.server.dependencies import get_http_request
 
+from src.api.types import MCPConcept
 from src.config.config import get_settings
+
+
+def filter_mcp_concepts(mcp_concepts: List[MCPConcept]) -> List[MCPConcept]:
+    """
+    Filter mcp concepts to exclude deprecated ones.
+    """
+    return [mcp_concept for mcp_concept in mcp_concepts if not mcp_concept.deprecated]
 
 
 def __query_graphql_organizations():
@@ -70,7 +79,7 @@ def __query_graphql_organizations():
         raise ValueError(f"Failed to query organizations: {str(e)}")
 
 
-def __build_request(
+def build_request(
     type: str,
     endpoint: str,
     params: dict = None,
@@ -90,17 +99,15 @@ def __build_request(
     """
     # Ensure an organization is selected before making API requests
 
-    # __set_organzation_id()
-
     settings = get_settings()
 
     def build_request_endpoint(endpoint: str, params: dict = None):
         url = f"{settings.s2_api_base_url}/v1/{endpoint}"
 
-        # Add organization ID as a query parameter
         if params is None:
             params = {}
 
+        # Add organization ID as a query parameter
         if settings.is_remote:
             params["organizationID"] = settings.org_id
 
@@ -131,23 +138,22 @@ def __build_request(
     json_data = json.dumps(data) if data is not None else None
 
     request = None
-    if type == "GET":
-        request = requests.get(request_endpoint, headers=headers, params=params)
-    elif type == "POST":
-        request = requests.post(request_endpoint, headers=headers, data=json_data)
-    elif type == "PUT":
-        request = requests.put(request_endpoint, headers=headers, data=json_data)
-    elif type == "PATCH":
-        request = requests.patch(request_endpoint, headers=headers, data=json_data)
-    elif type == "DELETE":
-        request = requests.delete(request_endpoint, headers=headers)
-    else:
-        raise ValueError(f"Unsupported request type: {type}")
+    match type:
+        case "GET":
+            request = requests.get(request_endpoint, headers=headers, params=params)
+        case "POST":
+            request = requests.post(request_endpoint, headers=headers, data=json_data)
+        case "PUT":
+            request = requests.put(request_endpoint, headers=headers, data=json_data)
+        case "PATCH":
+            request = requests.patch(request_endpoint, headers=headers, data=json_data)
+        case "DELETE":
+            request = requests.delete(request_endpoint, headers=headers)
+        case _:
+            raise ValueError(f"Unsupported request type: {type}")
 
     if request.status_code != 200:
-        raise ValueError(
-            f"Request failed with status code {request.status_code}: {request.text}"
-        )
+        raise HTTPException(request.status_code, request.text)
 
     try:
         return request.json()
@@ -159,7 +165,7 @@ def __find_workspace_group(workspace_group_identifier: str):
     """
     Find a workspace group by its name or ID.
     """
-    workspace_groups = __build_request("GET", "workspaceGroups")
+    workspace_groups = build_request("GET", "workspaceGroups")
     for workspace_group in workspace_groups:
         if (
             workspace_group["workspaceGroupID"] == workspace_group_identifier
@@ -182,7 +188,7 @@ def __find_workspace(workspace_group_identifier: str, workspace_identifier: str)
     Find a workspace by its name or ID within a specific workspace group.
     """
     workspace_group_id = __get_workspace_group_id(workspace_group_identifier)
-    workspaces = __build_request(
+    workspaces = build_request(
         "GET", "workspaces", {"workspaceGroupID": workspace_group_id}
     )
     for workspace in workspaces:
@@ -213,7 +219,7 @@ def __get_user_id() -> str:
     """
 
     # Get all users in the organization
-    users = __build_request("GET", "users")
+    users = build_request("GET", "users")
 
     # Find the current user
     # Since we can't directly get the current user ID, we'll use the first user
@@ -238,7 +244,7 @@ def __get_org_id() -> str:
     if settings.is_remote:
         return settings.org_id
     else:
-        organization = __build_request("GET", "organizations/current")
+        organization = build_request("GET", "organizations/current")
         if "orgID" in organization:
             return organization["orgID"]
         else:

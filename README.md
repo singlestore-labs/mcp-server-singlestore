@@ -12,7 +12,6 @@ With MCP, you can use Claude Desktop, Cursor, or any compatible MCP client to in
 - [uvx](https://docs.astral.sh/uv/guides/tools/) installed on your python environment
 - Claude Desktop, Cursor, or another supported LLM client
 
-
 ## Client Setup
 
 ### 1. Init Command
@@ -20,7 +19,7 @@ With MCP, you can use Claude Desktop, Cursor, or any compatible MCP client to in
 The simplest way to set up the MCP server is to use the initialization command:
 
 ```bash
-uvx singlestore-mcp-server init
+uvx singlestore-mcp-server init --api-key <SINGLESTORE_API_KEY>
 ```
 
 This command will:
@@ -30,16 +29,10 @@ This command will:
 3. Create or update the configuration to include the SingleStore MCP server
 4. Provide instructions for starting the server
 
-You can also explicitly pass a `<SINGLESTORE_API_KEY>`:
-
-```bash
-uvx singlestore-mcp-server init <SINGLESTORE_API_KEY>
-```
-
 To specify a client (e.g., `claude` or `cursor`), use the `--client` flag:
 
 ```bash
-uvx singlestore-mcp-server init <SINGLESTORE_API_KEY> --client=<client>
+uvx singlestore-mcp-server init --api-key <SINGLESTORE_API_KEY> --client=<client>
 ```
 
 ### 2. Installing via Smithery
@@ -56,9 +49,9 @@ Replace `<client>` with `claude` or `cursor` as needed.
 
 #### Claude Desktop and Cursor
 
-1. Add the following configuration to your client configuration file:
+1. Add the following configuration to your client configuration file. Check the client's configuration file here:
 
-- [Claude Desktop](https://modelcontextprotocol.io/quickstart/user):
+- [Claude Desktop](https://modelcontextprotocol.io/quickstart/user)
 - [Cursor](https://docs.cursor.com/context/model-context-protocol#configuration-locations)
 
   ```json
@@ -69,6 +62,7 @@ Replace `<client>` with `claude` or `cursor` as needed.
       "args": [
         "singlestore-mcp-server",
         "start",
+        "--api-key",
         "<SINGLESTORE_API_KEY>"
       ]
      }

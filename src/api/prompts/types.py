@@ -5,6 +5,5 @@ from src.api.types import MCPConcept
 
 
 @dataclass()
-class Resource(MCPConcept):
+class Prompt(MCPConcept):
     func: Callable = None
-    uri: str = None
