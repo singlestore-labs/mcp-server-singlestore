@@ -1,5 +1,6 @@
 from enum import Enum
 import json
+import logging
 import os
 import re
 import singlestoredb as s2
@@ -8,14 +9,20 @@ import nbformat.v4 as nbfv4
 
 from typing import Any, Dict, List, Optional
 from fastmcp import Context
+
 from src.api.common import (
     build_request,
     __get_org_id,
     __get_user_id,
     __get_workspace_endpoint,
+    query_graphql_organizations,
+    get_current_organization,
 )
 from src.api.tools.types import Tool
 from src.config.config import get_settings
+
+# Set up logger for this module
+logger = logging.getLogger(__name__)
 
 
 SAMPLE_NOTEBOOK_PATH = os.path.join(
@@ -1006,6 +1013,168 @@ def get_notebook_path(notebook_name: str, location: str = "personal") -> str:
     return __get_notebook_path_by_name(notebook_name, location)
 
 
+async def get_organizations(ctx: Context) -> str:
+    """
+    List all available SingleStore organizations your account has access to.
+
+    After logging in, this tool must be called first to identify which organization
+    your queries should run against. Returns a list of organizations with:
+
+    - orgID: Unique identifier for the organization
+    - name: Display name of the organization
+
+    Use this tool when:
+    1. Starting a new session to see available organizations
+    2. To verify permissions across multiple organizations
+    3. Before switching context to a different organization
+
+    After viewing the list, the tool will prompt you to select an organization:
+    - If only one organization is available, it will be selected automatically
+    - If multiple organizations are available, you'll be prompted to select one by name or ID
+    - You can change your organization selection anytime using the `set_organization` tool
+    - If no organizations are available, an error will be returned
+    """
+    settings = get_settings()
+
+    logger.debug("get_organizations called")
+    logger.debug(f"Auth method: {settings.auth_method}")
+    logger.debug(f"Is remote: {settings.is_remote}")
+
+    # Only show organization selection for OAuth token authentication
+    if settings.auth_method != "oauth_token":
+        logger.debug("Skipping org selection - not OAuth token auth")
+        return "✅ Organization selection is only required for OAuth token authentication. Your current authentication method doesn't require this step."
+
+    try:
+        logger.debug("Calling query_graphql_organizations...")
+        # Get the list of organizations via GraphQL
+        organizations = query_graphql_organizations()
+        logger.debug(f"Retrieved {len(organizations)} organizations")
+
+        if not organizations:
+            logger.warning("No organizations available")
+            return "❌ No organizations available for your account. Please check your access permissions."
+
+        # Always return the list for user to choose from
+        org_list = "\n".join(
+            [f"- {org['name']} (ID: {org['orgID']})" for org in organizations]
+        )
+
+        logger.info(f"Found {len(organizations)} available organizations")
+
+        return f"""📋 **Available SingleStore Organizations:**
+
+{org_list}
+
+✅ To select an organization, please use the `set_organization` tool with either the organization name or ID.
+
+**Example:**
+- `set_organization("your-org-name")`
+- `set_organization("org-id-12345")`
+
+Once you select an organization, all subsequent API calls will use that organization."""
+
+    except Exception as e:
+        logger.error(f"Error retrieving organizations: {str(e)}")
+        return f"Error retrieving organizations: {e.with_traceback(None)}\n{str(e)}"
+
+
+async def set_organization(orgID: str, ctx: Context) -> str:
+    """
+    Select which SingleStore organization to use for all subsequent API calls.
+
+    This tool must be called after logging in and before making other API requests.
+    Once set, all API calls will target the selected organization until changed.
+
+    Args:
+        orgID: Name or ID of the organization to select (use get_organizations to see available options)
+
+    Returns:
+        Success message with the selected organization details
+
+    Usage:
+    - Call get_organizations first to see available options
+    - Then call this tool with either the organization's name or ID
+    - All subsequent API calls will use the selected organization
+    - You can call this tool anytime to switch to a different organization
+    """
+    settings = get_settings()
+
+    logger.debug(f"set_organization called with orgID: {orgID}")
+    logger.debug(f"Auth method: {settings.auth_method}")
+    logger.debug(f"Is remote: {settings.is_remote}")
+
+    try:
+        # For OAuth token authentication, get the list of available organizations
+        # and validate that the provided orgID is one the user has access to
+        if settings.auth_method == "oauth_token":
+            logger.debug("Getting available organizations for validation...")
+            available_orgs = query_graphql_organizations()
+
+            # Find the organization by ID or name
+            selected_org = None
+            for org in available_orgs:
+                if orgID == org["orgID"] or orgID.lower() == org["name"].lower():
+                    selected_org = org
+                    break
+
+            if not selected_org:
+                available_names = [
+                    f"{org['name']} (ID: {org['orgID']})" for org in available_orgs
+                ]
+                return (
+                    f"Organization '{orgID}' not found. Available organizations:\n"
+                    + "\n".join(available_names)
+                )
+
+            # Update the settings with the organization ID
+            logger.debug(f"Setting org_id to: {selected_org['orgID']}")
+            if hasattr(settings, "org_id"):
+                settings.org_id = selected_org["orgID"]
+            else:
+                # For LocalSettings, we need to add the org_id attribute
+                setattr(settings, "org_id", selected_org["orgID"])
+
+            logger.info(f"Settings updated with org_id: {selected_org['orgID']}")
+            return f"Successfully selected organization: {selected_org['name']} (ID: {selected_org['orgID']})"
+
+        else:
+            # For other authentication methods, try to get current organization
+            logger.debug("Getting current organization...")
+            current_org = get_current_organization()
+
+            if not current_org:
+                logger.error("Unable to get current organization")
+                return "Unable to get current organization information."
+
+            current_org_id = current_org.get("orgID") or current_org.get("id")
+            current_org_name = current_org.get("name")
+
+            logger.debug(f"Current org: {current_org_name} (ID: {current_org_id})")
+
+            # Check if the provided orgID matches the current organization
+            if orgID != current_org_id and orgID.lower() != current_org_name.lower():
+                logger.warning(
+                    f"Org mismatch: provided '{orgID}' vs current '{current_org_id}'"
+                )
+                return f"Organization '{orgID}' does not match your current organization '{current_org_name}' (ID: {current_org_id})"
+
+            logger.debug("Organization match confirmed, updating settings...")
+            # Update the settings with the organization ID
+            if hasattr(settings, "org_id"):
+                settings.org_id = current_org_id
+            else:
+                # For LocalSettings, we need to add the org_id attribute
+                setattr(settings, "org_id", current_org_id)
+
+            logger.info(f"Settings updated with org_id: {current_org_id}")
+            return f"Successfully selected organization: {current_org_name} (ID: {current_org_id})"
+
+    except Exception as e:
+        logger.error(f"Error in set_organization: {str(e)}")
+        return f"Error setting organization: {str(e)}"
+
+
 def get_user_id(ctx: Context) -> str:
     """
     Retrieve the current user's unique identifier.
@@ -1038,6 +1207,8 @@ tools_definition = [
     {"func": get_job_details},
     {"func": list_job_executions},
     {"func": get_notebook_path},
+    {"func": get_organizations},
+    {"func": set_organization},
 ]
 
 # Export the tools

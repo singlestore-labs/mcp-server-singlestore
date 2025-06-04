@@ -14,6 +14,11 @@ class Transport(str, Enum):
     HTTP = "streamable-http"
 
 
+class AuthMethod(str, Enum):
+    API_KEY = "api_key"
+    OAUTH_TOKEN = "oauth_token"
+
+
 class Settings(ABC, BaseSettings):
     host: str = "localhost"
     port: int = 8000
@@ -24,11 +29,20 @@ class Settings(ABC, BaseSettings):
 
 
 class LocalSettings(Settings):
-    api_key: str
+    api_key: str | None = None
+    org_id: str | None = (
+        None  # Added to support organization selection for OAuth token auth
+    )
+    auth_method: AuthMethod = AuthMethod.API_KEY
     transport: Transport = Transport.STDIO
     is_remote: bool = False
 
     model_config = SettingsConfigDict(env_prefix="MCP_", env_file=".env.local")
+
+    def set_oauth_token(self, token: str) -> None:
+        """Set OAuth token as the authentication method"""
+        self.api_key = token
+        self.auth_method = AuthMethod.OAUTH_TOKEN
 
 
 class RemoteSettings(Settings):
@@ -96,8 +110,6 @@ def init_settings(
         case Transport.SSE:
             settings = RemoteSettings(transport=Transport.SSE)
         case Transport.STDIO:
-            if not api_key:
-                raise ValueError("API key must be provided for stdio transport")
             settings = LocalSettings(api_key=api_key)
         case _:
             raise ValueError(f"Unsupported transport mode: {transport}")

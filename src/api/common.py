@@ -1,12 +1,16 @@
 from typing import List
 import requests
 import json
+import logging
 
 from starlette.exceptions import HTTPException
 from fastmcp.server.dependencies import get_http_request
 
 from src.api.types import MCPConcept
 from src.config.config import get_settings
+
+# Set up logger for this module
+logger = logging.getLogger(__name__)
 
 
 def filter_mcp_concepts(mcp_concepts: List[MCPConcept]) -> List[MCPConcept]:
@@ -16,7 +20,7 @@ def filter_mcp_concepts(mcp_concepts: List[MCPConcept]) -> List[MCPConcept]:
     return [mcp_concept for mcp_concept in mcp_concepts if not mcp_concept.deprecated]
 
 
-def __query_graphql_organizations():
+def query_graphql_organizations():
     """
     Query the GraphQL endpoint to get a list of organizations the user has access to.
 
@@ -24,12 +28,15 @@ def __query_graphql_organizations():
         List of organizations with their IDs and names
     """
     settings = get_settings()
-
     graphql_endpoint = settings.graphql_public_endpoint
+
+    logger.debug(f"GraphQL endpoint: {graphql_endpoint}")
+    logger.debug(f"Settings auth method: {settings.auth_method}")
+    logger.debug(f"Settings is_remote: {settings.is_remote}")
 
     # GraphQL query for organizations
     query = """
-    query GetOrganizations {
+    query {
         organizations {
             orgID
             name
@@ -37,46 +44,78 @@ def __query_graphql_organizations():
     }
     """
 
+    # Get access token with logging
+    try:
+        access_token = __get_access_token()
+        # Only log first/last 8 chars for security
+        token_preview = (
+            f"{access_token[:8]}...{access_token[-8:]}"
+            if len(access_token) > 16
+            else "***"
+        )
+        logger.debug(f"Access token (preview): {token_preview}")
+    except Exception as e:
+        logger.error(f"Failed to get access token: {str(e)}")
+        raise
+
     # Headers with authentication
     headers = {
-        "Authorization": f"Bearer {__get_access_token()}",
+        "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json",
+        "Accept": "application/json",
+        "User-Agent": "SingleStore-MCP-Server",
     }
 
     # Payload for the GraphQL request
-    payload = {
-        "operationName": "GetOrganizations",
-        "query": query,
-        "variables": {},
-    }
+    payload = {"query": query.strip()}
+
+    logger.debug(f"Request headers: {dict(headers)}")
+    logger.debug(f"Request payload: {payload}")
 
     try:
+        logger.debug(f"Making POST request to: {graphql_endpoint}")
+
+        # Use the base GraphQL endpoint without query parameters
         response = requests.post(
-            f"{graphql_endpoint}?q=GetOrganizations",
-            headers=headers,
-            json=payload,
+            graphql_endpoint, headers=headers, json=payload, timeout=30
         )
 
+        logger.debug(f"Response status code: {response.status_code}")
+        logger.debug(f"Response headers: {dict(response.headers)}")
+        logger.debug(f"Raw response text: {response.text}")
+
         if response.status_code != 200:
-            raise ValueError(
-                f"GraphQL request failed with status code {response.status_code}: {response.text}"
-            )
+            error_msg = f"GraphQL request failed with status code {response.status_code}: {response.text}"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
 
         data = response.json()
+        logger.debug(f"Parsed response data: {data}")
+
         if "errors" in data:
             errors = data["errors"]
             error_message = "; ".join(
                 [error.get("message", "Unknown error") for error in errors]
             )
+            logger.error(f"GraphQL errors: {errors}")
             raise ValueError(f"GraphQL query error: {error_message}")
 
         if "data" in data and "organizations" in data["data"]:
-            return data["data"]["organizations"]
+            organizations = data["data"]["organizations"]
+            logger.info(f"Found {len(organizations)} organizations")
+            return organizations
         else:
+            logger.warning("No organizations found in response")
             return []
 
+    except requests.exceptions.RequestException as e:
+        error_msg = f"Network error when querying organizations: {str(e)}"
+        logger.error(error_msg)
+        raise ValueError(error_msg)
     except Exception as e:
-        raise ValueError(f"Failed to query organizations: {str(e)}")
+        error_msg = f"Failed to query organizations: {str(e)}"
+        logger.error(error_msg)
+        raise ValueError(error_msg)
 
 
 def build_request(
@@ -109,6 +148,13 @@ def build_request(
 
         # Add organization ID as a query parameter
         if settings.is_remote:
+            params["organizationID"] = settings.org_id
+        elif (
+            hasattr(settings, "org_id")
+            and settings.org_id
+            and settings.auth_method == "oauth_token"
+        ):
+            # For local OAuth token authentication, also add organization ID
             params["organizationID"] = settings.org_id
 
         if params and type == "GET":  # Only add query params for GET requests
@@ -244,6 +290,14 @@ def __get_org_id() -> str:
     if settings.is_remote:
         return settings.org_id
     else:
+        # For local settings with OAuth token authentication, check if org_id is already set
+        if (
+            hasattr(settings, "org_id")
+            and settings.org_id
+            and settings.auth_method == "oauth_token"
+        ):
+            return settings.org_id
+
         organization = build_request("GET", "organizations/current")
         if "orgID" in organization:
             return organization["orgID"]
@@ -260,14 +314,41 @@ def __get_access_token() -> str:
     """
     settings = get_settings()
 
+    logger.debug(f"Getting access token, is_remote: {settings.is_remote}")
+
     access_token: str
     if settings.is_remote:
         request = get_http_request()
         access_token = request.headers.get("Authorization", "").replace("Bearer ", "")
+        logger.debug(
+            f"Remote access token retrieved (length: {len(access_token) if access_token else 0})"
+        )
     else:
         access_token = settings.api_key
+        logger.debug(
+            f"Local access token retrieved (length: {len(access_token) if access_token else 0})"
+        )
 
     if not access_token:
+        logger.warning("No access token available!")
         raise HTTPException(401, "Unauthorized: No access token provided")
 
     return access_token
+
+
+def get_current_organization():
+    """
+    Get the current organization details from the management API.
+
+    Returns:
+        dict: Organization details including orgID and name
+    """
+    try:
+        organization = build_request("GET", "organizations/current")
+        logger.debug(f"Current organization response: {organization}")
+        return organization
+    except Exception as e:
+        logger.error(f"Failed to get current organization: {str(e)}")
+        raise ValueError(
+            f"Could not retrieve current organization from the API: {str(e)}"
+        )
