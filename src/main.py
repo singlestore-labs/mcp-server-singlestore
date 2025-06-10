@@ -14,10 +14,10 @@ def cli():
 @cli.command()
 @click.option(
     "--transport",
-    type=click.Choice(["stdio", "sse", "http"], case_sensitive=True),
+    type=click.Choice(["stdio", "sse", "streamable-http"], case_sensitive=True),
     required=False,
     default="stdio",
-    help="Transport mode: stdio (local) or sse/http (remote)",
+    help="Transport mode: stdio (local) or sse/streamable-http (remote)",
 )
 @click.option(
     "--api-key",
