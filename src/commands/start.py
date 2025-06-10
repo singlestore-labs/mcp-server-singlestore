@@ -11,7 +11,7 @@ import src.config.config as config
 
 # Configure logging to enable debug messages
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[logging.StreamHandler()],
 )

@@ -2,6 +2,8 @@ import base64
 import hashlib
 import secrets
 import time
+import singlestoredb as s2
+import json
 
 from mcp.server.auth.provider import (
     AccessToken,
@@ -25,31 +27,53 @@ class SingleStoreOAuthProvider(OAuthAuthorizationServerProvider):
 
     def __init__(self, settings: RemoteSettings):
         self.settings = settings
-        self.clients: dict[str, OAuthClientInformationFull] = {
-            # Predefined client for SingleStore MCP server
-            # Claude Desktop Client
-            "e651c153-8cfb-43cf-aece-bf82cbe1b34d": OAuthClientInformationFull(
-                client_id="b7dbf19e-d140-4334-bae4-e8cd03614485",
-                client_name="Simple SingleStore MCP Server",
-                redirect_uris=[AnyHttpUrl("http://localhost:18089/oauth/callback")],
-                response_types=["code"],
-                grant_types=["authorization_code", "refresh_token"],
-            )
-        }
-        self.auth_codes: dict[str, AuthorizationCode] = {}
-        self.tokens: dict[str, AccessToken] = {}
+
+        # In-memory state mapping for short-lived state (not persisted)
         self.state_mapping: dict[str, dict[str, str]] = {}
-        # Store SingleStore tokens with MCP tokens using the format:
-        # {"mcp_token": "singlestore_token"}
-        self.token_mapping: dict[str, str] = {}
+
+        # Ensure tables exist from external SQL file
+        self._ensure_tables()
+
+    def _get_conn(self):
+        return s2.connect(self.settings.oauth_db_url)
+
+    def _ensure_tables(self):
+        schema_path = __import__("os").path.join(
+            __import__("os").path.dirname(__file__), "oauth_schema.sql"
+        )
+        with open(schema_path, "r") as f:
+            sql = f.read()
+        stmts = [stmt.strip() for stmt in sql.split(";") if stmt.strip()]
+        with self._get_conn() as conn:
+            cur = conn.cursor()
+            for stmt in stmts:
+                cur.execute(stmt)
+            conn.commit()
 
     async def get_client(self, client_id: str) -> OAuthClientInformationFull | None:
-        """Get OAuth client information."""
-        return self.clients.get(client_id)
+        with self._get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT client_info FROM oauth_clients WHERE client_id=%s", (client_id,)
+            )
+            row = cur.fetchone()
+            if row:
+                val = row[0]
+                if isinstance(val, dict):
+                    return OAuthClientInformationFull.model_validate(val)
+                else:
+                    return OAuthClientInformationFull.parse_raw(val)
+        return None
 
     async def register_client(self, client_info: OAuthClientInformationFull):
-        """Register a new OAuth client."""
-        self.clients[client_info.client_id] = client_info
+
+        with self._get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "REPLACE INTO oauth_clients (client_id, client_info) VALUES (%s, %s)",
+                (client_info.client_id, client_info.json()),
+            )
+            conn.commit()
 
     def _generate_code_verifier(self) -> str:
         """Generate a code verifier for PKCE"""
@@ -106,7 +130,6 @@ class SingleStoreOAuthProvider(OAuthAuthorizationServerProvider):
         return auth_url
 
     async def handle_singlestore_callback(self, code: str, state: str) -> str:
-        """Handle SingleStore OAuth callback."""
         state_data = self.state_mapping.get(state)
         if not state_data:
             raise HTTPException(400, "Invalid state parameter")
@@ -126,10 +149,24 @@ class SingleStoreOAuthProvider(OAuthAuthorizationServerProvider):
             redirect_uri=AnyHttpUrl(redirect_uri),
             redirect_uri_provided_explicitly=redirect_uri_provided_explicitly,
             expires_at=time.time() + 300,
-            scopes=[self.settings.required_scopes[0]],  # Use the first scope
+            scopes=[self.settings.required_scopes[0]],
             code_challenge=code_challenge,
         )
-        self.auth_codes[new_code] = auth_code
+        with self._get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "REPLACE INTO oauth_auth_codes (code, client_id, redirect_uri, redirect_uri_provided_explicitly, expires_at, scopes, code_challenge) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                (
+                    new_code,
+                    client_id,
+                    redirect_uri,
+                    redirect_uri_provided_explicitly,
+                    int(auth_code.expires_at),
+                    json.dumps(auth_code.scopes),
+                    code_challenge,
+                ),
+            )
+            conn.commit()
 
         del self.state_mapping[state]
         return construct_redirect_uri(redirect_uri, code=new_code, state=state)
@@ -137,15 +174,44 @@ class SingleStoreOAuthProvider(OAuthAuthorizationServerProvider):
     async def load_authorization_code(
         self, client: OAuthClientInformationFull, authorization_code: str
     ) -> AuthorizationCode | None:
-        """Load an authorization code."""
-        return self.auth_codes.get(authorization_code)
+        with self._get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT client_id, redirect_uri, redirect_uri_provided_explicitly, expires_at, scopes, code_challenge FROM oauth_auth_codes WHERE code=%s",
+                (authorization_code,),
+            )
+            row = cur.fetchone()
+            if row:
+                import json
+
+                scopes = row[4]
+                if isinstance(scopes, str):
+                    scopes = json.loads(scopes)
+                return AuthorizationCode(
+                    code=authorization_code,
+                    client_id=row[0],
+                    redirect_uri=AnyHttpUrl(row[1]),
+                    redirect_uri_provided_explicitly=row[2],
+                    expires_at=row[3],
+                    scopes=scopes,
+                    code_challenge=row[5],
+                )
+        return None
 
     async def exchange_authorization_code(
         self, client: OAuthClientInformationFull, authorization_code: AuthorizationCode
     ) -> OAuthToken:
-        """Exchange authorization code for tokens."""
-        if authorization_code.code not in self.auth_codes:
-            raise ValueError("Invalid authorization code")
+        import json
+
+        # Check if code exists in DB
+        with self._get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT code FROM oauth_auth_codes WHERE code=%s",
+                (authorization_code.code,),
+            )
+            if not cur.fetchone():
+                raise ValueError("Invalid authorization code")
 
         data = None
         # Get the S2 token from the S2 authentication server
@@ -190,32 +256,40 @@ class SingleStoreOAuthProvider(OAuthAuthorizationServerProvider):
         if token_type != "Bearer":
             raise HTTPException(400, "Unsupported token type received from SingleStore")
 
-        # Store MCP token
-        self.tokens[mcp_token] = AccessToken(
-            token=mcp_token,
-            client_id=client.client_id,
-            scopes=authorization_code.scopes,
-            expires_at=int(time.time()) + expires_in,
-        )
+        # Store MCP token in DB
+        with self._get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "REPLACE INTO oauth_tokens (token, client_id, scopes, expires_at) VALUES (%s, %s, %s, %s)",
+                (
+                    mcp_token,
+                    client.client_id,
+                    json.dumps(authorization_code.scopes),
+                    int(time.time()) + expires_in,
+                ),
+            )
+            conn.commit()
 
-        # Find SingleStore token for this client
-        singlestore_token = next(
-            (
-                token
-                for token, data in self.tokens.items()
-                if data.client_id == client.client_id
-            ),
-            None,
-        )
+        # Store mapping between MCP token and SingleStore token (if needed)
+        # For now, just map MCP token to itself
+        with self._get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "REPLACE INTO oauth_token_mapping (mcp_token, singlestore_token) VALUES (%s, %s)",
+                (mcp_token, mcp_token),
+            )
+            conn.commit()
 
-        # Store mapping between MCP token and SingleStore token
-        if singlestore_token:
-            self.token_mapping[mcp_token] = singlestore_token
+        # Remove used code from DB
+        with self._get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "DELETE FROM oauth_auth_codes WHERE code=%s", (authorization_code.code,)
+            )
+            conn.commit()
 
-        print(self.token_mapping)
-
-        del self.singlestore_code_verifier  # Remove after use
-        del self.auth_codes[authorization_code.code]
+        if hasattr(self, "singlestore_code_verifier"):
+            del self.singlestore_code_verifier
 
         return OAuthToken(
             access_token=mcp_token,
@@ -225,19 +299,31 @@ class SingleStoreOAuthProvider(OAuthAuthorizationServerProvider):
         )
 
     async def load_access_token(self, token: str) -> AccessToken | None:
-        """Load and validate an access token."""
-        access_token = self.tokens.get(token)
-        print(f"Loading access token: {token} -> {access_token}")
+        import json
 
-        if not access_token:
-            return None
-
-        # Check if expired
-        if access_token.expires_at and access_token.expires_at < time.time():
-            del self.tokens[token]
-            return None
-
-        return access_token
+        with self._get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT client_id, scopes, expires_at FROM oauth_tokens WHERE token=%s",
+                (token,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return None
+            client_id, scopes, expires_at = row
+            if expires_at and expires_at < time.time():
+                # Expired, remove
+                cur.execute("DELETE FROM oauth_tokens WHERE token=%s", (token,))
+                conn.commit()
+                return None
+            if isinstance(scopes, str):
+                scopes = json.loads(scopes)
+            return AccessToken(
+                token=token,
+                client_id=client_id,
+                scopes=scopes,
+                expires_at=expires_at,
+            )
 
     async def load_refresh_token(
         self, client: OAuthClientInformationFull, refresh_token: str
@@ -257,6 +343,7 @@ class SingleStoreOAuthProvider(OAuthAuthorizationServerProvider):
     async def revoke_token(
         self, token: str, token_type_hint: str | None = None
     ) -> None:
-        """Revoke a token."""
-        if token in self.tokens:
-            del self.tokens[token]
+        with self._get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute("DELETE FROM oauth_tokens WHERE token=%s", (token,))
+            conn.commit()
