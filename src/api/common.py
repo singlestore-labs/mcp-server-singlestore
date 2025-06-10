@@ -329,8 +329,6 @@ def __get_access_token() -> str:
             f"Local access token retrieved (length: {len(access_token) if access_token else 0})"
         )
 
-    access_token = None
-
     if not access_token:
         logger.warning("No access token available!")
         raise HTTPException(401, "Unauthorized: No access token provided")

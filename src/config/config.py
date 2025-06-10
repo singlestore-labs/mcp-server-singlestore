@@ -64,6 +64,9 @@ class RemoteSettings(Settings):
     singlestore_auth_url: str | None = None
     singlestore_token_url: str | None = None
 
+    # SingleStore DB URL for OAuth provider storage
+    oauth_db_url: str
+
     # Stores temporarily generated code verifier for PKCE. Will be deleted after use.
     singlestore_code_verifier: str = ""
 
