@@ -4,10 +4,9 @@ import json
 import logging
 
 from starlette.exceptions import HTTPException
-from fastmcp.server.dependencies import get_http_request
 
 from src.api.types import MCPConcept
-from src.config.config import get_settings
+from src.config.config import get_session_request, get_settings
 
 # Set up logger for this module
 logger = logging.getLogger(__name__)
@@ -318,7 +317,7 @@ def __get_access_token() -> str:
 
     access_token: str
     if settings.is_remote:
-        request = get_http_request()
+        request = get_session_request()
         access_token = request.headers.get("Authorization", "").replace("Bearer ", "")
         logger.debug(
             f"Remote access token retrieved (length: {len(access_token) if access_token else 0})"

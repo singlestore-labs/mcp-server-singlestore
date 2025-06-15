@@ -1,11 +1,13 @@
-from typing import List
+from typing import List, cast
 import requests
 
 from abc import ABC
 from contextvars import ContextVar
 from enum import Enum
+from mcp.server.fastmcp import FastMCP
 from pydantic import AnyHttpUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from starlette.requests import Request
 
 
 class Transport(str, Enum):
@@ -101,6 +103,7 @@ class RemoteSettings(Settings):
         return authorization_endpoint, token_endpoint
 
 
+# Context variable to store the Settings instance
 _settings_ctx: ContextVar[Settings] = ContextVar("settings", default=None)
 
 
@@ -126,3 +129,24 @@ def get_settings() -> RemoteSettings | LocalSettings:
     if settings is None:
         raise RuntimeError("Settings have not been initialized.")
     return settings
+
+
+# Context variable to store the app instance
+_app_ctx: ContextVar[FastMCP] = ContextVar("app", default=None)
+
+
+def get_app() -> FastMCP:
+    app = _app_ctx.get()
+    if app is None:
+        raise RuntimeError("App has not been initialized.")
+    return app
+
+
+def get_session_request() -> Request:
+    """
+    Retrieve the session request from the app context.
+    Returns:
+        Request: The current session's request object
+    """
+    app = get_app()
+    return cast(Request, app.get_context()._request_context.request)
