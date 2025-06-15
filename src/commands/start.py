@@ -1,4 +1,4 @@
-from fastmcp import FastMCP
+from mcp.server.fastmcp import FastMCP
 from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions
 import logging
 
@@ -55,7 +55,11 @@ def start_command(transport, api_key):
 
         mcp_args["auth_server_provider"] = provider
 
+        mcp_args["host"] = settings.host
+        mcp_args["port"] = settings.port
+
     mcp = FastMCP(**mcp_args)
+    config._app_ctx.set(mcp)
 
     register_tools(mcp)
     register_resources(mcp)
@@ -65,6 +69,5 @@ def start_command(transport, api_key):
         mcp.custom_route("/callback", methods=["GET"])(
             make_auth_callback_handler(provider)
         )
-        mcp.run(transport=transport, host=settings.host, port=settings.port)
-    else:
-        mcp.run(transport=transport)
+
+    mcp.run(transport=transport)
