@@ -8,7 +8,7 @@ import nbformat as nbf
 import nbformat.v4 as nbfv4
 
 from typing import Any, Dict, List, Optional
-from fastmcp import Context
+from mcp.server.fastmcp import Context
 
 from src.api.common import (
     build_request,
