@@ -1,4 +1,5 @@
 from typing import List, cast
+from urllib.parse import urljoin
 import requests
 
 from abc import ABC
@@ -57,7 +58,7 @@ class RemoteSettings(Settings):
     issuer_url: str
     required_scopes: List[str]
 
-    server_url: AnyHttpUrl | None = None
+    server_url: AnyHttpUrl
 
     client_id: str
     callback_path: AnyHttpUrl | None = None
@@ -78,8 +79,7 @@ class RemoteSettings(Settings):
         """Initialize settings with values from environment variables."""
         super().__init__(**data)
 
-        self.server_url = AnyHttpUrl(f"http://{self.host}:{self.port}")
-        self.callback_path = AnyHttpUrl(f"http://{self.host}:{self.port}/callback")
+        self.callback_path = urljoin(self.server_url.unicode_string(), "callback")
 
         self.singlestore_auth_url, self.singlestore_token_url = (
             self.discover_oauth_server()
