@@ -10,6 +10,7 @@ import nbformat.v4 as nbfv4
 from typing import Any, Dict, List, Optional
 from mcp.server.fastmcp import Context
 
+from src.api.tools.s2_manager import S2Manager
 from src.api.common import (
     build_request,
     __get_org_id,
@@ -52,32 +53,26 @@ def __execute_sql(
     if not username or not password:
         raise ValueError("Singlestore Database username and password must be provided")
 
-    connection = s2.connect(
+    s2_manager = S2Manager(
         host=endpoint,
         user=username,
         password=password,
         database=database,
     )
-    cursor = connection.cursor()
-    cursor.execute(sql_query)
-
-    # Get column names
-    columns = [desc[0] for desc in cursor.description] if cursor.description else []
-
-    # Get results
-    rows = cursor.fetchall()
-
-    # Format results as list of dictionaries
+    s2_manager.execute(sql_query)
+    columns = (
+        [desc[0] for desc in s2_manager.cursor.description]
+        if s2_manager.cursor.description
+        else []
+    )
+    rows = s2_manager.fetchall()
     results = []
     for row in rows:
         result_dict = {}
         for i, column in enumerate(columns):
             result_dict[column] = row[i]
         results.append(result_dict)
-
-    cursor.close()
-    connection.close()
-
+    s2_manager.close()
     return {
         "data": results,
         "row_count": len(rows),
@@ -174,36 +169,27 @@ def __execute_sql_on_virtual_workspace(
                 "Could not retrieve connection information for the virtual workspace"
             )
 
-        # Connect to the database using singlestoredb
-        connection = s2.connect(
+        s2_manager = S2Manager(
             host=endpoint,
-            port=port,
             user=username,
             password=password,
             database=database,
+            port=port,
         )
-
-        # Execute the SQL query
-        cursor = connection.cursor()
-        cursor.execute(sql_query)
-
-        # Get column names
-        columns = [desc[0] for desc in cursor.description] if cursor.description else []
-
-        # Get results
-        rows = cursor.fetchall()
-
-        # Format results as list of dictionaries
+        s2_manager.execute(sql_query)
+        columns = (
+            [desc[0] for desc in s2_manager.cursor.description]
+            if s2_manager.cursor.description
+            else []
+        )
+        rows = s2_manager.fetchall()
         results = []
         for row in rows:
             result_dict = {}
             for i, column in enumerate(columns):
                 result_dict[column] = row[i]
             results.append(result_dict)
-
-        cursor.close()
-        connection.close()
-
+        s2_manager.close()
         return {
             "data": results,
             "row_count": len(rows),
