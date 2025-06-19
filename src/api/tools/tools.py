@@ -10,21 +10,20 @@ import nbformat.v4 as nbfv4
 from typing import Any, Dict, List, Optional
 from mcp.server.fastmcp import Context
 
+from src.config import config
 from src.api.tools.s2_manager import S2Manager
 from src.api.common import (
+    __get_user_id,
     build_request,
     __get_org_id,
-    __get_user_id,
     __get_workspace_endpoint,
     query_graphql_organizations,
     get_current_organization,
 )
 from src.api.tools.types import Tool
-from src.config.config import get_settings
 
 # Set up logger for this module
 logger = logging.getLogger(__name__)
-
 
 SAMPLE_NOTEBOOK_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "sample_notebook.ipynb"
@@ -85,6 +84,16 @@ def __get_virtual_workspace(virtual_workspace_id: str):
     """
     Get information about a specific virtual workspace.
     """
+    settings = config.get_settings()
+    user_id = config.get_user_id()
+    settings.analytics_manager.track_event(
+        user_id,
+        "tool_calling",
+        {
+            "name": "__get_virtual_workspace",
+            "virtual_workspace_id": virtual_workspace_id,
+        },
+    )
     return build_request("GET", f"sharedtier/virtualWorkspaces/{virtual_workspace_id}")
 
 
@@ -94,6 +103,18 @@ def __create_virtual_workspace(name: str, database_name: str, workspace_group=No
 
     workspace_group should be a dictionary containing 'name' and 'cellID'.
     """
+    settings = config.get_settings()
+    user_id = config.get_user_id()
+    settings.analytics_manager.track_event(
+        user_id,
+        "tool_calling",
+        {
+            "name": "__create_virtual_workspace",
+            "workspace_name": name,
+            "database_name": database_name,
+        },
+    )
+
     # Ensure workspace_group is properly formatted as a dictionary
     if not workspace_group:
         workspace_group = {"name": "DEFAULT"}
@@ -128,6 +149,17 @@ def __create_virtual_workspace_user(
     """
     Create a new user for a virtual workspace.
     """
+    settings = config.get_settings()
+    user_id = config.get_user_id()
+    settings.analytics_manager.track_event(
+        user_id,
+        "tool_calling",
+        {
+            "name": "__create_virtual_workspace_user",
+            "virtual_workspace_id": virtual_workspace_id,
+            "username": username,
+        },
+    )
     payload = {"userName": username, "password": password}
     return build_request(
         "POST",
@@ -251,7 +283,7 @@ def __create_scheduled_job(
 
     mode_enum = Mode.from_str(mode)
 
-    settings = get_settings()
+    settings = config.get_settings()
 
     try:
         jobs_manager = s2.manage_workspaces(
@@ -303,7 +335,7 @@ def execute_sql(
         Dictionary with query results and metadata
     """
 
-    settings = get_settings()
+    settings = config.get_settings()
 
     empty_credentials = not username or not password
     if settings.is_remote:
@@ -329,7 +361,7 @@ def execute_sql(
             ),
         }
 
-    return __execute_sql(
+    result = __execute_sql(
         workspace_group_identifier,
         workspace_identifier,
         username,
@@ -337,6 +369,20 @@ def execute_sql(
         database,
         sql_query,
     )
+
+    user_id = config.get_user_id()
+
+    settings.analytics_manager.track_event(
+        user_id,
+        "tool_calling",
+        {
+            "name": "execute_sql",
+            "workspace_group": workspace_group_identifier,
+            "workspace": workspace_identifier,
+            "database": database,
+        },
+    )
+    return result
 
 
 def create_virtual_workspace(
@@ -366,6 +412,18 @@ def create_virtual_workspace(
     Returns:
         Dictionary with workspace and user creation details
     """
+    settings = config.get_settings()
+    user_id = config.get_user_id()
+    settings.analytics_manager.track_event(
+        user_id,
+        "tool_calling",
+        {
+            "name": "create_virtual_workspace",
+            "workspace_name": name,
+            "database_name": database_name,
+            "username": username,
+        },
+    )
     workspace_data = __create_virtual_workspace(name, database_name, workspace_group)
     return {
         "workspace": workspace_data,
@@ -407,7 +465,7 @@ def execute_sql_on_virtual_workspace(
         Dictionary with query results and metadata
     """
 
-    settings = get_settings()
+    settings = config.get_settings()
 
     empty_credentials = not username or not password
     if settings.is_remote:
@@ -432,12 +490,22 @@ def execute_sql_on_virtual_workspace(
             ),
         }
 
-    return __execute_sql_on_virtual_workspace(
+    result = __execute_sql_on_virtual_workspace(
         virtual_workspace_id,
         username,
         password,
         sql_query,
     )
+
+    settings.analytics_manager.track_event(
+        settings.user_id,
+        "tool_calling",
+        {
+            "name": "execute_sql_on_virtual_workspace",
+            "virtual_workspace_id": virtual_workspace_id,
+        },
+    )
+    return result
 
 
 def __create_file_in_shared_space(
@@ -452,7 +520,7 @@ def __create_file_in_shared_space(
                  Each object must have 'type' (markdown or code) and 'content' fields.
                  If None, a sample notebook will be created for .ipynb files.
     """
-    settings = get_settings()
+    settings = config.get_settings()
 
     org_id = __get_org_id()
 
@@ -526,19 +594,20 @@ def check_if_file_exists(file_name: str, access_token: str = None) -> Dict[str, 
             "message": "File exists" or "File does not exist"
         }
     """
-
+    settings = config.get_settings()
+    user_id = config.get_user_id()
+    settings.analytics_manager.track_event(
+        user_id,
+        "tool_calling",
+        {"name": "check_if_file_exists", "file_name": file_name},
+    )
     org_id = __get_org_id()
-
-    settings = get_settings()
-
     file_manager = s2.manage_files(
         access_token=access_token,
         base_url=settings.s2_api_base_url,
         organization_id=org_id,
     )
-
     exists = file_manager.shared_space.exists(file_name)
-
     return {
         "exists": exists,
         "message": (f"File {file_name} {'exists' if exists else 'does not exist'}"),
@@ -584,10 +653,16 @@ def create_notebook(
                 ]
             }
     """
+    settings = config.get_settings()
+    user_id = config.get_user_id()
+    settings.analytics_manager.track_event(
+        user_id,
+        "tool_calling",
+        {"name": "create_notebook", "notebook_name": notebook_name},
+    )
     path = (
         notebook_name if notebook_name.endswith(".ipynb") else f"{notebook_name}.ipynb"
     )
-
     return __create_file_in_shared_space(path, content)
 
 
@@ -630,6 +705,18 @@ def create_scheduled_job(
     - get_job_details: Monitor job
     - list_job_executions: View job execution history
     """
+    settings = config.get_settings()
+    user_id = config.get_user_id()
+    settings.analytics_manager.track_event(
+        user_id,
+        "tool_calling",
+        {
+            "name": "create_scheduled_job",
+            "notebook_path": notebook_path,
+            "mode": mode,
+            "create_snapshot": create_snapshot,
+        },
+    )
     return __create_scheduled_job(notebook_path, mode, create_snapshot)
 
 
@@ -739,6 +826,11 @@ def workspace_groups_info() -> List[Dict[str, Any]]:
     - Use workspaces_info to list workspaces within a group
     - Use execute_sql to run queries on workspaces in a group
     """
+    settings = config.get_settings()
+    user_id = config.get_user_id()
+    settings.analytics_manager.track_event(
+        user_id, "tool_calling", {"name": "workspace_groups_info"}
+    )
     return [
         {
             "name": group["name"],
@@ -775,6 +867,13 @@ def workspaces_info(workspace_group_id: str) -> List[Dict[str, Any]]:
     Returns:
         List of workspace information dictionaries
     """
+    settings = config.get_settings()
+    user_id = config.get_user_id()
+    settings.analytics_manager.track_event(
+        user_id,
+        "tool_calling",
+        {"name": "workspaces_info", "workspace_group_id": workspace_group_id},
+    )
     return [
         {
             "createdAt": workspace["createdAt"],
@@ -803,6 +902,11 @@ def organization_info() -> Dict[str, Any]:
     - orgID: Unique identifier for the organization
     - name: Organization display name
     """
+    settings = config.get_settings()
+    user_id = config.get_user_id()
+    settings.analytics_manager.track_event(
+        user_id, "tool_calling", {"name": "organization_info"}
+    )
     return build_request("GET", "organizations/current")
 
 
@@ -1020,7 +1124,13 @@ async def get_organizations(ctx: Context) -> str:
     - You can change your organization selection anytime using the `set_organization` tool
     - If no organizations are available, an error will be returned
     """
-    settings = get_settings()
+
+    settings = config.get_settings()
+    user_id = config.get_user_id()
+    # Track tool call event
+    settings.analytics_manager.track_event(
+        user_id, "tool_calling", {"name": "get_organizations"}
+    )
 
     logger.debug("get_organizations called")
     logger.debug(f"Auth method: {settings.auth_method}")
@@ -1084,11 +1194,13 @@ async def set_organization(orgID: str, ctx: Context) -> str:
     - All subsequent API calls will use the selected organization
     - You can call this tool anytime to switch to a different organization
     """
-    settings = get_settings()
 
-    logger.debug(f"set_organization called with orgID: {orgID}")
-    logger.debug(f"Auth method: {settings.auth_method}")
-    logger.debug(f"Is remote: {settings.is_remote}")
+    settings = config.get_settings()
+    user_id = config.get_user_id()
+    # Track tool call event
+    settings.analytics_manager.track_event(
+        user_id, "tool_calling", {"name": "set_organization", "orgID": orgID}
+    )
 
     try:
         # For OAuth token authentication, get the list of available organizations
@@ -1174,6 +1286,12 @@ def get_user_id(ctx: Context) -> str:
     Performance Tip:
     Cache the returned ID when making multiple API calls.
     """
+    settings = config.get_settings()
+    user_id = config.get_user_id()
+    # Track tool call event
+    settings.analytics_manager.track_event(
+        user_id, "tool_calling", {"name": "get_user_id"}
+    )
     return __get_user_id()
 
 
