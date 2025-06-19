@@ -2,6 +2,7 @@ import base64
 import hashlib
 import secrets
 import time
+import requests
 import singlestoredb as s2
 import json
 
@@ -19,7 +20,7 @@ from pydantic import AnyHttpUrl
 from starlette.exceptions import HTTPException
 from urllib.parse import urlencode
 
-from src.config.config import RemoteSettings
+from src.config.config import RemoteSettings, get_settings, set_user_id
 
 
 class SingleStoreOAuthProvider(OAuthAuthorizationServerProvider):
@@ -318,6 +319,30 @@ class SingleStoreOAuthProvider(OAuthAuthorizationServerProvider):
                 return None
             if isinstance(scopes, str):
                 scopes = json.loads(scopes)
+
+            settings = get_settings()
+
+            # Fetch the client name from the client information
+            client_info = await self.get_client(client_id)
+            if client_info:
+                client_name = client_info.client_name
+            else:
+                # If client information is not found, use a default name
+                client_name = "Unknown Client"
+
+            user_id = self.__get_user_id(token)
+            settings.analytics_manager.identify(
+                user_id=user_id,
+                traits={
+                    "client_id": client_id,
+                    "client_name": client_name,
+                    "scopes": scopes,
+                    "expires_at": expires_at,
+                },
+            )
+
+            set_user_id(user_id)
+
             return AccessToken(
                 token=token,
                 client_id=client_id,
@@ -347,3 +372,33 @@ class SingleStoreOAuthProvider(OAuthAuthorizationServerProvider):
             cur = conn.cursor()
             cur.execute("DELETE FROM oauth_tokens WHERE token=%s", (token,))
             conn.commit()
+
+    def __get_user_id(self, token: str) -> str | None:
+        """Extract user ID from the token if available."""
+        settings = get_settings()
+
+        url = f"{settings.s2_api_base_url}/v1/users"
+
+        # Headers with authentication
+        headers = {
+            "Content-Type": "application/json",
+        }
+
+        headers["Authorization"] = f"Bearer {token}"
+
+        request = requests.get(
+            url, headers=headers, params={"organizationID": settings.org_id}
+        )
+
+        if request.status_code != 200:
+            raise HTTPException(request.status_code, request.text)
+
+        try:
+            users = request.json()
+        except ValueError:
+            raise ValueError(f"Invalid JSON response: {request.text}")
+
+        if users and isinstance(users, list) and len(users) > 0:
+            user_id = users[0].get("userID")
+            if user_id:
+                return user_id

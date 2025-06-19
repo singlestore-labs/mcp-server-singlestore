@@ -9,6 +9,7 @@ from mcp.server.fastmcp import FastMCP
 from pydantic import AnyHttpUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from starlette.requests import Request
+from src.analytics.manager import AnalyticsManager
 
 
 class Transport(str, Enum):
@@ -50,40 +51,35 @@ class LocalSettings(Settings):
 
 class RemoteSettings(Settings):
     host: str
-
     org_id: str
-
     is_remote: bool = True
-
     issuer_url: str
     required_scopes: List[str]
-
     server_url: AnyHttpUrl
-
     client_id: str
     callback_path: AnyHttpUrl | None = None
-
     # SingleStore OAuth URLs
     singlestore_auth_url: str | None = None
     singlestore_token_url: str | None = None
-
     # SingleStore DB URL for OAuth provider storage
     oauth_db_url: str
-
     # Stores temporarily generated code verifier for PKCE. Will be deleted after use.
     singlestore_code_verifier: str = ""
+    # Segment analytics write key
+    segment_write_key: str
+    # Analytics manager instance
+    analytics_manager: AnalyticsManager | None = None
 
     model_config = SettingsConfigDict(env_prefix="MCP_", env_file=".env.remote")
 
     def __init__(self, **data):
         """Initialize settings with values from environment variables."""
         super().__init__(**data)
-
         self.callback_path = urljoin(self.server_url.unicode_string(), "callback")
-
         self.singlestore_auth_url, self.singlestore_token_url = (
             self.discover_oauth_server()
         )
+        self.analytics_manager = AnalyticsManager(self.segment_write_key)
 
     def discover_oauth_server(self) -> tuple[str, str]:
         """Discover OAuth server endpoints"""
@@ -105,6 +101,19 @@ class RemoteSettings(Settings):
 
 # Context variable to store the Settings instance
 _settings_ctx: ContextVar[Settings] = ContextVar("settings", default=None)
+
+# Context variable to store the user_id for the session
+_user_id_ctx: ContextVar[str | None] = ContextVar("user_id", default=None)
+
+
+def set_user_id(user_id: str):
+    """Set the user_id for the current session."""
+    _user_id_ctx.set(user_id)
+
+
+def get_user_id() -> str | None:
+    """Get the user_id for the current session, or None if not set."""
+    return _user_id_ctx.get()
 
 
 def init_settings(
