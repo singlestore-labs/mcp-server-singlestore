@@ -2,14 +2,18 @@ import segment.analytics as segment_analytics
 
 
 class AnalyticsManager:
-    def __init__(self, segment_write_key, debug=False):
-        self.enabled = True
+    def __init__(self, segment_write_key=None, debug=False, enabled=True):
+        self.enabled = enabled
         self.analytics = None
         self.segment_write_key = segment_write_key
         self.debug = debug
         self._init_analytics()
 
     def _init_analytics(self):
+        # Analytics are not enabled for local instances
+        if not self.enabled:
+            print("[AnalyticsManager] Analytics are not available for local instances.")
+            return
         try:
             if self.segment_write_key:
                 segment_analytics.write_key = self.segment_write_key
