@@ -181,7 +181,6 @@ def save_credentials(token_set: TokenSet) -> None:
 
     # Set secure permissions (readable only by user)
     os.chmod(CREDENTIALS_FILE, 0o600)
-    print(f"Credentials saved to {CREDENTIALS_FILE}")
 
 
 def load_credentials() -> Optional[Dict[str, Any]]:

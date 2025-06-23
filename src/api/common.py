@@ -45,7 +45,7 @@ def query_graphql_organizations():
 
     # Get access token with logging
     try:
-        access_token = __get_access_token()
+        access_token = get_access_token()
         # Only log first/last 8 chars for security
         token_preview = (
             f"{access_token[:8]}...{access_token[-8:]}"
@@ -168,7 +168,7 @@ def build_request(
         "Content-Type": "application/json",
     }
 
-    access_token = __get_access_token()
+    access_token = get_access_token()
 
     if access_token is not None:
         headers["Authorization"] = f"Bearer {access_token}"
@@ -304,7 +304,7 @@ def __get_org_id() -> str:
             raise ValueError("Could not retrieve organization ID from the API")
 
 
-def __get_access_token() -> str:
+def get_access_token() -> str:
     """
     Get the access token for the current session.
 

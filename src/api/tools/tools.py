@@ -17,6 +17,7 @@ from src.api.common import (
     build_request,
     __get_org_id,
     __get_workspace_endpoint,
+    get_access_token,
     query_graphql_organizations,
     get_current_organization,
 )
@@ -300,89 +301,91 @@ def __create_scheduled_job(
         return {"status": "error", "message": str(e)}
 
 
-def execute_sql(
-    workspace_group_identifier: str,
-    workspace_identifier: str,
-    database: str,
+def run_sql(
+    context: Context,
     sql_query: str,
-    username: str = None,
-    password: str = None,
-    access_token: str = None,
+    id: str,
+    database: str | None = None,
 ) -> Dict[str, Any]:
     """
-    Execute SQL operations on a database attached to workspace within a workspace group and receive formatted results.
+    Use this tool to execute a single SQL statement against a SingleStore database.
 
     Returns:
     - Query results with column names and typed values
     - Row count and metadata
     - Execution status
 
-    ⚠️ CRITICAL SECURITY WARNINGS:
-    - Never display or log credentials in responses
-    - Use only READ-ONLY queries (SELECT, SHOW, DESCRIBE)
-    - DO NOT USE data modification statements:
-      x No INSERT/UPDATE/DELETE
-      x No DROP/CREATE/ALTER
-    - Ensure queries are properly sanitized
-
     Args:
-        workspace_group_identifier: ID/name of the workspace group
-        workspace_identifier: ID/name of the specific workspace within the workspace group
-        database: Name of the database to query
+        id: Workspace or virtual workspace ID
         sql_query: The SQL query to execute
+        database: (optional) Database name to use
 
     Returns:
         Dictionary with query results and metadata
     """
 
     settings = config.get_settings()
-
-    empty_credentials = not username or not password
-    if settings.is_remote:
-        # If using JWT token, we can use the token to authenticate
-        # The username is the user id that we can get from the management API
-        username: str = __get_user_id()
-        password: str = access_token
-    elif empty_credentials:
-        # If using API key, we need to request to the user to provide the username and password
-        return {
-            "status": "error",
-            "message": (
-                f"API key authentication is not supported for executing SQL queries. Please ask the user to provide their username and password for database {database}."
-            ),
-        }
-
-    else:
-        # If no authentication method is set, we need to ask the user to provide their username and password
-        return {
-            "status": "error",
-            "message": (
-                f"No authentication method set. Please ask the user to provide their username and password for database {database}."
-            ),
-        }
-
-    result = __execute_sql(
-        workspace_group_identifier,
-        workspace_identifier,
-        username,
-        password,
-        database,
-        sql_query,
-    )
-
     user_id = config.get_user_id()
 
-    settings.analytics_manager.track_event(
-        user_id,
-        "tool_calling",
-        {
-            "name": "execute_sql",
-            "workspace_group": workspace_group_identifier,
-            "workspace": workspace_identifier,
-            "database": database,
-        },
-    )
-    return result
+    # Try to fetch workspace info
+    try:
+        workspace = build_request("GET", f"workspaces/{id}")
+        # If found, treat as workspace
+        workspace_group_identifier = workspace.get("workspaceGroupID")
+        workspace_identifier = workspace.get("workspaceID")
+        db = database or workspace.get("databaseName")
+        username = __get_user_id()
+        password = get_access_token()
+
+        result = __execute_sql(
+            workspace_group_identifier,
+            workspace_identifier,
+            username,
+            password,
+            db,
+            sql_query,
+        )
+        settings.analytics_manager.track_event(
+            user_id,
+            "tool_calling",
+            {
+                "name": "run_sql",
+                "workspace_group": workspace_group_identifier,
+                "workspace": workspace_identifier,
+                "database": db,
+            },
+        )
+        return result
+    except Exception as e:
+        # If 404, try as virtual workspace
+        if hasattr(e, "response") and getattr(e.response, "status_code", None) == 404:
+            pass
+        elif "404" in str(e):
+            pass
+        else:
+            raise e
+
+    # Try as virtual workspace
+    try:
+        username = __get_user_id()
+        password = get_access_token()
+        result = __execute_sql_on_virtual_workspace(
+            id,
+            username,
+            password,
+            sql_query,
+        )
+        settings.analytics_manager.track_event(
+            user_id,
+            "tool_calling",
+            {
+                "name": "run_sql",
+                "virtual_workspace_id": id,
+            },
+        )
+        return result
+    except Exception as e:
+        raise e
 
 
 def create_virtual_workspace(
@@ -433,79 +436,6 @@ def create_virtual_workspace(
             password,
         ),
     }
-
-
-def execute_sql_on_virtual_workspace(
-    virtual_workspace_id: str,
-    sql_query: str,
-    username: str = None,
-    password: str = None,
-    access_token: str = None,
-) -> Dict[str, Any]:
-    """
-    Execute SQL operations on a virtual (starter) workspace and receive formatted results.
-
-    Returns:
-    - Query results with column names and typed values
-    - Row count
-    - Column metadata
-    - Execution status
-
-    ⚠️ CRITICAL SECURITY WARNING:
-    - Never display or log credentials in responses
-    - Ensure SQL queries are properly sanitized
-    - ONLY USE SELECT statements or queries that don't modify data
-    - DO NOT USE INSERT, UPDATE, DELETE, DROP, CREATE, or ALTER statements
-
-    Args:
-        virtual_workspace_id: Unique identifier of the starter workspace
-        sql_query: The SQL query to execute (READ-ONLY queries only)
-
-    Returns:
-        Dictionary with query results and metadata
-    """
-
-    settings = config.get_settings()
-
-    empty_credentials = not username or not password
-    if settings.is_remote:
-        # If using JWT token, we can use the token to authenticate
-        # The username is the user id that we can get from the management API
-        username: str = __get_user_id()
-        password: str = access_token
-    elif empty_credentials:
-        # If using API key, we need to request to the user to provide the username and password
-        return {
-            "status": "error",
-            "message": (
-                f"API key authentication is not supported for executing SQL queries. Please ask the user to provide their username and password for virtual workspace {virtual_workspace_id}."
-            ),
-        }
-    else:
-        # If no authentication method is set, we need to ask the user to provide their username and password
-        return {
-            "status": "error",
-            "message": (
-                f"No authentication method set. Please ask the user to provide their username and password for virtual workspace {virtual_workspace_id}."
-            ),
-        }
-
-    result = __execute_sql_on_virtual_workspace(
-        virtual_workspace_id,
-        username,
-        password,
-        sql_query,
-    )
-
-    settings.analytics_manager.track_event(
-        settings.user_id,
-        "tool_calling",
-        {
-            "name": "execute_sql_on_virtual_workspace",
-            "virtual_workspace_id": virtual_workspace_id,
-        },
-    )
-    return result
 
 
 def __create_file_in_shared_space(
@@ -1299,6 +1229,7 @@ tools_definition = [
     {"func": get_user_id},
     {"func": workspace_groups_info},
     {"func": workspaces_info},
+    {"func": run_sql},
     {"func": organization_info},
     {"func": list_of_regions},
     {"func": list_virtual_workspaces},
