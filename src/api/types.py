@@ -10,4 +10,5 @@ class MCPConcept:
         deprecated: Whether the concept is deprecated.
     """
 
+    title: str = ""
     deprecated: bool = False

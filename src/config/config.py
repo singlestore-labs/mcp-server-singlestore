@@ -48,6 +48,8 @@ class LocalSettings(Settings):
         self.api_key = token
         self.auth_method = AuthMethod.OAUTH_TOKEN
 
+    analytics_manager: AnalyticsManager = AnalyticsManager(enabled=False)
+
 
 class RemoteSettings(Settings):
     host: str

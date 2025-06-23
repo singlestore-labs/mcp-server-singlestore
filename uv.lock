@@ -36,6 +36,15 @@ wheels = [
 ]
 
 [[package]]
+name = "backoff"
+version = "2.2.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/47/d7/5bbeb12c44d7c4f2fb5b56abce497eb5ed9f34d85701de869acedd602619/backoff-2.2.1.tar.gz", hash = "sha256:03f829f5bb1923180821643f8753b0502c3b682293992485b0eef2807afa5cba", size = 17001, upload-time = "2022-10-05T19:19:32.061Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/df/73/b6e24bd22e6720ca8ee9a85a0c4a2971af8497d8f3193fa05390cbd46e09/backoff-2.2.1-py3-none-any.whl", hash = "sha256:63579f9a0628e06278f7e47b7d7d5b6ce20dc65c5e96a6f3ca99a6adca0396e8", size = 15148, upload-time = "2022-10-05T19:19:30.546Z" },
+]
+
+[[package]]
 name = "black"
 version = "25.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -657,6 +666,18 @@ wheels = [
 ]
 
 [[package]]
+name = "python-dateutil"
+version = "2.9.0.post0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "six" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/66/c0/0c8b6ad9f17a802ee498c46e004a0eb49bc148f2fd230864601a86dcf6db/python-dateutil-2.9.0.post0.tar.gz", hash = "sha256:37dd54208da7e1cd875388217d5e00ebd4179249f90fb72437e91a35459a0ad3", size = 342432, upload-time = "2024-03-01T18:36:20.211Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ec/57/56b9bcc3c9c6a792fcbaf139543cee77261f3651ca9da0c93f5c1221264b/python_dateutil-2.9.0.post0-py2.py3-none-any.whl", hash = "sha256:a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427", size = 229892, upload-time = "2024-03-01T18:36:18.57Z" },
+]
+
+[[package]]
 name = "python-dotenv"
 version = "1.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -927,6 +948,21 @@ wheels = [
 ]
 
 [[package]]
+name = "segment-analytics-python"
+version = "2.3.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "backoff" },
+    { name = "pyjwt" },
+    { name = "python-dateutil" },
+    { name = "requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/66/89/17a69db0da866488462685159c29859d71a2994e7644140f2e05716eb4f8/segment_analytics_python-2.3.4.tar.gz", hash = "sha256:f188e864cc0fed9fb141aff73c21bfaab783a1dd1b97ab1eff44340aed68f50b", size = 35571, upload-time = "2025-02-24T16:40:06.892Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4b/96/c9508caecf4dcfd6ce0bba63a9fd3546edddcc24070040239c4468aad408/segment_analytics_python-2.3.4-py2.py3-none-any.whl", hash = "sha256:ea2b6432bef1c017d24f69bf5f778e45c2385ec9df527242e2b42ee6cefd7367", size = 33335, upload-time = "2025-02-24T16:40:04.195Z" },
+]
+
+[[package]]
 name = "setuptools"
 version = "78.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -953,6 +989,7 @@ dependencies = [
     { name = "mcp", extra = ["cli"] },
     { name = "nbformat" },
     { name = "pydantic-settings" },
+    { name = "segment-analytics-python" },
     { name = "singlestoredb" },
     { name = "starlette" },
 ]
@@ -972,6 +1009,7 @@ requires-dist = [
     { name = "mcp", extras = ["cli"], specifier = ">=1.9.4" },
     { name = "nbformat", specifier = ">=5.10.4" },
     { name = "pydantic-settings", specifier = ">=2.9.1" },
+    { name = "segment-analytics-python", specifier = ">=2.3.4" },
     { name = "singlestoredb", specifier = ">=1.12.0" },
     { name = "starlette", specifier = ">=0.46.2" },
 ]
@@ -1006,6 +1044,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/2c/40/971eacb90dc0299c311c4df0063d0a358f7099c9171a30c0ff2f899a391c/singlestoredb-1.12.4-cp38-abi3-win32.whl", hash = "sha256:ffab0550b6b64447b02d0404ade357a9b8775b3053e6b0ea7c778d663879a184", size = 367194, upload-time = "2025-04-02T18:14:05.812Z" },
     { url = "https://files.pythonhosted.org/packages/02/93/984fca3bf8c05d6588d54c99f127e26f679008f986a3262183a3759aa6bf/singlestoredb-1.12.4-cp38-abi3-win_amd64.whl", hash = "sha256:340b34c481dcbd8ace404dfbcf4b251363b0f133c8bf4b4e5762d82b32a07191", size = 365909, upload-time = "2025-04-02T18:14:07.751Z" },
     { url = "https://files.pythonhosted.org/packages/2d/db/2c598597983637cac218a2b81c7c5f08d28669fa318a97c8c9c0249fa3a6/singlestoredb-1.12.4-py3-none-any.whl", hash = "sha256:0d98d626363d6b354c0f9fb3c706bfa0b7ba48365704b31b13ff9f7e1598f4db", size = 336023, upload-time = "2025-04-02T18:14:08.771Z" },
+]
+
+[[package]]
+name = "six"
+version = "1.17.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/94/e7/b2c673351809dca68a0e064b6af791aa332cf192da575fd474ed7d6f16a2/six-1.17.0.tar.gz", hash = "sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81", size = 34031, upload-time = "2024-12-04T17:35:28.174Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl", hash = "sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274", size = 11050, upload-time = "2024-12-04T17:35:26.475Z" },
 ]
 
 [[package]]
