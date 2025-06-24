@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import singlestoredb as s2
+import singlestoredb.management.workspace as s2_wksp
 import nbformat as nbf
 import nbformat.v4 as nbfv4
 
@@ -15,9 +16,8 @@ from src.api.tools.s2_manager import S2Manager
 from src.api.common import (
     __get_user_id,
     build_request,
-    __get_org_id,
-    __get_workspace_endpoint,
     get_access_token,
+    get_org_id,
     query_graphql_organizations,
     get_current_organization,
 )
@@ -31,30 +31,34 @@ SAMPLE_NOTEBOOK_PATH = os.path.join(
 )
 
 
-def __execute_sql(
-    workspace_group_identifier: str,
-    workspace_identifier: str,
+def __execute_sql_unified(
+    target: s2_wksp.Workspace | s2_wksp.StarterWorkspace,
+    sql_query: str,
     username: str,
     password: str,
-    database: str,
-    sql_query: str,
+    database: str | None = None,
 ) -> dict:
     """
-    Execute SQL operations on a connected workspace.
+    Execute SQL operations on a connected workspace or virtual workspace.
     Returns results and column names in a dictionary format.
     """
-    endpoint = __get_workspace_endpoint(
-        workspace_group_identifier, workspace_identifier
-    )
-    if not endpoint:
-        raise ValueError(f"Endpoint not found for workspace: {workspace_identifier}")
 
-    # These are required parameters when not running within singlestore portal
-    if not username or not password:
-        raise ValueError("Singlestore Database username and password must be provided")
+    if isinstance(target, s2_wksp.StarterWorkspace):
+        raise NotImplementedError(
+            "Currently is not possible to run SQL queries on a virtual workspace"
+        )
+
+    if target.endpoint is None:
+        raise ValueError(
+            "Workspace or virtual workspace does not have an endpoint. "
+            "Please ensure the workspace is properly configured."
+        )
+
+    host, port, *_ = target.endpoint.split() + [None]
 
     s2_manager = S2Manager(
-        host=endpoint,
+        host=host,
+        port=port,
         user=username,
         password=password,
         database=database,
@@ -65,7 +69,7 @@ def __execute_sql(
         if s2_manager.cursor.description
         else []
     )
-    rows = s2_manager.fetchall()
+    rows = s2_manager.fetchmany()
     results = []
     for row in rows:
         result_dict = {}
@@ -169,70 +173,6 @@ def __create_virtual_workspace_user(
     )
 
 
-def __execute_sql_on_virtual_workspace(
-    virtual_workspace_id: str,
-    username: str,
-    password: str,
-    sql_query: str,
-) -> dict:
-    """
-    Execute SQL operations on a connected virtual workspace.
-    Returns results and column names in a dictionary format.
-    """
-    if not virtual_workspace_id:
-        raise ValueError("Missing required parameter: virtual_workspace_id")
-    if not username:
-        raise ValueError("Missing required parameter: username")
-    if not password:
-        raise ValueError("Missing required parameter: password")
-    if not sql_query:
-        raise ValueError("Missing required parameter: sql_query")
-
-    try:
-        # First, get the workspace details to obtain the endpoint
-        workspace_info = __get_virtual_workspace(virtual_workspace_id)
-
-        # Extract connection information
-        endpoint = workspace_info.get("endpoint")
-        port = workspace_info.get("mysqlDmlPort", 3333)
-        database = workspace_info.get("databaseName")
-
-        if not endpoint or not database:
-            raise ValueError(
-                "Could not retrieve connection information for the virtual workspace"
-            )
-
-        s2_manager = S2Manager(
-            host=endpoint,
-            user=username,
-            password=password,
-            database=database,
-            port=port,
-        )
-        s2_manager.execute(sql_query)
-        columns = (
-            [desc[0] for desc in s2_manager.cursor.description]
-            if s2_manager.cursor.description
-            else []
-        )
-        rows = s2_manager.fetchall()
-        results = []
-        for row in rows:
-            result_dict = {}
-            for i, column in enumerate(columns):
-                result_dict[column] = row[i]
-            results.append(result_dict)
-        s2_manager.close()
-        return {
-            "data": results,
-            "row_count": len(rows),
-            "columns": columns,
-            "status": "Success",
-        }
-    except Exception as e:
-        return {"status": "Failed", "error": str(e)}
-
-
 def camel_to_snake(s: Optional[str]) -> Optional[str]:
     """Convert camel-case to snake-case."""
     if s is None:
@@ -302,10 +242,7 @@ def __create_scheduled_job(
 
 
 def run_sql(
-    context: Context,
-    sql_query: str,
-    id: str,
-    database: str | None = None,
+    ctx: Context, sql_query: str, id: str, database: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Use this tool to execute a single SQL statement against a SingleStore database.
@@ -325,67 +262,54 @@ def run_sql(
     """
 
     settings = config.get_settings()
-    user_id = config.get_user_id()
+
+    # Target can either be a workspace or a virtual workspace
+    target: s2_wksp.Workspace | s2_wksp.StarterWorkspace = None
+
+    workspace_manager = s2.manage_workspaces(
+        access_token=get_access_token(), organization_id=get_org_id()
+    )
 
     # Try to fetch workspace info
     try:
-        workspace = build_request("GET", f"workspaces/{id}")
-        # If found, treat as workspace
-        workspace_group_identifier = workspace.get("workspaceGroupID")
-        workspace_identifier = workspace.get("workspaceID")
-        db = database or workspace.get("databaseName")
-        username = __get_user_id()
-        password = get_access_token()
+        target = workspace_manager.get_workspace(id)
 
-        result = __execute_sql(
-            workspace_group_identifier,
-            workspace_identifier,
-            username,
-            password,
-            db,
-            sql_query,
-        )
-        settings.analytics_manager.track_event(
-            user_id,
-            "tool_calling",
-            {
-                "name": "run_sql",
-                "workspace_group": workspace_group_identifier,
-                "workspace": workspace_identifier,
-                "database": db,
-            },
-        )
-        return result
     except Exception as e:
-        # If 404, try as virtual workspace
-        if hasattr(e, "response") and getattr(e.response, "status_code", None) == 404:
-            pass
-        elif "404" in str(e):
-            pass
-        else:
-            raise e
+        if "404" in str(e):
 
-    # Try as virtual workspace
-    try:
-        username = __get_user_id()
-        password = get_access_token()
-        result = __execute_sql_on_virtual_workspace(
-            id,
-            username,
-            password,
-            sql_query,
-        )
-        settings.analytics_manager.track_event(
-            user_id,
-            "tool_calling",
-            {
-                "name": "run_sql",
-                "virtual_workspace_id": id,
-            },
-        )
-        return result
-    except Exception as e:
-        raise e
+            try:
+                target = workspace_manager.get_starter_workspace(id)
+
+            except Exception as e:
+                if "404" in str(e):
+                    raise ValueError(
+                        f"Workspace or virtual workspace with ID '{id}' not found."
+                    )
+                else:
+                    raise e
+    if not target:
+        raise ValueError(f"Workspace or virtual workspace with ID '{id}' not found.")
+
+    username = __get_user_id()
+    password = get_access_token()
+
+    result = __execute_sql_unified(
+        target=target,
+        sql_query=sql_query,
+        username=username,
+        password=password,
+        database=database,
+    )
+
+    settings.analytics_manager.track_event(
+        username,
+        "tool_calling",
+        {
+            "name": "run_sql",
+            "virtual_workspace_id": id,
+        },
+    )
+    return result
 
 
 def create_virtual_workspace(
@@ -452,7 +376,7 @@ def __create_file_in_shared_space(
     """
     settings = config.get_settings()
 
-    org_id = __get_org_id()
+    org_id = get_org_id()
 
     file_manager = s2.manage_files(
         access_token=access_token,
@@ -531,7 +455,7 @@ def check_if_file_exists(file_name: str, access_token: str = None) -> Dict[str, 
         "tool_calling",
         {"name": "check_if_file_exists", "file_name": file_name},
     )
-    org_id = __get_org_id()
+    org_id = get_org_id()
     file_manager = s2.manage_files(
         access_token=access_token,
         base_url=settings.s2_api_base_url,

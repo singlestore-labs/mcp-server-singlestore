@@ -145,16 +145,7 @@ def build_request(
         if params is None:
             params = {}
 
-        # Add organization ID as a query parameter
-        if settings.is_remote:
-            params["organizationID"] = settings.org_id
-        elif (
-            hasattr(settings, "org_id")
-            and settings.org_id
-            and settings.auth_method == "oauth_token"
-        ):
-            # For local OAuth token authentication, also add organization ID
-            params["organizationID"] = settings.org_id
+        params["organizationID"] = get_org_id()
 
         if params and type == "GET":  # Only add query params for GET requests
             url += "?"
@@ -277,7 +268,7 @@ def __get_user_id() -> str:
     raise ValueError("Could not retrieve user ID from the API")
 
 
-def __get_org_id() -> str:
+def get_org_id() -> str:
     """
     Get the organization ID from the management API.
 
@@ -286,22 +277,15 @@ def __get_org_id() -> str:
     """
     settings = get_settings()
 
-    if settings.is_remote:
-        return settings.org_id
-    else:
-        # For local settings with OAuth token authentication, check if org_id is already set
-        if (
-            hasattr(settings, "org_id")
-            and settings.org_id
-            and settings.auth_method == "oauth_token"
-        ):
-            return settings.org_id
+    org_id = settings.org_id
 
-        organization = build_request("GET", "organizations/current")
-        if "orgID" in organization:
-            return organization["orgID"]
-        else:
-            raise ValueError("Could not retrieve organization ID from the API")
+    if not org_id:
+        logger.debug(
+            "Organization ID not set in settings, fetching current organization"
+        )
+        raise ValueError("OrganizationID is not set. Please set an organization first.")
+
+    return org_id
 
 
 def get_access_token() -> str:
