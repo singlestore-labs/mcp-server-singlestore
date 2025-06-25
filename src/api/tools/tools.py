@@ -31,8 +31,15 @@ SAMPLE_NOTEBOOK_PATH = os.path.join(
 )
 
 
+class VirtualWorkspaceTarget:
+    """Simple wrapper for virtual workspace data from API"""
+
+    def __init__(self, endpoint: str):
+        self.endpoint = endpoint
+
+
 def __execute_sql_unified(
-    target: s2_wksp.Workspace | s2_wksp.StarterWorkspace,
+    target: s2_wksp.Workspace | s2_wksp.StarterWorkspace | VirtualWorkspaceTarget,
     sql_query: str,
     username: str,
     password: str,
@@ -45,23 +52,31 @@ def __execute_sql_unified(
 
     if isinstance(target, s2_wksp.StarterWorkspace):
         raise NotImplementedError(
-            "Currently is not possible to run SQL queries on a virtual workspace"
+            "StarterWorkspace objects are not supported. Use VirtualWorkspaceTarget instead."
         )
+    else:
+        # Regular Workspace
+        if target.endpoint is None:
+            raise ValueError(
+                "Workspace does not have an endpoint. "
+                "Please ensure the workspace is properly configured."
+            )
+        endpoint = target.endpoint
+        database_name = database
 
-    if target.endpoint is None:
-        raise ValueError(
-            "Workspace or virtual workspace does not have an endpoint. "
-            "Please ensure the workspace is properly configured."
-        )
-
-    host, port, *_ = target.endpoint.split() + [None]
+    # Parse host and port from endpoint
+    if ":" in endpoint:
+        host, port = endpoint.split(":", 1)
+    else:
+        host = endpoint
+        port = None
 
     s2_manager = S2Manager(
         host=host,
         port=port,
         user=username,
         password=password,
-        database=database,
+        database=database_name,
     )
     s2_manager.execute(sql_query)
     columns = (
@@ -264,11 +279,13 @@ def run_sql(
     settings = config.get_settings()
 
     # Target can either be a workspace or a virtual workspace
-    target: s2_wksp.Workspace | s2_wksp.StarterWorkspace = None
+    target: s2_wksp.Workspace | VirtualWorkspaceTarget = None
 
     workspace_manager = s2.manage_workspaces(
         access_token=get_access_token(), organization_id=get_org_id()
     )
+
+    database_name = database
 
     # Try to fetch workspace info
     try:
@@ -276,17 +293,33 @@ def run_sql(
 
     except Exception as e:
         if "404" in str(e):
-
+            # If workspace not found, try to fetch as virtual workspace from API
             try:
-                target = workspace_manager.get_starter_workspace(id)
+                virtual_workspace_data = __get_virtual_workspace(id)
 
-            except Exception as e:
-                if "404" in str(e):
+                # Extract endpoint and database name from API response
+                api_endpoint = virtual_workspace_data.get("endpoint")
+                database_name = virtual_workspace_data.get("databaseName")
+
+                if not api_endpoint:
+                    raise ValueError(
+                        f"Virtual workspace {id} does not have an endpoint. "
+                        "Please ensure the virtual workspace is properly configured."
+                    )
+
+                # Create a VirtualWorkspaceTarget object
+                target = VirtualWorkspaceTarget(endpoint=api_endpoint)
+
+            except Exception as ve:
+                if "404" in str(ve):
                     raise ValueError(
                         f"Workspace or virtual workspace with ID '{id}' not found."
                     )
                 else:
-                    raise e
+                    raise ve
+        else:
+            raise e
+
     if not target:
         raise ValueError(f"Workspace or virtual workspace with ID '{id}' not found.")
 
@@ -298,7 +331,7 @@ def run_sql(
         sql_query=sql_query,
         username=username,
         password=password,
-        database=database,
+        database=database_name,
     )
 
     settings.analytics_manager.track_event(

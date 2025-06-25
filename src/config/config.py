@@ -34,9 +34,7 @@ class Settings(ABC, BaseSettings):
 
 class LocalSettings(Settings):
     api_key: str | None = None
-    org_id: str | None = (
-        None  # Added to support organization selection for OAuth token auth
-    )
+    org_id: str | None = "4f168792-6ca9-4ade-b00d-0d3dc4179926"
     auth_method: AuthMethod = AuthMethod.API_KEY
     transport: Transport = Transport.STDIO
     is_remote: bool = False
