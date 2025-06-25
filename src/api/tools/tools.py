@@ -34,6 +34,7 @@ SAMPLE_NOTEBOOK_PATH = os.path.join(
 
 
 def __execute_sql_unified(
+    ctx: Context,
     target: s2_wksp.Workspace | s2_wksp.StarterWorkspace,
     sql_query: str,
     username: str,
@@ -63,6 +64,11 @@ def __execute_sql_unified(
         user=username,
         password=password,
         database=database_name,
+    )
+
+    ctx.report_progress(
+        f"Executing SQL query on workspace '{target.name}' with database '{database_name}': {sql_query}"
+        "This query may take some time depending on the complexity and size of the data."
     )
     s2_manager.execute(sql_query)
     columns = (
@@ -273,13 +279,14 @@ def __create_scheduled_job(
 
 
 def __prepare_database_migration(
+    ctx: Context,
     migration_sql: str,
     workspace_id: str,
     database: Optional[str] = None,
     description: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Prepare a database migration by creating a temporary virtual workspace for testing.
+    Prepare a database migration by creating a temporary database branch for testing.
 
     Args:
         migration_sql: The SQL statements to execute for the migration
@@ -288,77 +295,75 @@ def __prepare_database_migration(
         description: Optional description of the migration
 
     Returns:
-        Dictionary with migration details including temporary workspace info
+        Dictionary with migration details including temporary branch info
     """
     settings = config.get_settings()
     user_id = config.get_user_id()
 
     # Generate unique IDs
     migration_id = str(uuid.uuid4())
-    temp_workspace_name = f"migration-test-{migration_id[:8]}"
-    temp_database_name = database or "test_migration_db"
-    temp_username = f"test_user_{migration_id[:8]}"
-    temp_password = f"temp_pass_{uuid.uuid4().hex[:12]}"
+    branch_database_name = f"migration_test_{migration_id[:8]}"
 
     try:
-        # Get the source workspace info to replicate its structure
+        # Get the source workspace and database info
         workspace_manager = s2.manage_workspaces(
             access_token=get_access_token(), organization_id=get_org_id()
         )
 
+        target = None
+        source_database = database
+
         try:
-            source_workspace = workspace_manager.get_workspace(workspace_id)
-            source_endpoint = source_workspace.endpoint
+            target = workspace_manager.get_workspace(workspace_id)
         except Exception as e:
             if "404" in str(e):
                 # Try as virtual workspace
-                virtual_workspace_data = __get_virtual_workspace(workspace_id)
-                source_endpoint = virtual_workspace_data.get("endpoint")
-                if not source_endpoint:
-                    raise ValueError(f"Cannot find workspace {workspace_id}")
+                target = workspace_manager.get_starter_workspace(workspace_id)
+                if target and hasattr(target, "database_name"):
+                    source_database = source_database or target.database_name
             else:
                 raise e
 
-        # Create temporary virtual workspace for testing
-        temp_workspace_data = __create_virtual_workspace(
-            temp_workspace_name, temp_database_name
+        if not target:
+            raise ValueError(f"Cannot find workspace {workspace_id}")
+
+        if not source_database:
+            raise ValueError("Database name is required for migration")
+
+        # Create database branch for testing
+        branch_sql = f"ATTACH DATABASE {source_database} AS {branch_database_name};"
+
+        username = __get_user_id()
+        password = get_access_token()
+
+        # Execute branch creation
+        branch_result = __execute_sql_unified(
+            ctx=ctx,
+            target=target,
+            sql_query=branch_sql,
+            username=username,
+            password=password,
+            database=source_database,
         )
 
-        temp_workspace_id = temp_workspace_data.get("virtualWorkspaceID")
-        if not temp_workspace_id:
-            raise ValueError("Failed to create temporary workspace")
+        if branch_result["status"] != "Success":
+            raise Exception(f"Failed to create database branch: {branch_result}")
 
-        # Create user for temporary workspace
-        __create_virtual_workspace_user(temp_workspace_id, temp_username, temp_password)
-
-        # Wait a moment for workspace to be ready
-        import time
-
-        time.sleep(2)
-
-        # Get temporary workspace connection info
-        temp_workspace_info = __get_virtual_workspace(temp_workspace_id)
-        temp_endpoint = temp_workspace_info.get("endpoint")
-
-        if not temp_endpoint:
-            raise ValueError("Temporary workspace endpoint not available")
-
-        # Create VirtualWorkspaceTarget for the temporary workspace
-        temp_target = VirtualWorkspaceTarget(endpoint=temp_endpoint)
-
-        # Execute migration SQL on temporary workspace
+        # Execute migration SQL on the branch
         statements = _split_sql_statements(migration_sql)
         migration_results = []
 
         for stmt in statements:
             if stmt.strip():
                 try:
+                    # Execute each statement on the branch database
                     result = __execute_sql_unified(
-                        target=temp_target,
+                        ctx=ctx,
+                        target=target,
                         sql_query=stmt,
-                        username=temp_username,
-                        password=temp_password,
-                        database=temp_database_name,
+                        username=username,
+                        password=password,
+                        database=branch_database_name,
                     )
                     migration_results.append(
                         {"statement": stmt, "status": "success", "result": result}
@@ -378,13 +383,8 @@ def __prepare_database_migration(
             "migration_sql": migration_sql,
             "description": description,
             "source_workspace_id": workspace_id,
-            "source_database": database,
-            "temp_workspace_id": temp_workspace_id,
-            "temp_workspace_name": temp_workspace_name,
-            "temp_database_name": temp_database_name,
-            "temp_username": temp_username,
-            "temp_password": temp_password,
-            "temp_endpoint": temp_endpoint,
+            "source_database": source_database,
+            "branch_database_name": branch_database_name,
             "migration_results": migration_results,
             "created_at": datetime.datetime.now().isoformat(),
             "status": "prepared",
@@ -400,19 +400,18 @@ def __prepare_database_migration(
                 "name": "__prepare_database_migration",
                 "migration_id": migration_id,
                 "source_workspace_id": workspace_id,
-                "temp_workspace_id": temp_workspace_id,
+                "branch_database_name": branch_database_name,
             },
         )
 
         return {
             "migration_id": migration_id,
             "status": "success",
-            "message": "Migration prepared successfully in temporary workspace",
-            "temp_workspace": {
-                "workspace_id": temp_workspace_id,
-                "workspace_name": temp_workspace_name,
-                "database_name": temp_database_name,
-                "endpoint": temp_endpoint,
+            "message": "Migration prepared successfully using database branch",
+            "branch_info": {
+                "workspace_id": workspace_id,
+                "source_database": source_database,
+                "branch_database_name": branch_database_name,
             },
             "migration_results": migration_results,
             "statements_executed": len(
@@ -422,12 +421,18 @@ def __prepare_database_migration(
         }
 
     except Exception as e:
-        # Cleanup on error - try to delete temporary workspace if it was created
-        if "temp_workspace_id" in locals() and temp_workspace_id:
+        # Cleanup on error - try to drop the branch database if it was created
+        if "branch_database_name" in locals() and branch_database_name:
             try:
-                # Delete temporary virtual workspace (if API supports it)
-                # Note: SingleStore virtual workspace deletion may not be immediately available
-                pass
+                cleanup_sql = f"DROP DATABASE IF EXISTS {branch_database_name};"
+                __execute_sql_unified(
+                    ctx=ctx,
+                    target=target,
+                    sql_query=cleanup_sql,
+                    username=__get_user_id(),
+                    password=get_access_token(),
+                    database=source_database,
+                )
             except Exception:
                 pass
 
@@ -440,11 +445,12 @@ def __prepare_database_migration(
 
 
 def __complete_database_migration(
+    ctx: Context,
     migration_id: str,
     apply_to_production: bool = True,
 ) -> Dict[str, Any]:
     """
-    Complete a database migration by applying it to the production workspace.
+    Complete a database migration by applying it to the production database or cleaning up the branch.
 
     Args:
         migration_id: The migration ID from prepare_database_migration
@@ -463,42 +469,41 @@ def __complete_database_migration(
 
     try:
         results = []
+        source_workspace_id = migration_data["source_workspace_id"]
+        source_database = migration_data["source_database"]
+        branch_database_name = migration_data["branch_database_name"]
+
+        # Get workspace target
+        workspace_manager = s2.manage_workspaces(
+            access_token=get_access_token(), organization_id=get_org_id()
+        )
+
+        target = None
+        try:
+            target = workspace_manager.get_workspace(source_workspace_id)
+        except Exception as e:
+            if "404" in str(e):
+                # Try as virtual workspace
+                target = workspace_manager.get_starter_workspace(source_workspace_id)
+            else:
+                raise e
+
+        if not target:
+            raise ValueError(f"Cannot find workspace {source_workspace_id}")
+
+        username = __get_user_id()
+        password = get_access_token()
 
         if apply_to_production:
-            # Apply migration to production workspace
-            source_workspace_id = migration_data["source_workspace_id"]
-            source_database = migration_data["source_database"]
+            # Apply migration to production database
             migration_sql = migration_data["migration_sql"]
-
-            # Get production workspace target
-            workspace_manager = s2.manage_workspaces(
-                access_token=get_access_token(), organization_id=get_org_id()
-            )
-
-            try:
-                source_workspace = workspace_manager.get_workspace(source_workspace_id)
-                production_target = source_workspace
-            except Exception as e:
-                if "404" in str(e):
-                    # Virtual workspace
-                    virtual_workspace_data = __get_virtual_workspace(
-                        source_workspace_id
-                    )
-                    production_target = VirtualWorkspaceTarget(
-                        endpoint=virtual_workspace_data.get("endpoint")
-                    )
-                else:
-                    raise e
-
-            # Execute migration on production
             statements = _split_sql_statements(migration_sql)
-            username = __get_user_id()
-            password = get_access_token()
 
             for stmt in statements:
                 if stmt.strip():
                     result = __execute_sql_unified(
-                        target=production_target,
+                        ctx=ctx,
+                        target=target,
                         sql_query=stmt,
                         username=username,
                         password=password,
@@ -507,17 +512,23 @@ def __complete_database_migration(
                     results.append(
                         {"statement": stmt, "status": "success", "result": result}
                     )
-        # Cleanup temporary workspace
-        temp_workspace_id = migration_data.get("temp_workspace_id")
-        cleanup_message = (
-            "Temporary workspace cleanup scheduled (manual deletion may be required)"
+
+        # Cleanup: Drop the branch database
+        cleanup_sql = f"DROP DATABASE IF EXISTS {branch_database_name};"
+        cleanup_result = __execute_sql_unified(
+            ctx=ctx,
+            target=target,
+            sql_query=cleanup_sql,
+            username=username,
+            password=password,
+            database=source_database,
         )
 
-        # Note: SingleStore virtual workspace deletion API may not be available
-        # In practice, these temporary workspaces might need manual cleanup
-        # TODO: Implement actual cleanup when API becomes available
-        if temp_workspace_id:
-            logger.info(f"Temporary workspace {temp_workspace_id} marked for cleanup")
+        cleanup_message = (
+            f"Branch database '{branch_database_name}' successfully cleaned up"
+            if cleanup_result["status"] == "Success"
+            else f"Warning: Failed to cleanup branch database '{branch_database_name}'"
+        )
 
         # Remove migration from memory
         _remove_migration(migration_id)
@@ -530,6 +541,7 @@ def __complete_database_migration(
                 "name": "__complete_database_migration",
                 "migration_id": migration_id,
                 "applied_to_production": apply_to_production,
+                "branch_database_name": branch_database_name,
             },
         )
 
@@ -545,6 +557,7 @@ def __complete_database_migration(
             "production_results": results if apply_to_production else [],
             "cleanup_message": cleanup_message,
             "statements_applied": len(results) if apply_to_production else 0,
+            "branch_database_name": branch_database_name,
         }
 
     except Exception as e:
@@ -586,10 +599,13 @@ def prepare_database_migration(
     description: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Prepare a database migration by creating a temporary virtual workspace for safe testing.
+    Prepare a database migration by creating a temporary database branch for safe testing.
 
     This tool performs database schema migrations by automatically generating and executing DDL statements
-    in a safe testing environment before applying to production.
+    in a safe testing environment using SingleStore's database branching feature before applying to production.
+
+    Database branching creates an exact copy of your production database that shares the same history but
+    diverges once created, allowing you to test migrations without impacting production performance or stability.
 
     Supported operations:
     CREATE operations:
@@ -608,30 +624,30 @@ def prepare_database_migration(
     - Remove constraints (e.g., "ALTER TABLE posts DROP INDEX idx_old_constraint")
 
     The tool will:
-    1. Create a temporary virtual workspace for testing
-    2. Execute the migration SQL in the temporary workspace
+    1. Create a temporary database branch using ATTACH DATABASE command
+    2. Execute the migration SQL in the branch database
     3. Return migration details for verification
     4. Allow you to test the changes before applying to production
 
     Args:
         migration_sql: The SQL statements to execute for the migration
         workspace_id: The target workspace ID where migration will eventually be applied
-        database: Optional database name to use (defaults to main database)
+        database: Optional database name to use (required for branching)
         description: Optional description of the migration
 
     Returns:
-        Dictionary with migration ID, temporary workspace details, and execution results
+        Dictionary with migration ID, branch database details, and execution results
 
     Workflow:
-    1. Creates a temporary virtual workspace
-    2. Applies the migration SQL in that workspace
+    1. Creates a temporary database branch of the source database
+    2. Applies the migration SQL in that branch
     3. Returns migration details for verification
 
     Important Notes:
     After executing this tool, you MUST:
-    1. Test the migration in the temporary workspace using the 'run_sql' tool
+    1. Test the migration in the branch database using the 'run_sql' tool
     2. Ask for confirmation before proceeding
-    3. Use 'complete_database_migration' tool to apply changes to production workspace
+    3. Use 'complete_database_migration' tool to apply changes to production database
 
     Example:
     For a migration like:
@@ -642,16 +658,31 @@ def prepare_database_migration(
     FROM information_schema.columns
     WHERE table_name = 'users' AND column_name = 'last_login';
 
-    You can use 'run_sql' with the temporary workspace ID to test the migration.
+    You can use 'run_sql' with the workspace ID and branch database name to test the migration.
 
     Error Handling:
     On error, the tool will:
-    1. Automatically attempt to clean up any temporary resources
+    1. Automatically attempt to clean up the branch database
     2. Return detailed error information
     3. Ensure no partial changes are left in an inconsistent state
+
+    Benefits of Database Branching:
+    - Cost-effective: No additional infrastructure needed
+    - Fast: Instant creation with no data duplication in object store
+    - Isolated: Changes don't impact production performance
+    - Exact replica: Contains all production data and structure
     """
+    ctx.info(
+        "Preparing database migration with the following parameters: "
+        f"workspace_id={workspace_id}, database={database}, description={description}"
+        "This operation can take some time depending on the size of the database."
+    )
     return __prepare_database_migration(
-        migration_sql, workspace_id, database, description
+        ctx=ctx,
+        migration_sql=migration_sql,
+        workspace_id=workspace_id,
+        database=database,
+        description=description,
     )
 
 
@@ -661,10 +692,10 @@ def complete_database_migration(
     apply_to_production: bool = True,
 ) -> Dict[str, Any]:
     """
-    Complete a database migration by applying it to the production workspace or discarding it.
+    Complete a database migration by applying it to the production database or discarding it.
 
     This tool finalizes a database migration that was prepared using 'prepare_database_migration'.
-    It can either apply the tested changes to the production workspace or discard them entirely.
+    It can either apply the tested changes to the production database or discard them entirely.
 
     Args:
         migration_id: The migration ID returned from 'prepare_database_migration'
@@ -674,20 +705,25 @@ def complete_database_migration(
         Dictionary with completion results including applied statements and cleanup status
 
     Use Cases:
-    1. Apply Migration: Set apply_to_production=True to execute the migration on the production workspace
+    1. Apply Migration: Set apply_to_production=True to execute the migration on the production database
     2. Discard Migration: Set apply_to_production=False to cleanup without applying changes
 
     Important Notes:
-    - This tool must be called after 'prepare_database_migration' to properly cleanup temporary resources
-    - If apply_to_production=True, the migration SQL will be executed on the original workspace
+    - This tool must be called after 'prepare_database_migration' to properly cleanup the branch database
+    - If apply_to_production=True, the migration SQL will be executed on the original database
     - If apply_to_production=False, only cleanup will be performed
-    - The temporary workspace will be marked for cleanup (manual deletion may be required)
+    - The branch database will be automatically dropped using DROP DATABASE command
 
     Safety Features:
     - Validates migration exists before proceeding
     - Executes statements in the same order as tested
     - Provides detailed results for each statement
-    - Cleans up temporary resources regardless of success/failure
+    - Automatically cleans up branch database regardless of success/failure
+
+    Database Branching Benefits:
+    - Clean cleanup: Branch databases are automatically dropped
+    - No orphaned resources: No temporary workspaces to manage
+    - Cost effective: Only pay for new data added to the branch
 
     Example Usage:
     # Apply the migration to production
@@ -696,7 +732,9 @@ def complete_database_migration(
     # Discard the migration without applying
     complete_database_migration(migration_id="abc-123", apply_to_production=False)
     """
-    return __complete_database_migration(migration_id, apply_to_production)
+    return __complete_database_migration(
+        ctx=ctx, migration_id=migration_id, apply_to_production=apply_to_production
+    )
 
 
 def run_sql(
@@ -718,6 +756,10 @@ def run_sql(
     Returns:
         Dictionary with query results and metadata
     """
+
+    ctx.info(
+        f"Running SQL query on workspace ID '{id}' with database '{database}': {sql_query}"
+    )
 
     settings = config.get_settings()
 
@@ -759,6 +801,7 @@ def run_sql(
     password = get_access_token()
 
     result = __execute_sql_unified(
+        ctx=ctx,
         target=target,
         sql_query=sql_query,
         username=username,
