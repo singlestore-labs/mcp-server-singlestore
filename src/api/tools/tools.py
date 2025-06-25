@@ -6,7 +6,6 @@ import re
 import uuid
 import datetime
 import singlestoredb as s2
-import singlestoredb.management.workspace as s2_wksp
 import nbformat as nbf
 import nbformat.v4 as nbfv4
 
@@ -24,6 +23,7 @@ from src.api.common import (
     get_current_organization,
 )
 from src.api.tools.types import Tool
+from src.api.tools.types import WorkspaceTarget
 
 # Set up logger for this module
 logger = logging.getLogger(__name__)
@@ -35,7 +35,7 @@ SAMPLE_NOTEBOOK_PATH = os.path.join(
 
 def __execute_sql_unified(
     ctx: Context,
-    target: s2_wksp.Workspace | s2_wksp.StarterWorkspace,
+    target: WorkspaceTarget,
     sql_query: str,
     username: str,
     password: str,
@@ -66,8 +66,9 @@ def __execute_sql_unified(
         database=database_name,
     )
 
+    workspace_type = "shared/virtual" if target.is_shared else "dedicated"
     ctx.report_progress(
-        f"Executing SQL query on workspace '{target.name}' with database '{database_name}': {sql_query}"
+        f"Executing SQL query on {workspace_type} workspace '{target.name}' with database '{database_name}': {sql_query}"
         "This query may take some time depending on the complexity and size of the data."
     )
     s2_manager.execute(sql_query)
@@ -306,26 +307,12 @@ def __prepare_database_migration(
 
     try:
         # Get the source workspace and database info
-        workspace_manager = s2.manage_workspaces(
-            access_token=get_access_token(), organization_id=get_org_id()
-        )
-
-        target = None
+        target = __get_workspace_by_id(workspace_id)
         source_database = database
 
-        try:
-            target = workspace_manager.get_workspace(workspace_id)
-        except Exception as e:
-            if "404" in str(e):
-                # Try as virtual workspace
-                target = workspace_manager.get_starter_workspace(workspace_id)
-                if target and hasattr(target, "database_name"):
-                    source_database = source_database or target.database_name
-            else:
-                raise e
-
-        if not target:
-            raise ValueError(f"Cannot find workspace {workspace_id}")
+        # For virtual workspaces, use their database name if not specified
+        if target.is_shared and target.database_name and not source_database:
+            source_database = target.database_name
 
         if not source_database:
             raise ValueError("Database name is required for migration")
@@ -410,6 +397,8 @@ def __prepare_database_migration(
             "message": "Migration prepared successfully using database branch",
             "branch_info": {
                 "workspace_id": workspace_id,
+                "workspace_name": target.name,
+                "workspace_type": "shared" if target.is_shared else "dedicated",
                 "source_database": source_database,
                 "branch_database_name": branch_database_name,
             },
@@ -474,22 +463,7 @@ def __complete_database_migration(
         branch_database_name = migration_data["branch_database_name"]
 
         # Get workspace target
-        workspace_manager = s2.manage_workspaces(
-            access_token=get_access_token(), organization_id=get_org_id()
-        )
-
-        target = None
-        try:
-            target = workspace_manager.get_workspace(source_workspace_id)
-        except Exception as e:
-            if "404" in str(e):
-                # Try as virtual workspace
-                target = workspace_manager.get_starter_workspace(source_workspace_id)
-            else:
-                raise e
-
-        if not target:
-            raise ValueError(f"Cannot find workspace {source_workspace_id}")
+        target = __get_workspace_by_id(source_workspace_id)
 
         username = __get_user_id()
         password = get_access_token()
@@ -747,6 +721,8 @@ def run_sql(
     - Query results with column names and typed values
     - Row count and metadata
     - Execution status
+    - Workspace type ("shared" for virtual workspaces, "dedicated" for regular workspaces)
+    - Workspace name
 
     Args:
         id: Workspace or virtual workspace ID
@@ -754,7 +730,7 @@ def run_sql(
         database: (optional) Database name to use
 
     Returns:
-        Dictionary with query results and metadata
+        Dictionary with query results, metadata, and workspace information
     """
 
     ctx.info(
@@ -764,38 +740,12 @@ def run_sql(
     settings = config.get_settings()
 
     # Target can either be a workspace or a virtual workspace
-    target: s2_wksp.Workspace | s2_wksp.StarterWorkspace = None
-
-    workspace_manager = s2.manage_workspaces(
-        access_token=get_access_token(), organization_id=get_org_id()
-    )
-
+    target = __get_workspace_by_id(id)
     database_name = database
 
-    # Try to fetch workspace info
-    try:
-        target = workspace_manager.get_workspace(id)
-
-    except Exception as e:
-        if "404" in str(e):
-            # If workspace not found, try to fetch as virtual workspace from API
-            try:
-                target = workspace_manager.get_starter_workspace(id)
-
-                database_name = target.database_name
-
-            except Exception as ve:
-                if "404" in str(ve):
-                    raise ValueError(
-                        f"Workspace or virtual workspace with ID '{id}' not found."
-                    )
-                else:
-                    raise ve
-        else:
-            raise e
-
-    if not target:
-        raise ValueError(f"Workspace or virtual workspace with ID '{id}' not found.")
+    # For virtual workspaces, use their database name if not specified
+    if target.is_shared and target.database_name and not database_name:
+        database_name = target.database_name
 
     username = __get_user_id()
     password = get_access_token()
@@ -809,12 +759,17 @@ def run_sql(
         database=database_name,
     )
 
+    # Add workspace type information to the result
+    result["workspace_type"] = "shared" if target.is_shared else "dedicated"
+    result["workspace_name"] = target.name
+
     settings.analytics_manager.track_event(
         username,
         "tool_calling",
         {
             "name": "run_sql",
             "virtual_workspace_id": id,
+            "workspace_type": result["workspace_type"],
         },
     )
     return result
@@ -1395,7 +1350,7 @@ def get_job_details(job_id: str) -> Dict[str, Any]:
     - jobID: Unique identifier (UUID format)
     - name: Display name of the job
     - description: Human-readable job description
-    - createdAt: Creation timestamp (ISO 8601)
+    - createdAt: Creation timestamp
     - terminatedAt: End timestamp if completed
     - completedExecutionsCount: Number of successful runs
     - enqueuedBy: User ID who created the job
@@ -1628,6 +1583,43 @@ async def set_organization(orgID: str, ctx: Context) -> str:
     except Exception as e:
         logger.error(f"Error in set_organization: {str(e)}")
         return f"Error setting organization: {str(e)}"
+
+
+def __get_workspace_by_id(workspace_id: str) -> WorkspaceTarget:
+    """
+    Get a workspace or virtual workspace by ID.
+
+    Args:
+        workspace_id: The workspace ID to look up
+
+    Returns:
+        WorkspaceTarget object with is_shared flag indicating if it's a virtual workspace
+
+    Raises:
+        ValueError: If workspace cannot be found
+    """
+    workspace_manager = s2.manage_workspaces(
+        access_token=get_access_token(), organization_id=get_org_id()
+    )
+
+    target = None
+    is_shared = False
+
+    try:
+        target = workspace_manager.get_workspace(workspace_id)
+        is_shared = False  # Dedicated workspace
+    except Exception as e:
+        if "404" in str(e):
+            # Try as virtual workspace
+            target = workspace_manager.get_starter_workspace(workspace_id)
+            is_shared = True  # Shared/virtual workspace
+        else:
+            raise e
+
+    if not target:
+        raise ValueError(f"Cannot find workspace {workspace_id}")
+
+    return WorkspaceTarget(target, is_shared)
 
 
 tools_definition = [
