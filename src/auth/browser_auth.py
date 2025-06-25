@@ -94,30 +94,23 @@ class AuthCallbackHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Content-type", "text/html")
         self.end_headers()
 
-        # Success response HTML
-        response = """
-        <html>
-        <head>
-            <title>Authentication Successful</title>
-            <style>
-                body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
-                h1 { color: #4CAF50; }
-                p { font-size: 16px; margin: 20px 0; }
-                .success { color: #4CAF50; }
-            </style>
-        </head>
-        <body>
-            <h1>✓ Authentication Successful</h1>
-            <p class="success">You have successfully authenticated with SingleStore.</p>
-            <p>You can close this window now and return to your terminal.</p>
-            <script>
-                setTimeout(() => {
-                    window.close();
-                }, 3000);
-            </script>
-        </body>
-        </html>
-        """
+        # Load success page HTML from file
+        try:
+            success_page_path = Path(__file__).parent / "success_page.html"
+            with open(success_page_path, "r", encoding="utf-8") as f:
+                response = f.read()
+        except Exception:
+            # Fallback response if file cannot be read
+            response = """
+            <html>
+            <head><title>Authentication Successful</title></head>
+            <body>
+                <h1>Authentication Successful</h1>
+                <p>You have successfully authenticated with SingleStore.</p>
+                <p>You can close this window now.</p>
+            </body>
+            </html>
+            """
 
         self.wfile.write(response.encode())
 
