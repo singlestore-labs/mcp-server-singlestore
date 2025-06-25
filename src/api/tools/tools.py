@@ -305,14 +305,18 @@ def __prepare_database_migration(
     migration_id = str(uuid.uuid4())
     branch_database_name = f"migration_test_{migration_id[:8]}"
 
-    try:
-        # Get the source workspace and database info
-        target = __get_workspace_by_id(workspace_id)
-        source_database = database
+    # Get the source workspace and database info
+    target = __get_workspace_by_id(workspace_id)
 
-        # For virtual workspaces, use their database name if not specified
-        if target.is_shared and target.database_name and not source_database:
-            source_database = target.database_name
+    # Check if target is a shared workspace - migrations not supported
+    if target.is_shared:
+        raise ValueError(
+            "Database migrations are not supported on shared/virtual workspaces. "
+            "Please use the 'run_sql' tool to execute your SQL statements directly on the shared workspace instead."
+        )
+
+    try:
+        source_database = database
 
         if not source_database:
             raise ValueError("Database name is required for migration")
@@ -456,15 +460,22 @@ def __complete_database_migration(
     if not migration_data:
         return {"status": "error", "message": f"Migration {migration_id} not found"}
 
+    results = []
+    source_workspace_id = migration_data["source_workspace_id"]
+    source_database = migration_data["source_database"]
+    branch_database_name = migration_data["branch_database_name"]
+
+    # Get workspace target
+    target = __get_workspace_by_id(source_workspace_id)
+
+    # Check if target is a shared workspace - migrations not supported
+    if target.is_shared:
+        raise ValueError(
+            "Database migrations are not supported on shared/virtual workspaces. "
+            "Please use the 'run_sql' tool to execute your SQL statements directly on the shared workspace instead."
+        )
+
     try:
-        results = []
-        source_workspace_id = migration_data["source_workspace_id"]
-        source_database = migration_data["source_database"]
-        branch_database_name = migration_data["branch_database_name"]
-
-        # Get workspace target
-        target = __get_workspace_by_id(source_workspace_id)
-
         username = __get_user_id()
         password = get_access_token()
 
@@ -578,6 +589,9 @@ def prepare_database_migration(
     This tool performs database schema migrations by automatically generating and executing DDL statements
     in a safe testing environment using SingleStore's database branching feature before applying to production.
 
+    ⚠️  IMPORTANT: This tool only works with dedicated workspaces. For shared/virtual workspaces,
+    use the 'run_sql' tool to execute your SQL statements directly instead.
+
     Database branching creates an exact copy of your production database that shares the same history but
     diverges once created, allowing you to test migrations without impacting production performance or stability.
 
@@ -670,6 +684,9 @@ def complete_database_migration(
 
     This tool finalizes a database migration that was prepared using 'prepare_database_migration'.
     It can either apply the tested changes to the production database or discard them entirely.
+
+    ⚠️  IMPORTANT: This tool only works with dedicated workspaces. For shared/virtual workspaces,
+    use the 'run_sql' tool to execute your SQL statements directly instead.
 
     Args:
         migration_id: The migration ID returned from 'prepare_database_migration'
@@ -1641,9 +1658,9 @@ tools_definition = [
     {"func": get_notebook_path},
     {"func": get_organizations},
     {"func": set_organization},
-    {"func": prepare_database_migration},
-    {"func": complete_database_migration},
+    {"func": prepare_database_migration, "internal": True},
+    {"func": complete_database_migration, "internal": True},
 ]
 
 # Export the tools
-tools = [Tool(**tool) for tool in tools_definition]
+tools = [Tool.create_from_dict(tool) for tool in tools_definition]

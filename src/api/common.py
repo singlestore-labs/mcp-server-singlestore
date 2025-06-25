@@ -5,18 +5,82 @@ import logging
 
 from starlette.exceptions import HTTPException
 
-from src.api.types import MCPConcept
+from src.api.types import MCPConcept, AVAILABLE_FLAGS
 from src.config.config import get_session_request, get_settings
 
 # Set up logger for this module
 logger = logging.getLogger(__name__)
 
 
-def filter_mcp_concepts(mcp_concepts: List[MCPConcept]) -> List[MCPConcept]:
+def filter_mcp_concepts(mcp_concepts: List[MCPConcept], **flags) -> List[MCPConcept]:
     """
-    Filter mcp concepts to exclude deprecated ones.
+    Filter MCP concepts based on boolean flags (backward compatibility).
+
+    Args:
+        mcp_concepts: List of MCP concepts to filter
+        **flags: Boolean flags to filter by (e.g., deprecated=True, private=False)
+                If no flags are provided, defaults to excluding deprecated concepts.
+
+    Returns:
+        Filtered list of MCP concepts
     """
-    return [mcp_concept for mcp_concept in mcp_concepts if not mcp_concept.deprecated]
+    # Default behavior: exclude deprecated concepts if no flags provided
+    if not flags:
+        flags = {"deprecated": False}
+
+    def matches_flags(concept):
+        for flag_name, expected_value in flags.items():
+            if hasattr(concept, flag_name):
+                actual_value = getattr(concept, flag_name)
+                if actual_value != expected_value:
+                    return False
+            else:
+                # If the flag doesn't exist on the concept, skip this filter
+                continue
+        return True
+
+    return [concept for concept in mcp_concepts if matches_flags(concept)]
+
+
+def filter_tools_by_flags(
+    mcp_concepts: List[MCPConcept], **flag_filters
+) -> List[MCPConcept]:
+    """
+    Filter MCP concepts using simple string flag names.
+
+    Args:
+        mcp_concepts: List of MCP concepts to filter
+        **flag_filters: Flag names with True/False values
+
+    Returns:
+        Filtered list of MCP concepts
+
+    Examples:
+        # Get only private tools
+        filter_tools_by_flags(tools, private=True)
+
+        # Get non-deprecated, non-private tools
+        filter_tools_by_flags(tools, deprecated=False, private=False)
+
+        # Get remote experimental tools
+        filter_tools_by_flags(tools, remote=True, experimental=True)
+
+        # Get admin tools that aren't deprecated
+        filter_tools_by_flags(tools, admin=True, deprecated=False)
+    """
+
+    def matches_filters(concept: MCPConcept) -> bool:
+        for flag_name, expected_value in flag_filters.items():
+            if flag_name in AVAILABLE_FLAGS:
+                actual_value = concept.has_flag(flag_name)
+                if actual_value != expected_value:
+                    return False
+            else:
+                # Invalid flag name - skip or warn
+                continue
+        return True
+
+    return [concept for concept in mcp_concepts if matches_filters(concept)]
 
 
 def query_graphql_organizations():

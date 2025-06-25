@@ -3,12 +3,35 @@ from typing import Callable
 
 import singlestoredb.management.workspace as s2_wksp
 
-from src.api.types import MCPConcept
+from src.api.types import MCPConcept, MCPConceptFlags, AVAILABLE_FLAGS
 
 
 @dataclass()
 class Tool(MCPConcept):
     func: Callable = None
+
+    @classmethod
+    def create_from_dict(cls, tool_def: dict):
+        """
+        Create a Tool instance from a dictionary definition.
+
+        Args:
+            tool_def: Dictionary with 'func' and optional flag keys
+
+        Example:
+            {"func": my_function, "private": True, "experimental": True, "remote": True}
+        """
+        func = tool_def["func"]
+        title = getattr(func, "__name__", "")
+
+        # Build flags dynamically from AVAILABLE_FLAGS
+        flags = MCPConceptFlags.NONE
+        for flag_name in AVAILABLE_FLAGS:
+            if tool_def.get(flag_name, False):
+                flag_enum = getattr(MCPConceptFlags, flag_name.upper())
+                flags |= flag_enum
+
+        return cls(title=title, flags=flags, func=func)
 
 
 class WorkspaceTarget:
