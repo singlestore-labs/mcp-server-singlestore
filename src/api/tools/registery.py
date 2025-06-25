@@ -1,54 +1,58 @@
-from functools import wraps
-from typing import Callable, List
-import inspect
+from typing import List
 from mcp.server.fastmcp import FastMCP
 
-from src.api.common import filter_mcp_concepts
+from src.api.common import filter_tools_by_flags
 from .types import Tool
 from .tools import tools as tool_list
 
 
-def create_tool_wrapper(func: Callable, name: str, description: str):
-    # Check if the function is async and has a Context parameter
-    is_async = inspect.iscoroutinefunction(func)
-    sig = inspect.signature(func)
-    has_context = "ctx" in sig.parameters
+def filter_tools(**flag_filters) -> List[Tool]:
+    """
+    Filter tools by flag names - SUPER SIMPLE!
 
-    if is_async and has_context:
-        # For async functions with Context, keep them as-is since FastMCP handles Context injection
-        @wraps(func)
-        async def async_wrapper(*args, **kwargs):
-            return await func(*args, **kwargs)
+    Args:
+        **flag_filters: Flag names with True/False values
 
-        async_wrapper.__name__ = name
-        async_wrapper.__doc__ = description
-        return async_wrapper
-    elif has_context:
-        # For sync functions with Context, wrap to handle Context properly
-        @wraps(func)
-        async def sync_with_context_wrapper(*args, **kwargs):
-            return func(*args, **kwargs)
+    Examples:
+        # Get only private tools
+        filter_tools(private=True)
 
-        sync_with_context_wrapper.__name__ = name
-        sync_with_context_wrapper.__doc__ = description
-        return sync_with_context_wrapper
-    else:
-        # For regular functions without Context
-        @wraps(func)
-        async def wrapper(*args, **kwargs):
-            return func(*args, **kwargs)
+        # Get public tools (non-private, non-deprecated)
+        filter_tools(private=False, deprecated=False)
 
-        wrapper.__name__ = name
-        wrapper.__doc__ = description
-        return wrapper
+        # Get remote experimental tools
+        filter_tools(remote=True, experimental=True)
+
+        # Get admin tools that aren't deprecated
+        filter_tools(admin=True, deprecated=False)
+
+        # Get beta tools
+        filter_tools(beta=True)
+    """
+    return filter_tools_by_flags(tool_list, **flag_filters)
 
 
-def register_tools(mcp: FastMCP) -> None:
-    filtered_tool: List[Tool] = filter_mcp_concepts(tool_list)
+def register_tools(mcp: FastMCP, **filter_flags) -> None:
+    """
+    Register tools with the MCP server with optional filtering.
 
-    for tool in filtered_tool:
+    Args:
+        mcp: FastMCP server instance
+        **filter_flags: Optional flag filters to apply
+
+    Examples:
+        # Register all public tools (default)
+        register_tools(mcp)
+
+        # Register only public tools explicitly
+        register_tools(mcp, private=False, deprecated=False)
+    """
+    # Default: only register public tools (non-private, non-deprecated)
+    if not filter_flags:
+        filter_flags = {"internal": False, "deprecated": False}
+
+    filtered_tools: List[Tool] = filter_tools(**filter_flags)
+
+    for tool in filtered_tools:
         func = tool.func
-        # Add context support for MCP
-        wrapper = create_tool_wrapper(func, func.__name__, func.__doc__ or "")
-
-        mcp.tool(name=func.__name__, description=func.__doc__ or "")(wrapper)
+        mcp.tool(name=func.__name__, description=func.__doc__)(func)

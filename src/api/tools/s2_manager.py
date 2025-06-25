@@ -29,8 +29,8 @@ class S2Manager:
         if "conn_attrs" in self.extra_kwargs:
             conn_attrs.update(self.extra_kwargs.pop("conn_attrs"))
         self.connection = s2.connect(
-            user=self.user,
             host=self.host,
+            user=self.user,
             password=self.password,
             database=self.database,
             conn_attrs=conn_attrs,
@@ -38,10 +38,20 @@ class S2Manager:
         )
         self.cursor = self.connection.cursor()
 
-    def execute(self, query, params=None):
-        if params:
-            return self.cursor.execute(query, params)
-        return self.cursor.execute(query)
+    def execute(self, query, args=None):
+        return self.cursor.execute(query, args=args)
+
+    def fetchmany(self, size=10):
+        """
+        Fetches the next set of rows from the result set of a query.
+
+        Args:
+            size (int): Number of rows to fetch. Defaults to 10.
+
+        Returns:
+            list: List of rows fetched from the database.
+        """
+        return self.cursor.fetchmany(size)
 
     def fetchall(self):
         return self.cursor.fetchall()

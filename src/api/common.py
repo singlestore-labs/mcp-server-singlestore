@@ -5,18 +5,82 @@ import logging
 
 from starlette.exceptions import HTTPException
 
-from src.api.types import MCPConcept
+from src.api.types import MCPConcept, AVAILABLE_FLAGS
 from src.config.config import get_session_request, get_settings
 
 # Set up logger for this module
 logger = logging.getLogger(__name__)
 
 
-def filter_mcp_concepts(mcp_concepts: List[MCPConcept]) -> List[MCPConcept]:
+def filter_mcp_concepts(mcp_concepts: List[MCPConcept], **flags) -> List[MCPConcept]:
     """
-    Filter mcp concepts to exclude deprecated ones.
+    Filter MCP concepts based on boolean flags (backward compatibility).
+
+    Args:
+        mcp_concepts: List of MCP concepts to filter
+        **flags: Boolean flags to filter by (e.g., deprecated=True, private=False)
+                If no flags are provided, defaults to excluding deprecated concepts.
+
+    Returns:
+        Filtered list of MCP concepts
     """
-    return [mcp_concept for mcp_concept in mcp_concepts if not mcp_concept.deprecated]
+    # Default behavior: exclude deprecated concepts if no flags provided
+    if not flags:
+        flags = {"deprecated": False}
+
+    def matches_flags(concept):
+        for flag_name, expected_value in flags.items():
+            if hasattr(concept, flag_name):
+                actual_value = getattr(concept, flag_name)
+                if actual_value != expected_value:
+                    return False
+            else:
+                # If the flag doesn't exist on the concept, skip this filter
+                continue
+        return True
+
+    return [concept for concept in mcp_concepts if matches_flags(concept)]
+
+
+def filter_tools_by_flags(
+    mcp_concepts: List[MCPConcept], **flag_filters
+) -> List[MCPConcept]:
+    """
+    Filter MCP concepts using simple string flag names.
+
+    Args:
+        mcp_concepts: List of MCP concepts to filter
+        **flag_filters: Flag names with True/False values
+
+    Returns:
+        Filtered list of MCP concepts
+
+    Examples:
+        # Get only private tools
+        filter_tools_by_flags(tools, private=True)
+
+        # Get non-deprecated, non-private tools
+        filter_tools_by_flags(tools, deprecated=False, private=False)
+
+        # Get remote experimental tools
+        filter_tools_by_flags(tools, remote=True, experimental=True)
+
+        # Get admin tools that aren't deprecated
+        filter_tools_by_flags(tools, admin=True, deprecated=False)
+    """
+
+    def matches_filters(concept: MCPConcept) -> bool:
+        for flag_name, expected_value in flag_filters.items():
+            if flag_name in AVAILABLE_FLAGS:
+                actual_value = concept.has_flag(flag_name)
+                if actual_value != expected_value:
+                    return False
+            else:
+                # Invalid flag name - skip or warn
+                continue
+        return True
+
+    return [concept for concept in mcp_concepts if matches_filters(concept)]
 
 
 def query_graphql_organizations():
@@ -45,7 +109,7 @@ def query_graphql_organizations():
 
     # Get access token with logging
     try:
-        access_token = __get_access_token()
+        access_token = get_access_token()
         # Only log first/last 8 chars for security
         token_preview = (
             f"{access_token[:8]}...{access_token[-8:]}"
@@ -145,16 +209,7 @@ def build_request(
         if params is None:
             params = {}
 
-        # Add organization ID as a query parameter
-        if settings.is_remote:
-            params["organizationID"] = settings.org_id
-        elif (
-            hasattr(settings, "org_id")
-            and settings.org_id
-            and settings.auth_method == "oauth_token"
-        ):
-            # For local OAuth token authentication, also add organization ID
-            params["organizationID"] = settings.org_id
+        params["organizationID"] = get_org_id()
 
         if params and type == "GET":  # Only add query params for GET requests
             url += "?"
@@ -168,7 +223,7 @@ def build_request(
         "Content-Type": "application/json",
     }
 
-    access_token = __get_access_token()
+    access_token = get_access_token()
 
     if access_token is not None:
         headers["Authorization"] = f"Bearer {access_token}"
@@ -277,7 +332,7 @@ def __get_user_id() -> str:
     raise ValueError("Could not retrieve user ID from the API")
 
 
-def __get_org_id() -> str:
+def get_org_id() -> str:
     """
     Get the organization ID from the management API.
 
@@ -286,25 +341,18 @@ def __get_org_id() -> str:
     """
     settings = get_settings()
 
-    if settings.is_remote:
-        return settings.org_id
-    else:
-        # For local settings with OAuth token authentication, check if org_id is already set
-        if (
-            hasattr(settings, "org_id")
-            and settings.org_id
-            and settings.auth_method == "oauth_token"
-        ):
-            return settings.org_id
+    org_id = settings.org_id
 
-        organization = build_request("GET", "organizations/current")
-        if "orgID" in organization:
-            return organization["orgID"]
-        else:
-            raise ValueError("Could not retrieve organization ID from the API")
+    if not org_id:
+        logger.debug(
+            "Organization ID not set in settings, fetching current organization"
+        )
+        raise ValueError("OrganizationID is not set. Please set an organization first.")
+
+    return org_id
 
 
-def __get_access_token() -> str:
+def get_access_token() -> str:
     """
     Get the access token for the current session.
 
