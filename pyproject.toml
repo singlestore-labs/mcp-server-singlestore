@@ -42,4 +42,5 @@ dev-dependencies = [
 
 [tool.uv.sources]
 singlestore-mcp-server = { workspace = true }
+singlestoredb = { git = "https://github.com/Rodriguespn/singlestoredb-python", rev = "feature/free-tier-endpoints" }
 

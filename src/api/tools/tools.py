@@ -31,15 +31,8 @@ SAMPLE_NOTEBOOK_PATH = os.path.join(
 )
 
 
-class VirtualWorkspaceTarget:
-    """Simple wrapper for virtual workspace data from API"""
-
-    def __init__(self, endpoint: str):
-        self.endpoint = endpoint
-
-
 def __execute_sql_unified(
-    target: s2_wksp.Workspace | s2_wksp.StarterWorkspace | VirtualWorkspaceTarget,
+    target: s2_wksp.Workspace | s2_wksp.StarterWorkspace,
     sql_query: str,
     username: str,
     password: str,
@@ -50,19 +43,10 @@ def __execute_sql_unified(
     Returns results and column names in a dictionary format.
     """
 
-    if isinstance(target, s2_wksp.StarterWorkspace):
-        raise NotImplementedError(
-            "StarterWorkspace objects are not supported. Use VirtualWorkspaceTarget instead."
-        )
-    else:
-        # Regular Workspace
-        if target.endpoint is None:
-            raise ValueError(
-                "Workspace does not have an endpoint. "
-                "Please ensure the workspace is properly configured."
-            )
-        endpoint = target.endpoint
-        database_name = database
+    if target.endpoint is None:
+        raise ValueError("Workspace or virtual workspace does not have an endpoint. ")
+    endpoint = target.endpoint
+    database_name = database
 
     # Parse host and port from endpoint
     if ":" in endpoint:
@@ -279,7 +263,7 @@ def run_sql(
     settings = config.get_settings()
 
     # Target can either be a workspace or a virtual workspace
-    target: s2_wksp.Workspace | VirtualWorkspaceTarget = None
+    target: s2_wksp.Workspace | s2_wksp.StarterWorkspace = None
 
     workspace_manager = s2.manage_workspaces(
         access_token=get_access_token(), organization_id=get_org_id()
@@ -295,20 +279,9 @@ def run_sql(
         if "404" in str(e):
             # If workspace not found, try to fetch as virtual workspace from API
             try:
-                virtual_workspace_data = __get_virtual_workspace(id)
+                target = workspace_manager.get_starter_workspace(id)
 
-                # Extract endpoint and database name from API response
-                api_endpoint = virtual_workspace_data.get("endpoint")
-                database_name = virtual_workspace_data.get("databaseName")
-
-                if not api_endpoint:
-                    raise ValueError(
-                        f"Virtual workspace {id} does not have an endpoint. "
-                        "Please ensure the virtual workspace is properly configured."
-                    )
-
-                # Create a VirtualWorkspaceTarget object
-                target = VirtualWorkspaceTarget(endpoint=api_endpoint)
+                database_name = target.database_name
 
             except Exception as ve:
                 if "404" in str(ve):
