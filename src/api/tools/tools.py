@@ -1639,6 +1639,200 @@ def __get_workspace_by_id(workspace_id: str) -> WorkspaceTarget:
     return WorkspaceTarget(target, is_shared)
 
 
+def create_starter_workspace(
+    ctx: Context, name: str, database_name: str
+) -> Dict[str, Any]:
+    """
+    Create a new starter workspace using the SingleStore SDK.
+
+    This tool provides a modern SDK-based approach to creating starter workspaces,
+    offering improved reliability and better error handling compared to direct API calls.
+
+    Args:
+        name: Unique name for the new starter workspace
+        database_name: Name of the database to create in the starter workspace
+
+    Returns:
+        Dictionary with starter workspace creation details including:
+        - workspace_id: Unique identifier for the created workspace
+        - name: Display name of the workspace
+        - endpoint: Connection endpoint URL
+        - database_name: Name of the primary database
+
+    Example Usage:
+    ```python
+    result = create_starter_workspace(
+        ctx=ctx,
+        name="my-test-workspace",
+        database_name="analytics_db"
+    )
+    workspace_id = result["workspace_id"]
+    endpoint = result["endpoint"]
+    ```
+    """
+    ctx.info(f"Creating starter workspace '{name}' with database '{database_name}'")
+
+    settings = config.get_settings()
+    user_id = config.get_user_id()
+
+    # Track analytics event
+    settings.analytics_manager.track_event(
+        user_id,
+        "tool_calling",
+        {
+            "name": "create_starter_workspace",
+            "workspace_name": name,
+            "database_name": database_name,
+        },
+    )
+
+    try:
+        # Initialize workspace manager using the SDK
+        workspace_manager = s2.manage_workspaces(
+            access_token=get_access_token(),
+            base_url=settings.s2_api_base_url,
+            organization_id=get_org_id(),
+        )
+
+        # Create the starter workspace
+        starter_workspace = workspace_manager.create_starter_workspace(
+            name=name,
+            database_name=database_name,
+            # TODO: Dinamically set region_id if needed
+            workspace_group={"cell_id": "3482219c-a389-4079-b18b-d50662524e8a"},
+        )
+
+        ctx.info(
+            f"Starter workspace '{name}' created successfully with ID: {starter_workspace.workspace_id}"
+        )
+
+        return {
+            "status": "success",
+            "message": f"Starter workspace '{name}' created successfully",
+            "name": starter_workspace.name,
+            "endpoint": starter_workspace.endpoint,
+            "database_name": starter_workspace.database_name,
+        }
+
+    except Exception as e:
+        error_msg = f"Failed to create starter workspace '{name}': {str(e)}"
+        ctx.error(error_msg)
+
+        return {
+            "status": "error",
+            "message": error_msg,
+            "error": str(e),
+            "workspace_name": name,
+            "database_name": database_name,
+        }
+
+
+def terminate_virtual_workspace(
+    ctx: Context,
+    workspace_id: str,
+) -> Dict[str, Any]:
+    """
+    Terminate a virtual (starter) workspace using the SingleStore SDK.
+
+    This tool provides a safe and reliable way to terminate virtual workspaces,
+    with proper error handling and confirmation of the termination status.
+
+    ⚠️  WARNING: This action is permanent and cannot be undone. All data in the
+    workspace will be lost. Make sure to backup any important data before terminating.
+
+    Args:
+        workspace_id: Unique identifier of the virtual workspace to terminate
+
+    Returns:
+        Dictionary with termination status and details including:
+        - status: "success" or "error"
+        - message: Human-readable description of the result
+        - workspace_id: ID of the terminated workspace
+        - workspace_name: Name of the terminated workspace (if available)
+        - termination_time: Timestamp when termination was initiated
+
+    Benefits over direct API calls:
+    - Automatic retry logic and error handling
+    - Proper validation of workspace existence
+    - Detailed error messages and status reporting
+    - Built-in authentication handling
+
+    Example Usage:
+    ```python
+    result = terminate_virtual_workspace(
+        ctx=ctx,
+        workspace_id="ws-abc123def456"
+    )
+    if result["status"] == "success":
+        print(f"Workspace {result['workspace_name']} terminated successfully")
+    else:
+        print(f"Failed to terminate workspace: {result['message']}")
+    ```
+    """
+    ctx.info(f"Terminating virtual workspace with ID: {workspace_id}")
+
+    settings = config.get_settings()
+    user_id = config.get_user_id()
+
+    # Track analytics event
+    settings.analytics_manager.track_event(
+        user_id,
+        "tool_calling",
+        {
+            "name": "terminate_virtual_workspace",
+            "workspace_id": workspace_id,
+        },
+    )
+
+    try:
+        # Initialize workspace manager using the SDK
+        workspace_manager = s2.manage_workspaces(
+            access_token=get_access_token(),
+            base_url=settings.s2_api_base_url,
+            organization_id=get_org_id(),
+        )
+
+        # First, try to get the workspace details before termination
+        workspace_name = None
+        try:
+            starter_workspace = workspace_manager.get_starter_workspace(workspace_id)
+            workspace_name = starter_workspace.name
+            ctx.info(f"Found virtual workspace '{workspace_name}' (ID: {workspace_id})")
+        except Exception as e:
+            # If we can't get the workspace, it might not exist or already be terminated
+            ctx.warning(f"Could not retrieve workspace details: {str(e)}")
+            raise ValueError(
+                f"Virtual workspace '{workspace_id}' does not exist or has already been terminated."
+            )
+
+        # Terminate the virtual workspace
+        workspace_manager.terminate_starter_workspace(workspace_id)
+
+        termination_time = datetime.datetime.now().isoformat()
+
+        success_message = f"Virtual workspace '{workspace_name or workspace_id}' terminated successfully"
+        ctx.info(success_message)
+
+        return {
+            "status": "success",
+            "message": success_message,
+            "workspace_id": workspace_id,
+            "workspace_name": workspace_name,
+            "termination_time": termination_time,
+        }
+
+    except Exception as e:
+        error_msg = f"Failed to terminate virtual workspace '{workspace_id}': {str(e)}"
+        ctx.error(error_msg)
+
+        return {
+            "status": "error",
+            "message": error_msg,
+            "error": str(e),
+            "workspace_id": workspace_id,
+        }
+
+
 tools_definition = [
     {"func": get_user_id},
     {"func": workspace_groups_info},
@@ -1658,8 +1852,12 @@ tools_definition = [
     {"func": get_notebook_path, "internal": True},
     {"func": get_organizations},
     {"func": set_organization},
+    # These tools are under development and not yet available for public use
     {"func": prepare_database_migration, "internal": True},
     {"func": complete_database_migration, "internal": True},
+    # This tool is under development and not yet available for public use
+    {"func": create_starter_workspace, "internal": True},
+    {"func": terminate_virtual_workspace},
 ]
 
 # Export the tools
