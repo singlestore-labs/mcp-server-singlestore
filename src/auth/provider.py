@@ -18,9 +18,12 @@ from mcp.shared._httpx_utils import create_mcp_http_client
 from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
 from pydantic import AnyHttpUrl
 from starlette.exceptions import HTTPException
+from src.logger import get_logger
 from urllib.parse import urlencode
 
 from src.config.config import RemoteSettings, get_settings, set_user_id
+
+logger = get_logger()
 
 
 class SingleStoreOAuthProvider(OAuthAuthorizationServerProvider):
@@ -232,7 +235,7 @@ class SingleStoreOAuthProvider(OAuthAuthorizationServerProvider):
             )
 
             if response.status_code != 200:
-                print(
+                logger.error(
                     f"Failed to exchange code for token: {response.status_code} - {response.text}"
                 )
                 raise HTTPException(400, "Failed to exchange code for token")

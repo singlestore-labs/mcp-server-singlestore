@@ -1,6 +1,5 @@
 from mcp.server.fastmcp import FastMCP
 from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions
-import logging
 
 from src.auth.callback import make_auth_callback_handler
 from src.api.tools import register_tools
@@ -8,26 +7,19 @@ from src.auth.provider import SingleStoreOAuthProvider
 from src.api.resources.register import register_resources
 from src.auth.browser_auth import get_authentication_token
 import src.config.config as config
+from src.logger import get_logger
 
-# Configure logging to enable debug messages
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler()],
-)
+logger = get_logger()
 
 
 def start_command(transport):
     # Always use browser authentication for stdio mode
     if transport == config.Transport.STDIO:
-        print("Starting browser authentication...")
         oauth_token = get_authentication_token()
         if not oauth_token:
-            print(
-                "❌ Authentication failed. Cannot start MCP server without valid credentials."
-            )
+            logger.error("Authentication failed. Please try again")
             return
-        print("✅ Authentication successful. Starting MCP server...")
+        logger.info("Authentication successful")
 
         # Create settings with OAuth token as JWT token
         settings = config.init_settings(transport=transport, jwt_token=oauth_token)
@@ -68,5 +60,9 @@ def start_command(transport):
         mcp.custom_route("/callback", methods=["GET"])(
             make_auth_callback_handler(provider)
         )
+
+    logger.info(
+        f"Starting MCP server with transport={transport} on {settings.host}:{settings.port}"
+    )
 
     mcp.run(transport=transport)
