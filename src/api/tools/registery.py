@@ -19,15 +19,6 @@ def filter_tools(**flag_filters) -> List[Tool]:
 
         # Get public tools (non-private, non-deprecated)
         filter_tools(private=False, deprecated=False)
-
-        # Get remote experimental tools
-        filter_tools(remote=True, experimental=True)
-
-        # Get admin tools that aren't deprecated
-        filter_tools(admin=True, deprecated=False)
-
-        # Get beta tools
-        filter_tools(beta=True)
     """
     return filter_tools_by_flags(tool_list, **flag_filters)
 
