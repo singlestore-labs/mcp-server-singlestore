@@ -2,19 +2,22 @@ import os
 import json
 import sys
 from pathlib import Path
-from typing import Optional, Literal
+from typing import Optional
 
-# Supported client types
-ClientType = Literal["claude", "cursor"]
+from ..logger import get_logger
+from .constants import CLIENT_CLAUDE, CLIENT_CURSOR, CLIENT_CHOICES
+
+# Get logger for this module
+logger = get_logger()
 
 # Client config file paths (platform-dependent)
 CLIENT_CONFIG_PATHS = {
-    "claude": {
+    CLIENT_CLAUDE: {
         "darwin": ("~/Library/Application Support/Claude/claude_desktop_config.json"),
         "win32": "%APPDATA%\\Claude\\claude_desktop_config.json",
         "linux": "~/.config/Claude/claude_desktop_config.json",
     },
-    "cursor": {
+    CLIENT_CURSOR: {
         "darwin": "~/.cursor/mcp.json",
         "win32": "~/.cursor/mcp.json",
         "linux": "~/.cursor/mcp.json",
@@ -23,7 +26,7 @@ CLIENT_CONFIG_PATHS = {
 
 # Client-specific config templates
 CLIENT_CONFIG_TEMPLATES = {
-    "claude": {
+    CLIENT_CLAUDE: {
         "mcpServers": {
             "singlestore-mcp-server": {
                 "command": "uvx",
@@ -34,7 +37,7 @@ CLIENT_CONFIG_TEMPLATES = {
             }
         }
     },
-    "cursor": {
+    CLIENT_CURSOR: {
         "mcpServers": {
             "singlestore-mcp-server": {
                 "command": "uvx",
@@ -45,7 +48,7 @@ CLIENT_CONFIG_TEMPLATES = {
 }
 
 
-def get_config_path(client: ClientType) -> Optional[Path]:
+def get_config_path(client: str) -> Optional[Path]:
     """
     Get the platform-specific config path for the client.
 
@@ -57,7 +60,7 @@ def get_config_path(client: ClientType) -> Optional[Path]:
     """
     platform = sys.platform
     if platform not in CLIENT_CONFIG_PATHS[client]:
-        print(f"Unsupported platform: {platform} for client: {client}")
+        logger.error(f"Unsupported platform: {platform} for client: {client}")
         return None
 
     # Get the raw path and expand environment variables and user directory
@@ -88,11 +91,11 @@ def create_config_directory(config_path: Path) -> bool:
         config_path.parent.mkdir(parents=True, exist_ok=True)
         return True
     except Exception as e:
-        print(f"Error creating config directory: {e}")
+        logger.error(f"Error creating config directory: {e}")
         return False
 
 
-def update_client_config(client: ClientType) -> bool:
+def update_client_config(client: str) -> tuple[bool, Optional[dict]]:
     """
     Update the client configuration file to use the SingleStore MCP server with JWT authentication.
 
@@ -100,15 +103,15 @@ def update_client_config(client: ClientType) -> bool:
         client: The LLM client name
 
     Returns:
-        True if successful, False otherwise
+        Tuple of (success: bool, config_data: Optional[dict])
     """
     config_path = get_config_path(client)
     if not config_path:
-        return False
+        return False, None
 
     # Create directory if it doesn't exist
     if not create_config_directory(config_path):
-        return False
+        return False, None
 
     # Prepare the config data
     template = CLIENT_CONFIG_TEMPLATES[client]
@@ -121,7 +124,7 @@ def update_client_config(client: ClientType) -> bool:
                 try:
                     existing_config = json.load(f)
                     # Merge the configs based on client type
-                    if client in ["claude", "cursor"]:
+                    if client in [CLIENT_CLAUDE, CLIENT_CURSOR]:
                         if "mcpServers" not in existing_config:
                             existing_config["mcpServers"] = {}
                         existing_config["mcpServers"]["singlestore-mcp-server"] = (
@@ -131,24 +134,26 @@ def update_client_config(client: ClientType) -> bool:
                     config_data = existing_config
                 except json.JSONDecodeError:
                     # If the file exists but is invalid JSON, use our template
-                    print(
-                        f"Warning: Existing config file at {config_path} is not valid JSON. Creating a new file."
+                    logger.warning(
+                        f"Existing config file at {config_path} is not valid JSON. Creating a new file."
                     )
 
         # Write the updated config
         with open(config_path, "w") as f:
             json.dump(config_data, indent=2, fp=f)
 
-        print(
+        logger.info(
             f"Successfully configured {client.capitalize()} to use SingleStore MCP server."
         )
-        print(f"Config updated at: {config_path}")
-        print("The server will handle authentication automatically via browser OAuth.")
-        return True
+        logger.info(f"Config updated at: {config_path}")
+        logger.info(
+            "The server will handle authentication automatically via browser OAuth."
+        )
+        return True, config_data
 
     except Exception as e:
-        print(f"Error updating client config: {e}")
-        return False
+        logger.error(f"Error updating client config: {e}")
+        return False, None
 
 
 def init_command(client: str) -> int:
@@ -162,20 +167,36 @@ def init_command(client: str) -> int:
         Exit code (0 for success, 1 for failure)
     """
     client = client.lower()
-    valid_clients = list(CLIENT_CONFIG_TEMPLATES.keys())
+    valid_clients = CLIENT_CHOICES
 
     if client not in valid_clients:
-        print(f"Error: Unsupported client '{client}'")
-        print(f"Supported clients: {', '.join(valid_clients)}")
+        logger.error(f"Unsupported client '{client}'")
+        logger.error(f"Supported clients: {', '.join(valid_clients)}")
         return 1
 
-    print(f"Initializing SingleStore MCP server for {client.capitalize()}...")
+    logger.info(f"Initializing SingleStore MCP server for {client.capitalize()}...")
     # Update the client configuration
-    if update_client_config(client):
-        print("\nSetup complete! You can now use the MCP server with your LLM client.")
-        print("The server will handle authentication automatically via browser OAuth.")
-        print("Restart your LLM client to apply the changes.")
+    success, config_data = update_client_config(client)
+    if success and config_data:
+        logger.info(
+            "\nSetup complete! You can now use the MCP server with your LLM client."
+        )
+        logger.info(
+            "The server will handle authentication automatically via browser OAuth."
+        )
+
+        # Show the generated config
+        logger.info("\nGenerated configuration:")
+        mcp_server_config = config_data.get("mcpServers", {}).get(
+            "singlestore-mcp-server", {}
+        )
+        config_display = {
+            "mcpServers": {"...": "...", "singlestore-mcp-server": mcp_server_config}
+        }
+        logger.info(json.dumps(config_display, indent=4))
+
+        logger.info("Restart your LLM client to apply the changes.")
         return 0
     else:
-        print("\nSetup failed. Please check the error messages above.")
+        logger.error("\nSetup failed. Please check the error messages above.")
         return 1

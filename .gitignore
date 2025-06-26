@@ -27,6 +27,7 @@ env/
 # Python testing
 .pytest_cache/
 .coverage
+coverage.xml
 htmlcov/
 
 # Environment variables
