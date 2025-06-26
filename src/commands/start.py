@@ -32,7 +32,8 @@ def start_command(transport):
         # Create settings with OAuth token as JWT token
         settings = config.init_settings(transport=transport, jwt_token=oauth_token)
     else:
-        settings = config.init_settings(transport=transport, jwt_token=None)
+        raise NotImplementedError("Only stdio transport is currently supported.")
+        # settings = config.init_settings(transport=transport, jwt_token=None)
 
     mcp_args = {
         "name": "SingleStore MCP Server",

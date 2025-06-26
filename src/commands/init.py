@@ -151,9 +151,7 @@ def update_client_config(client: ClientType) -> bool:
         return False
 
 
-def init_command(
-    client: str = "claude",
-) -> int:
+def init_command(client: str) -> int:
     """
     Initialize the SingleStore MCP server for a specific client with JWT authentication.
 
