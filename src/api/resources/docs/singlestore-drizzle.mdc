@@ -1,0 +1,266 @@
+---
+description: Use these rules when integrating SingleStore with Drizzle ORM
+globs: *.ts, *.tsx
+alwaysApply: false
+---
+# SingleStore and Drizzle Integration Guidelines
+
+## Overview
+
+This guide covers the specific integration patterns and optimizations for using Drizzle ORM with SingleStore databases. Follow these guidelines to ensure efficient database operations with SingleStore's high-performance capabilities.
+
+## Dependencies
+
+For SingleStore with Drizzle ORM integration, include these specific dependencies:
+
+```bash
+npm install drizzle-orm mysql2 dotenv
+npm install -D drizzle-kit
+```
+
+## SingleStore Connection Configuration
+
+- Use the SingleStore connection string format:
+
+```text
+DATABASE_URL=mysql://username:password@host:port/database
+```
+
+- Store this in `.env` or `.env.local` file
+- SingleStore uses MySQL protocol compatibility
+
+## SingleStore Connection Setup
+
+When connecting to SingleStore:
+
+- Use the singlestore driver from drizzle-orm/singlestore
+- Pass the connection string directly to the drizzle function
+- Use mysql2 as the underlying connection driver
+
+```typescript
+// src/db.ts
+import 'dotenv/config';
+import { drizzle } from "drizzle-orm/singlestore";
+
+if (!process.env.DATABASE_URL) {
+  throw new Error('DATABASE_URL is not defined');
+}
+
+// Create SingleStore Drizzle instance
+export const db = drizzle(process.env.DATABASE_URL);
+```
+
+## SingleStore Database Considerations
+
+### Connection Management
+
+- For migrations: Use single client connection (recommended by Drizzle)
+- For queries: Use either client or pool based on your needs
+- SingleStore handles connection pooling efficiently
+
+### Performance Features
+
+SingleStore is optimized for high-performance operations:
+
+- Leverages distributed architecture for horizontal scaling
+- Supports both transactional and analytical workloads
+- Optimized for real-time analytics and fast queries
+
+## Schema Considerations for SingleStore
+
+When defining schemas for SingleStore, use SingleStore-specific types:
+
+```typescript
+// src/schema.ts
+import { 
+  singlestoreTable, 
+  int, 
+  varchar, 
+  text,
+  timestamp, 
+  json,
+  singlestoreEnum,
+  vector,
+  geometry,
+  serial
+} from 'drizzle-orm/singlestore-core';
+
+// SingleStore enum example
+export const userRoleEnum = singlestoreEnum(['admin', 'user', 'guest']);
+
+export const usersTable = singlestoreTable('users', {
+  id: serial().primaryKey(),
+  name: varchar({ length: 255 }).notNull(),
+  email: varchar({ length: 255 }).notNull().unique(),
+  role: userRoleEnum.default('user'),
+  metadata: json().$type<{ preferences: string[] }>(),
+  profileVector: vector({ dimensions: 1536 }), // AI embeddings
+  location: geometry(), // Geospatial data
+  createdAt: timestamp().defaultNow(),
+  updatedAt: timestamp().$onUpdate(() => new Date()),
+});
+
+export type User = typeof usersTable.$inferSelect;
+export type NewUser = typeof usersTable.$inferInsert;
+```
+
+## Drizzle Config for SingleStore
+
+SingleStore-specific configuration in `drizzle.config.ts`:
+
+```typescript
+// drizzle.config.ts
+import 'dotenv/config';
+import { defineConfig } from "drizzle-kit";
+
+export default defineConfig({
+  schema: "./src/schema.ts",
+  out: "./migrations",
+  dialect: "singlestore", // Use singlestore dialect
+  dbCredentials: {
+    url: process.env.DATABASE_URL!,
+  },
+});
+```
+
+## SingleStore-Specific Query Optimizations
+
+### Efficient Queries for SingleStore
+
+Optimize for SingleStore's distributed architecture:
+
+```typescript
+// Example of optimized queries for SingleStore
+import { db } from '../db';
+import { eq, and, sql } from 'drizzle-orm';
+import { usersTable } from '../schema';
+
+export async function batchInsertUsers(users: NewUser[]) {
+  // SingleStore handles batch inserts efficiently
+  return db.insert(usersTable).values(users).returning();
+}
+
+// Leverage SingleStore's fast analytical queries
+export async function getUserAnalytics() {
+  return db.select({
+    roleCount: sql<number>`count(*)`,
+    role: usersTable.role
+  })
+  .from(usersTable)
+  .groupBy(usersTable.role);
+}
+
+// Vector similarity search (AI use case)
+export async function findSimilarUsers(queryVector: number[], limit = 10) {
+  return db.select()
+    .from(usersTable)
+    .orderBy(sql`vector_sub(${usersTable.profileVector}, ${queryVector})`)
+    .limit(limit);
+}
+
+// Geospatial query example
+export async function findUsersNearLocation(lat: number, lng: number) {
+  return db.select()
+    .from(usersTable)
+    .where(sql`ST_Distance_Sphere(${usersTable.location}, POINT(${lng}, ${lat})) < 1000`);
+}
+```
+
+## SingleStore Column Types
+
+### AI/ML Features
+
+```typescript
+// Vector columns for AI applications
+const documentsTable = singlestoreTable('documents', {
+  id: serial().primaryKey(),
+  content: text().notNull(),
+  embedding: vector({ dimensions: 1536 }), // OpenAI embeddings
+});
+```
+
+### Geospatial Features
+
+```typescript
+// Geospatial columns
+const locationsTable = singlestoreTable('locations', {
+  id: serial().primaryKey(),
+  name: varchar({ length: 255 }).notNull(),
+  coordinates: geometry().notNull(),
+});
+```
+
+### JSON Operations
+
+```typescript
+// JSON with type inference
+const eventsTable = singlestoreTable('events', {
+  id: serial().primaryKey(),
+  eventData: json().$type<{
+    type: string;
+    payload: Record<string, any>;
+  }>(),
+});
+```
+
+## SingleStore-Specific Error Handling
+
+Handle SingleStore-specific connection and query issues:
+
+```typescript
+import { db } from '../db';
+import { usersTable } from '../schema';
+
+export async function safeSingleStoreOperation<T>(
+  operation: () => Promise<T>
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error: any) {
+    // Handle SingleStore-specific errors
+    if (error.code === 'ER_DUP_ENTRY') {
+      throw new Error('Duplicate entry violation');
+    }
+    
+    if (error.code === 'ER_NO_SUCH_TABLE') {
+      throw new Error('Table does not exist');
+    }
+    
+    // Handle connection timeouts
+    if (error.code === 'ETIMEDOUT') {
+      console.error('SingleStore connection timeout');
+      throw new Error('Database connection timeout');
+    }
+    
+    throw error;
+  }
+}
+```
+
+## Best Practices for SingleStore with Drizzle
+
+1. **Schema Design**
+   - Use appropriate data types for SingleStore's performance characteristics
+   - Leverage vector columns for AI/ML workloads
+   - Use geometry columns for geospatial data
+
+2. **Query Optimization**
+   - Take advantage of SingleStore's analytical query performance
+   - Use batch operations for bulk data operations
+   - Optimize JOIN operations for distributed execution
+
+3. **Connection Management**
+   - Use single connections for migrations
+   - Consider connection pooling for high-traffic applications
+   - Monitor connection usage in distributed environments
+
+4. **Data Types**
+   - Use serial for auto-incrementing primary keys
+   - Use json for structured data with type inference
+   - Use vector for AI embeddings and similarity search
+   - Use geometry for geospatial applications
+
+5. **Performance Considerations**
+   - Design schemas to take advantage of SingleStore's columnstore
+   - Use appropriate indexing strategies
+   - Consider data distribution for optimal query performance
