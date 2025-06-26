@@ -19,20 +19,20 @@ With MCP, you can use Claude Desktop, Cursor, or any compatible MCP client to in
 The simplest way to set up the MCP server is to use the initialization command:
 
 ```bash
-uvx singlestore-mcp-server init --api-key <SINGLESTORE_API_KEY>
+uvx singlestore-mcp-server init
 ```
 
 This command will:
 
-1. Authenticate the user
-2. Automatically locate the configuration file for your platform
-3. Create or update the configuration to include the SingleStore MCP server
+1. Automatically locate the configuration file for your platform
+2. Create or update the configuration to include the SingleStore MCP server
+3. Configure browser-based OAuth authentication
 4. Provide instructions for starting the server
 
 To specify a client (e.g., `claude` or `cursor`), use the `--client` flag:
 
 ```bash
-uvx singlestore-mcp-server init --api-key <SINGLESTORE_API_KEY> --client=<client>
+uvx singlestore-mcp-server init --client=<client>
 ```
 
 ### 2. Installing via Smithery
@@ -61,14 +61,14 @@ Replace `<client>` with `claude` or `cursor` as needed.
       "command": "uvx",
       "args": [
         "singlestore-mcp-server",
-        "start",
-        "--api-key",
-        "<SINGLESTORE_API_KEY>"
+        "start"
       ]
      }
     }
   }
   ```
+
+   **No API keys, tokens, or environment variables required!** The server automatically handles authentication via browser OAuth when started.
 
 2. Restart your client after making changes to the configuration.
 

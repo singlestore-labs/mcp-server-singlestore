@@ -30,8 +30,6 @@ CLIENT_CONFIG_TEMPLATES = {
                 "args": [
                     "singlestore-mcp-server",
                     "start",
-                    "--api-key",
-                    "{api_key}",
                 ],
             }
         }
@@ -40,7 +38,7 @@ CLIENT_CONFIG_TEMPLATES = {
         "mcpServers": {
             "singlestore-mcp-server": {
                 "command": "uvx",
-                "args": ["singlestore-mcp-server", "start", "--api-key", "{api_key}"],
+                "args": ["singlestore-mcp-server", "start"],
             }
         }
     },
@@ -94,13 +92,12 @@ def create_config_directory(config_path: Path) -> bool:
         return False
 
 
-def update_client_config(client: ClientType, api_key: str) -> bool:
+def update_client_config(client: ClientType) -> bool:
     """
-    Update the client configuration file to use the SingleStore MCP server.
+    Update the client configuration file to use the SingleStore MCP server with JWT authentication.
 
     Args:
         client: The LLM client name
-        api_key: SingleStore API key
 
     Returns:
         True if successful, False otherwise
@@ -115,11 +112,7 @@ def update_client_config(client: ClientType, api_key: str) -> bool:
 
     # Prepare the config data
     template = CLIENT_CONFIG_TEMPLATES[client]
-
-    # Fill in the API key
-    config_str = json.dumps(template, indent=2)
-    config_str = config_str.replace('"{api_key}"', f'"{api_key}"')
-    config_data = json.loads(config_str)
+    config_data = template
 
     try:
         # Read existing config if available
@@ -150,6 +143,7 @@ def update_client_config(client: ClientType, api_key: str) -> bool:
             f"Successfully configured {client.capitalize()} to use SingleStore MCP server."
         )
         print(f"Config updated at: {config_path}")
+        print("The server will handle authentication automatically via browser OAuth.")
         return True
 
     except Exception as e:
@@ -158,14 +152,12 @@ def update_client_config(client: ClientType, api_key: str) -> bool:
 
 
 def init_command(
-    api_key: str,
     client: str = "claude",
 ) -> int:
     """
-    Initialize the SingleStore MCP server for a specific client.
+    Initialize the SingleStore MCP server for a specific client with JWT authentication.
 
     Args:
-        api_key: SingleStore API key
         client: Name of the LLM client (claude, cursor)
 
     Returns:
@@ -181,8 +173,9 @@ def init_command(
 
     print(f"Initializing SingleStore MCP server for {client.capitalize()}...")
     # Update the client configuration
-    if update_client_config(client, api_key):
+    if update_client_config(client):
         print("\nSetup complete! You can now use the MCP server with your LLM client.")
+        print("The server will handle authentication automatically via browser OAuth.")
         print("Restart your LLM client to apply the changes.")
         return 0
     else:

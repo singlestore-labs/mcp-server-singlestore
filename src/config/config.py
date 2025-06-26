@@ -18,11 +18,6 @@ class Transport(str, Enum):
     HTTP = "streamable-http"
 
 
-class AuthMethod(str, Enum):
-    API_KEY = "api_key"
-    OAUTH_TOKEN = "oauth_token"
-
-
 class Settings(ABC, BaseSettings):
     host: str = "localhost"
     port: int = 8000
@@ -33,18 +28,17 @@ class Settings(ABC, BaseSettings):
 
 
 class LocalSettings(Settings):
-    api_key: str | None = None
+    jwt_token: str | None = None
     org_id: str | None = None
-    auth_method: AuthMethod = AuthMethod.API_KEY
     transport: Transport = Transport.STDIO
     is_remote: bool = False
 
-    model_config = SettingsConfigDict(env_prefix="MCP_", env_file=".env.local")
+    # Remove environment variable configuration to force browser auth
+    # model_config = SettingsConfigDict(env_prefix="MCP_", env_file=".env.local")
 
-    def set_oauth_token(self, token: str) -> None:
-        """Set OAuth token as the authentication method"""
-        self.api_key = token
-        self.auth_method = AuthMethod.OAUTH_TOKEN
+    def set_jwt_token(self, token: str) -> None:
+        """Set JWT token for authentication (obtained via browser OAuth)"""
+        self.jwt_token = token
 
     analytics_manager: AnalyticsManager = AnalyticsManager(enabled=False)
 
@@ -117,7 +111,7 @@ def get_user_id() -> str | None:
 
 
 def init_settings(
-    transport: Transport, api_key: str | None = None
+    transport: Transport, jwt_token: str | None = None
 ) -> RemoteSettings | LocalSettings:
     match transport:
         case Transport.HTTP:
@@ -125,7 +119,7 @@ def init_settings(
         case Transport.SSE:
             settings = RemoteSettings(transport=Transport.SSE)
         case Transport.STDIO:
-            settings = LocalSettings(api_key=api_key)
+            settings = LocalSettings(jwt_token=jwt_token)
         case _:
             raise ValueError(f"Unsupported transport mode: {transport}")
 

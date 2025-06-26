@@ -5,15 +5,12 @@ startCommand:
   configSchema:
     # JSON Schema defining the configuration options for the MCP.
     type: object
-    required:
-      - singlestoreApiKey
-    properties:
-      singlestoreApiKey:
-        type: string
-        description: SingleStore's API key required for authentication
+    
   commandFunction:
     # A JS function that produces the CLI command based on the given config to start the MCP on stdio.
     |-
-    (config) => { return { command: 'python', args: ['src/server/server.py'], env: { SINGLESTORE_API_KEY: config.singlestoreApiKey } }; }
-  exampleConfig:
-    singlestoreApiKey: your_api_key_here
+    (config) => { 
+      const args = ['singlestore-mcp-server', 'start'];
+      const env = {};
+      return { command: 'uvx', args: args, env: env }; 
+    }
