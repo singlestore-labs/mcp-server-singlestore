@@ -57,3 +57,35 @@ class MCPConcept:
         raise AttributeError(
             f"'{self.__class__.__name__}' object has no attribute '{name}'"
         )
+
+    @classmethod
+    def create_from_dict(cls, concept_def: dict):
+        """
+        Create an MCPConcept instance from a dictionary definition.
+
+        Args:
+            concept_def: Dictionary with concept attributes and optional flag keys
+
+        Example:
+            {"func": my_function, "internal": True, "deprecated": True}
+            {"title": "my_resource", "uri": "resource://example", "internal": True}
+        """
+        # Extract non-flag attributes for the concept
+        concept_attrs = {}
+        for key, value in concept_def.items():
+            if key not in AVAILABLE_FLAGS:
+                concept_attrs[key] = value
+
+        # Build flags dynamically from AVAILABLE_FLAGS
+        flags = MCPConceptFlags.NONE
+        for flag_name in AVAILABLE_FLAGS:
+            if concept_def.get(flag_name, False):
+                flag_enum = getattr(MCPConceptFlags, flag_name.upper())
+                flags |= flag_enum
+
+        # Set title if not explicitly provided and we have a function
+        if "title" not in concept_attrs and "func" in concept_attrs:
+            concept_attrs["title"] = getattr(concept_attrs["func"], "__name__", "")
+
+        concept_attrs["flags"] = flags
+        return cls(**concept_attrs)
