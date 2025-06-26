@@ -1,9 +1,14 @@
 import click
 import logging
 
+from src.commands.constants import (
+    CLIENT_CHOICES,
+    DEFAULT_CLIENT,
+    TRANSPORT_CHOICES,
+    DEFAULT_TRANSPORT,
+)
 from src.commands.init import init_command
 from src.commands import start_command
-from src.utils.constants import TransportType, ClientType
 
 
 @click.group()
@@ -14,9 +19,9 @@ def cli():
 @cli.command()
 @click.option(
     "--transport",
-    type=click.Choice(TransportType.choices(), case_sensitive=True),
+    type=click.Choice(TRANSPORT_CHOICES, case_sensitive=True),
     required=False,
-    default=TransportType.default(),
+    default=DEFAULT_TRANSPORT,
     help="Only stdio transport is currently supported for local development. ",
 )
 def start(transport: str):
@@ -26,7 +31,7 @@ def start(transport: str):
     The server will automatically handle authentication via browser OAuth.
     """
 
-    transport = TransportType(transport).value
+    # transport is already a string, no need to convert
     logging.info(f"Starting MCP server with transport={transport}")
     start_command(transport)
 
@@ -34,15 +39,15 @@ def start(transport: str):
 @cli.command()
 @click.option(
     "--client",
-    type=click.Choice(ClientType.choices(), case_sensitive=True),
-    default=ClientType.default(),
-    help=f"LLM client to configure (default: {ClientType.default()})",
+    type=click.Choice(CLIENT_CHOICES, case_sensitive=True),
+    default=DEFAULT_CLIENT,
+    help=f"LLM client to configure (default: {DEFAULT_CLIENT})",
 )
 def init(client: str):
     """
     Shows configuration information for SingleStore MCP server with OAuth authentication.
     """
-    client = ClientType(client).value
+    # client is already a string, no need to convert
     logging.info(f"Initializing SingleStore MCP server for {client.capitalize()}...")
     init_command(client)
 

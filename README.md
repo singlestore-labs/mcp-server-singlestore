@@ -136,7 +136,61 @@ The server implements the following tools:
   - Arguments: `job_id`, `start` (optional), `end` (optional)
   - Returns execution history for the specified job
 
-## Dockerization
+## Development
+
+### Prerequisites
+
+- Python >= 3.11
+- [uv](https://docs.astral.sh/uv/) for dependency management
+
+### Setup
+
+1. Clone the repository:
+
+```bash
+git clone https://github.com/singlestore-labs/mcp-server-singlestore.git
+cd mcp-server-singlestore
+```
+
+1. Install dependencies:
+
+```bash
+uv sync --dev
+```
+
+### Running Tests
+
+To run the test suite:
+
+```bash
+uv run pytest
+```
+
+For coverage reporting:
+
+```bash
+uv run pytest --cov=src --cov-report=html
+```
+
+The test suite includes:
+
+- Unit tests for CLI commands
+- Configuration validation tests  
+- Integration tests for MCP server functionality
+
+### Code Quality
+
+Format code with Black:
+
+```bash
+uv run black src/ tests/
+```
+
+Lint with Flake8:
+
+```bash
+uv run flake8 src/
+```
 
 ### Building the Docker Image
 

@@ -36,6 +36,7 @@ ignore="E501"
 dev-dependencies = [
     "pyright>=1.1.391",
     "pytest>=8.3.4",
+    "pytest-cov>=6.0.0",
     "ruff>=0.8.5",
     "singlestore-mcp-server",
 ]
@@ -43,4 +44,18 @@ dev-dependencies = [
 [tool.uv.sources]
 singlestore-mcp-server = { workspace = true }
 singlestoredb = { git = "https://github.com/Rodriguespn/singlestoredb-python", rev = "feature/free-tier-endpoints" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--strict-config",
+    "--cov=src",
+    "--cov-report=term-missing",
+    "--cov-report=xml",
+]
 
