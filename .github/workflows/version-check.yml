@@ -33,16 +33,16 @@ jobs:
           # Read version from version.py
           with open("src/version.py", "r") as f:
               version_content = f.read()
-          
+
           # Extract version string from file
           version_match = re.search(r'__version__\s*=\s*["\']([^"\']+)["\']', version_content)
           if not version_match:
               print("❌ Could not find version in version.py")
               sys.exit(1)
-              
+
           local_version = version_match.group(1)
           print(f"📦 Local version: {local_version}")
-          
+
           # Get version from PyPI
           package_name = "singlestore-mcp-server"
           try:
@@ -51,7 +51,7 @@ jobs:
                   pypi_data = pypi_response.json()
                   pypi_version = pypi_data["info"]["version"]
                   print(f"📦 PyPI version: {pypi_version}")
-                  
+
                   # Compare versions
                   if version.parse(local_version) <= version.parse(pypi_version):
                       print(f"❌ Error: Local version {local_version} is not greater than PyPI version {pypi_version}")

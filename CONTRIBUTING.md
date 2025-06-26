@@ -67,6 +67,16 @@ uv pip install -e .
 uv run singlestore-mcp-server --help
 ```
 
+### 4. Set Up Pre-commit Hooks (Recommended)
+
+```bash
+# Install pre-commit hooks
+uv run pre-commit install
+
+# Test that pre-commit works
+uv run pre-commit run --all-files
+```
+
 ## Development Workflow
 
 ### 1. Create a Feature Branch
@@ -107,20 +117,42 @@ uv run pytest -k "test_init"
 ### 4. Code Quality Checks
 
 ```bash
-# Format code with Black
-uv run black src/ tests/
+# Format and lint with Ruff
+uv run ruff format src/ tests/
+uv run ruff check src/ tests/
 
-# Check formatting
-uv run black --check src/ tests/
-
-# Lint with Flake8
-uv run flake8 src/ --ignore=E501,W503
+# Fix linting issues automatically
+uv run ruff check --fix src/ tests/
 
 # Type checking with Pyright
 uv run pyright src/
 
 # Run all quality checks
-uv run black --check src/ tests/ && uv run flake8 src/ --ignore=E501,W503 && uv run pyright src/
+uv run ruff check src/ tests/ && uv run ruff format --check src/ tests/ && uv run pyright src/
+```
+
+### 5. Pre-commit Hooks (Recommended)
+
+Set up pre-commit hooks to automatically run code quality checks:
+
+```bash
+# Install pre-commit hooks
+uv run pre-commit install
+
+# Run pre-commit on all files
+uv run pre-commit run --all-files
+
+# Run pre-commit on staged files
+uv run pre-commit run
+```
+
+### 6. Quick Quality Check
+
+Use the provided script to run all checks at once:
+
+```bash
+# Run all quality checks (linting, formatting, pre-commit, tests)
+./scripts/check.sh
 ```
 
 ## Testing
@@ -173,28 +205,22 @@ def test_feature_error_handling():
 
 ## Code Quality
 
-### Code Formatting
+### Code Formatting and Linting
 
-We use **Black** for code formatting:
+We use **Ruff** for both code formatting and linting. Ruff is a fast, modern Python linter and formatter that replaces Black and Flake8:
 
 ```bash
 # Format all files
-uv run black src/ tests/
+uv run ruff format src/ tests/
 
 # Check if files need formatting
-uv run black --check src/ tests/
-```
+uv run ruff format --check src/ tests/
 
-### Linting
-
-We use **Flake8** for linting:
-
-```bash
 # Lint source code
-uv run flake8 src/ --ignore=E501,W503
+uv run ruff check src/ tests/
 
-# Lint tests
-uv run flake8 tests/ --ignore=E501,W503
+# Lint and fix issues automatically
+uv run ruff check --fix src/ tests/
 ```
 
 ### Type Checking
@@ -204,18 +230,51 @@ We use **Pyright** for type checking:
 ```bash
 # Type check source code
 uv run pyright src/
+
+# Run Pyright via pre-commit (manual stage)
+uv run pre-commit run --hook-stage manual pyright
 ```
+
+### Pre-commit Hooks
+
+We use pre-commit hooks to automatically run code quality checks on every commit:
+
+```bash
+# Install pre-commit hooks (one-time setup)
+uv run pre-commit install
+
+# Run all pre-commit hooks manually
+uv run pre-commit run --all-files
+
+# Run pre-commit on staged files only
+uv run pre-commit run
+```
+
+**What runs automatically on commit:**
+
+- Trailing whitespace removal
+- End-of-file fixing
+- YAML validation
+- Large file detection
+- Merge conflict detection
+- Ruff linting (with auto-fix)
+- Ruff formatting
+
+**Note:** Pyright is configured to run manually only due to existing type issues. Run it separately when needed.
 
 ### Pre-commit Checks
 
-Before committing, always run:
+We recommend using pre-commit hooks, but if you need to run checks manually before committing:
 
 ```bash
 # Format, lint, type check, and test
-uv run black src/ tests/
-uv run flake8 src/ --ignore=E501,W503
+uv run ruff format src/ tests/
+uv run ruff check --fix src/ tests/
 uv run pyright src/
 uv run pytest
+
+# Or run pre-commit hooks manually
+uv run pre-commit run --all-files
 ```
 
 ## Debugging
@@ -263,7 +322,7 @@ uv run singlestore-mcp-server start
 # Debug mode - detailed output
 LOG_LEVEL=DEBUG uv run singlestore-mcp-server start
 
-# Quiet mode - warnings and errors only  
+# Quiet mode - warnings and errors only
 LOG_LEVEL=WARNING uv run singlestore-mcp-server start
 
 # Errors only
@@ -291,10 +350,11 @@ export DEVELOPMENT=true
 ### Code Style
 
 - Follow PEP 8 style guidelines
-- Use Black for code formatting
+- Use Ruff for code formatting and linting (replaces Black and Flake8)
 - Use descriptive variable and function names
 - Add type hints to function signatures
 - Write docstrings for public functions and classes
+- Set up pre-commit hooks for automatic code quality checks
 
 ### Constants and Configuration
 
@@ -400,10 +460,13 @@ The project uses GitHub Actions for automated publishing:
 ## Development Tips
 
 1. **Use descriptive branch names**: `feature/add-ssl-support`, `fix/auth-timeout-bug`
-2. **Test edge cases**: Test with invalid inputs, network failures, etc.
-3. **Mock external dependencies**: Use `unittest.mock` for database connections, API calls
-4. **Keep changes focused**: One feature or fix per pull request
-5. **Update tests**: Add or modify tests for any code changes
-6. **Check CI status**: Ensure all GitHub Actions pass before requesting review
+2. **Set up pre-commit hooks**: Run `uv run pre-commit install` after cloning
+3. **Test edge cases**: Test with invalid inputs, network failures, etc.
+4. **Mock external dependencies**: Use `unittest.mock` for database connections, API calls
+5. **Keep changes focused**: One feature or fix per pull request
+6. **Update tests**: Add or modify tests for any code changes
+7. **Use Ruff for formatting**: Run `uv run ruff format .` before committing
+8. **Check CI status**: Ensure all GitHub Actions pass before requesting review
+9. **Run pre-commit locally**: Use `uv run pre-commit run --all-files` to catch issues early
 
 Thank you for contributing to SingleStore MCP Server! 🚀

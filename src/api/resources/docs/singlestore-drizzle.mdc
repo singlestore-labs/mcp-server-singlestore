@@ -90,13 +90,13 @@ Importante: Do not use int() or serial() column types for primary keys. Instead,
 
 ```typescript
 // src/db/schema.ts
-import { 
-  singlestoreTable, 
-  int, 
+import {
+  singlestoreTable,
+  int,
   bigint,
-  varchar, 
+  varchar,
   text,
-  timestamp, 
+  timestamp,
   json,
   singlestoreEnum,
   vector
@@ -140,7 +140,7 @@ dotenv.config();
 const { DATABASE_URL } = process.env;
 if (!DATABASE_URL) {
   throw new Error('DATABASE_URL is not defined');
-} 
+}
 
 export default defineConfig({
     schema: "./src/db/schema.ts",
@@ -242,17 +242,17 @@ export async function safeSingleStoreOperation<T>(
     if (error.code === 'ER_DUP_ENTRY') {
       throw new Error('Duplicate entry violation');
     }
-    
+
     if (error.code === 'ER_NO_SUCH_TABLE') {
       throw new Error('Table does not exist');
     }
-    
+
     // Handle connection timeouts
     if (error.code === 'ETIMEDOUT') {
       console.error('SingleStore connection timeout');
       throw new Error('Database connection timeout');
     }
-    
+
     throw error;
   }
 }

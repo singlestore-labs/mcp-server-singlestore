@@ -70,7 +70,6 @@ class SingleStoreOAuthProvider(OAuthAuthorizationServerProvider):
         return None
 
     async def register_client(self, client_info: OAuthClientInformationFull):
-
         with self._get_conn() as conn:
             cur = conn.cursor()
             cur.execute(

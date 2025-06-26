@@ -175,7 +175,7 @@ uv run pytest --cov=src --cov-report=html
 The test suite includes:
 
 - Unit tests for CLI commands
-- Configuration validation tests  
+- Configuration validation tests
 - Integration tests for MCP server functionality
 
 ### Code Quality

@@ -5,12 +5,12 @@ startCommand:
   configSchema:
     # JSON Schema defining the configuration options for the MCP.
     type: object
-    
+
   commandFunction:
     # A JS function that produces the CLI command based on the given config to start the MCP on stdio.
     |-
-    (config) => { 
+    (config) => {
       const args = ['singlestore-mcp-server', 'start'];
       const env = {};
-      return { command: 'uvx', args: args, env: env }; 
+      return { command: 'uvx', args: args, env: env };
     }
