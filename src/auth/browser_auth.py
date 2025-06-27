@@ -193,10 +193,6 @@ def load_credentials() -> Optional[Dict[str, Any]]:
 
     try:
         with open(CREDENTIALS_FILE, "r") as f:
-            # Check if the file is empty
-            if f.readable() and f.tell() == 0:
-                logger.debug("Credentials file is empty")
-                return None
             return json.load(f)
     except (json.JSONDecodeError, IOError) as e:
         logger.error(f"Failed to load credentials: {e}")
@@ -497,11 +493,12 @@ def get_authentication_token(
                 logger.debug("Using saved authentication token")
                 return token_set.access_token
 
-    # If no valid credentials found, launch browser authentication
-    logger.debug("No valid authentication token found")
-    logger.debug("Starting browser-based authentication with SingleStore...")
+        else:
+            # If no valid credentials found, launch browser authentication
+            logger.debug("No valid authentication token found")
+            logger.debug("Starting browser-based authentication with SingleStore...")
 
-    success, token_set = authenticate(client_id, oauth_host, auth_timeout)
+            success, token_set = authenticate(client_id, oauth_host, auth_timeout)
 
     if success and token_set and token_set.access_token:
         return token_set.access_token
