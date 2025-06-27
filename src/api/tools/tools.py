@@ -3,8 +3,9 @@ import json
 import logging
 import os
 import re
+import time
 import uuid
-import datetime
+from datetime import datetime, timezone
 import singlestoredb as s2
 import nbformat as nbf
 import nbformat.v4 as nbfv4
@@ -24,6 +25,9 @@ from src.api.common import (
 )
 from src.api.tools.types import Tool
 from src.api.tools.types import WorkspaceTarget
+
+# Import response standardization system
+from src.api.responses import ToolResponseBuilder, tool_response
 
 # Set up logger for this module
 logger = logging.getLogger(__name__)
@@ -377,7 +381,7 @@ def __prepare_database_migration(
             "source_database": source_database,
             "branch_database_name": branch_database_name,
             "migration_results": migration_results,
-            "created_at": datetime.datetime.now().isoformat(),
+            "created_at": datetime.now().isoformat(),
             "status": "prepared",
         }
 
@@ -554,6 +558,7 @@ def __complete_database_migration(
         }
 
 
+@tool_response
 def get_user_id(ctx: Context) -> str:
     """
     Retrieve the current user's unique identifier.
@@ -567,13 +572,25 @@ def get_user_id(ctx: Context) -> str:
     Performance Tip:
     Cache the returned ID when making multiple API calls.
     """
+    start_time = time.time()
     settings = config.get_settings()
     user_id = config.get_user_id()
     # Track tool call event
     settings.analytics_manager.track_event(
         user_id, "tool_calling", {"name": "get_user_id"}
     )
-    return __get_user_id()
+
+    retrieved_user_id = __get_user_id()
+    execution_time = (time.time() - start_time) * 1000
+
+    return ToolResponseBuilder.success(
+        message="Retrieved user ID successfully",
+        data={"user_id": retrieved_user_id},
+        metadata={
+            "execution_time_ms": round(execution_time, 2),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    )
 
 
 def prepare_database_migration(
@@ -728,6 +745,7 @@ def complete_database_migration(
     )
 
 
+@tool_response
 def run_sql(
     ctx: Context, sql_query: str, id: str, database: Optional[str] = None
 ) -> Dict[str, Any]:
@@ -747,7 +765,7 @@ def run_sql(
         database: (optional) Database name to use
 
     Returns:
-        Dictionary with query results, metadata, and workspace information
+        Standardized response with query results and metadata
     """
 
     ctx.info(
@@ -767,6 +785,8 @@ def run_sql(
     username = __get_user_id()
     password = get_access_token()
 
+    # Execute the SQL query
+    start_time = time.time()
     result = __execute_sql_unified(
         ctx=ctx,
         target=target,
@@ -775,21 +795,44 @@ def run_sql(
         password=password,
         database=database_name,
     )
+    execution_time_ms = int((time.time() - start_time) * 1000)
 
-    # Add workspace type information to the result
-    result["workspace_type"] = "shared" if target.is_shared else "dedicated"
-    result["workspace_name"] = target.name
-
+    # Track analytics
     settings.analytics_manager.track_event(
         username,
         "tool_calling",
         {
             "name": "run_sql",
             "virtual_workspace_id": id,
-            "workspace_type": result["workspace_type"],
+            "workspace_type": "shared" if target.is_shared else "dedicated",
         },
     )
-    return result
+
+    # Build standardized response
+    workspace_type = "shared" if target.is_shared else "dedicated"
+    row_count = (
+        len(result.get("results", [])) if isinstance(result.get("results"), list) else 0
+    )
+
+    return ToolResponseBuilder.success(
+        message=f"Query executed successfully. {row_count} rows returned.",
+        data={
+            "results": result.get("results", []),
+            "row_count": row_count,
+            "workspace_id": id,
+            "workspace_name": target.name,
+            "workspace_type": workspace_type,
+            "database": database_name,
+            "status": result.get("status", "Success"),
+        },
+        metadata={
+            "query_length": len(sql_query),
+            "execution_time_ms": execution_time_ms,
+            "workspace_type": workspace_type,
+            "database_used": database_name,
+            "executed_at": datetime.now().isoformat(),
+        },
+    )
 
 
 def create_virtual_workspace(
@@ -914,6 +957,7 @@ def __create_file_in_shared_space(
     }
 
 
+@tool_response
 def check_if_file_exists(file_name: str, access_token: str = None) -> Dict[str, Any]:
     """
     Check if a file (notebook) exists in the user's shared space.
@@ -922,11 +966,7 @@ def check_if_file_exists(file_name: str, access_token: str = None) -> Dict[str, 
         file_name: Name of the file to check (with or without .ipynb extension)
 
     Returns:
-        JSON object with the file existence status
-        {
-            "exists": True/False,
-            "message": "File exists" or "File does not exist"
-        }
+        Standardized response with file existence status
     """
     settings = config.get_settings()
     user_id = config.get_user_id()
@@ -942,12 +982,17 @@ def check_if_file_exists(file_name: str, access_token: str = None) -> Dict[str, 
         organization_id=org_id,
     )
     exists = file_manager.shared_space.exists(file_name)
-    return {
-        "exists": exists,
-        "message": (f"File {file_name} {'exists' if exists else 'does not exist'}"),
-    }
+
+    # Return using the new standardized response builder
+    message = f"File {file_name} {'exists' if exists else 'does not exist'}"
+    return ToolResponseBuilder.success(
+        message=message,
+        data={"exists": exists, "file_name": file_name},
+        metadata={"checked_at": datetime.now().isoformat()},
+    )
 
 
+@tool_response
 def create_notebook(
     notebook_name: str, content: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
@@ -994,12 +1039,27 @@ def create_notebook(
         "tool_calling",
         {"name": "create_notebook", "notebook_name": notebook_name},
     )
+
+    start_time = time.time()
     path = (
         notebook_name if notebook_name.endswith(".ipynb") else f"{notebook_name}.ipynb"
     )
-    return __create_file_in_shared_space(path, content)
+    result = __create_file_in_shared_space(path, content)
+    execution_time = (time.time() - start_time) * 1000
+
+    return ToolResponseBuilder.success(
+        message=f"Notebook '{notebook_name}' created successfully",
+        data=result,
+        metadata={
+            "execution_time_ms": round(execution_time, 2),
+            "notebook_name": notebook_name,
+            "path": path,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    )
 
 
+@tool_response
 def create_scheduled_job(
     notebook_path: str, mode: str, create_snapshot: bool = True
 ) -> Dict[str, Any]:
@@ -1051,7 +1111,22 @@ def create_scheduled_job(
             "create_snapshot": create_snapshot,
         },
     )
-    return __create_scheduled_job(notebook_path, mode, create_snapshot)
+
+    start_time = time.time()
+    result = __create_scheduled_job(notebook_path, mode, create_snapshot)
+    execution_time = (time.time() - start_time) * 1000
+
+    return ToolResponseBuilder.success(
+        message=f"Scheduled job created successfully for notebook '{notebook_path}'",
+        data=result,
+        metadata={
+            "execution_time_ms": round(execution_time, 2),
+            "notebook_path": notebook_path,
+            "mode": mode,
+            "create_snapshot": create_snapshot,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    )
 
 
 def __get_notebook_path_by_name(notebook_name: str, location: str = "personal") -> str:
@@ -1133,6 +1208,7 @@ def __get_notebook_path_by_name(notebook_name: str, location: str = "personal") 
     return notebook_path
 
 
+@tool_response
 def workspace_groups_info() -> List[Dict[str, Any]]:
     """
     List all workspace groups accessible to the user in SingleStore.
@@ -1155,12 +1231,15 @@ def workspace_groups_info() -> List[Dict[str, Any]]:
     - Use workspaces_info to list workspaces within a group
     - Use execute_sql to run queries on workspaces in a group
     """
+    start_time = time.time()
     settings = config.get_settings()
     user_id = config.get_user_id()
     settings.analytics_manager.track_event(
         user_id, "tool_calling", {"name": "workspace_groups_info"}
     )
-    return [
+
+    groups_data = build_request("GET", "workspaceGroups")
+    groups = [
         {
             "name": group["name"],
             "deploymentType": group["deploymentType"],
@@ -1171,10 +1250,30 @@ def workspace_groups_info() -> List[Dict[str, Any]]:
             "regionID": group["regionID"],
             "updateWindow": group["updateWindow"],
         }
-        for group in build_request("GET", "workspaceGroups")
+        for group in groups_data
     ]
 
+    # Calculate states summary
+    state_counts = {}
+    for group in groups:
+        state = group["state"]
+        state_counts[state] = state_counts.get(state, 0) + 1
 
+    execution_time = (time.time() - start_time) * 1000
+
+    return ToolResponseBuilder.success(
+        message=f"Retrieved {len(groups)} workspace groups",
+        data={"workspace_groups": groups},
+        metadata={
+            "execution_time_ms": round(execution_time, 2),
+            "count": len(groups),
+            "state_summary": state_counts,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    )
+
+
+@tool_response
 def workspaces_info(workspace_group_id: str) -> List[Dict[str, Any]]:
     """
     List all workspaces within a specified workspace group in SingleStore.
@@ -1196,6 +1295,7 @@ def workspaces_info(workspace_group_id: str) -> List[Dict[str, Any]]:
     Returns:
         List of workspace information dictionaries
     """
+    start_time = time.time()
     settings = config.get_settings()
     user_id = config.get_user_id()
     settings.analytics_manager.track_event(
@@ -1203,7 +1303,14 @@ def workspaces_info(workspace_group_id: str) -> List[Dict[str, Any]]:
         "tool_calling",
         {"name": "workspaces_info", "workspace_group_id": workspace_group_id},
     )
-    return [
+
+    workspaces_data = build_request(
+        "GET",
+        "workspaces",
+        {"workspaceGroupID": workspace_group_id},
+    )
+
+    workspaces = [
         {
             "createdAt": workspace["createdAt"],
             "deploymentType": workspace.get("deploymentType", ""),
@@ -1215,14 +1322,36 @@ def workspaces_info(workspace_group_id: str) -> List[Dict[str, Any]]:
             "workspaceGroupID": workspace["workspaceGroupID"],
             "workspaceID": workspace["workspaceID"],
         }
-        for workspace in build_request(
-            "GET",
-            "workspaces",
-            {"workspaceGroupID": workspace_group_id},
-        )
+        for workspace in workspaces_data
     ]
 
+    # Calculate state summary and sizes
+    state_counts = {}
+    size_counts = {}
+    for workspace in workspaces:
+        state = workspace["state"]
+        state_counts[state] = state_counts.get(state, 0) + 1
 
+        size = workspace["size"]
+        size_counts[size] = size_counts.get(size, 0) + 1
+
+    execution_time = (time.time() - start_time) * 1000
+
+    return ToolResponseBuilder.success(
+        message=f"Retrieved {len(workspaces)} workspaces from group {workspace_group_id}",
+        data={"workspaces": workspaces},
+        metadata={
+            "execution_time_ms": round(execution_time, 2),
+            "workspace_group_id": workspace_group_id,
+            "count": len(workspaces),
+            "state_summary": state_counts,
+            "size_summary": size_counts,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    )
+
+
+@tool_response
 def organization_info() -> Dict[str, Any]:
     """
     Retrieve information about the current user's organization in SingleStore.
@@ -1231,14 +1360,28 @@ def organization_info() -> Dict[str, Any]:
     - orgID: Unique identifier for the organization
     - name: Organization display name
     """
+    start_time = time.time()
     settings = config.get_settings()
     user_id = config.get_user_id()
     settings.analytics_manager.track_event(
         user_id, "tool_calling", {"name": "organization_info"}
     )
-    return build_request("GET", "organizations/current")
+
+    org_data = build_request("GET", "organizations/current")
+    execution_time = (time.time() - start_time) * 1000
+
+    return ToolResponseBuilder.success(
+        message=f"Retrieved organization information for '{org_data.get('name', 'Unknown')}'",
+        data={"organization": org_data},
+        metadata={
+            "execution_time_ms": round(execution_time, 2),
+            "org_id": org_data.get("orgID"),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    )
 
 
+@tool_response
 def list_of_regions() -> List[Dict[str, Any]]:
     """
     List all available deployment regions where SingleStore workspaces can be deployed for the user.
@@ -1256,9 +1399,30 @@ def list_of_regions() -> List[Dict[str, Any]]:
        - Available cloud providers
     2. Plan multi-region deployments
     """
-    return build_request("GET", "regions")
+    start_time = time.time()
+    regions_data = build_request("GET", "regions")
+
+    # Group regions by provider
+    provider_counts = {}
+    for region in regions_data:
+        provider = region.get("provider", "Unknown")
+        provider_counts[provider] = provider_counts.get(provider, 0) + 1
+
+    execution_time = (time.time() - start_time) * 1000
+
+    return ToolResponseBuilder.success(
+        message=f"Retrieved {len(regions_data)} available deployment regions",
+        data={"regions": regions_data},
+        metadata={
+            "execution_time_ms": round(execution_time, 2),
+            "count": len(regions_data),
+            "provider_summary": provider_counts,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    )
 
 
+@tool_response
 def list_virtual_workspaces() -> List[Dict[str, Any]]:
     """
     List all starter (virtual) workspaces available to the user in SingleStore.
@@ -1277,9 +1441,20 @@ def list_virtual_workspaces() -> List[Dict[str, Any]]:
     2. Check starter workspace availability and status
     3. Obtain connection details for database access
     """
-    return build_request("GET", "sharedtier/virtualWorkspaces")
+    workspaces = build_request("GET", "sharedtier/virtualWorkspaces")
+
+    return ToolResponseBuilder.success(
+        message=f"Retrieved {len(workspaces)} virtual workspaces",
+        data={"workspaces": workspaces, "count": len(workspaces)},
+        metadata={
+            "total_count": len(workspaces),
+            "active_count": sum(1 for w in workspaces if w.get("state") == "ACTIVE"),
+            "retrieved_at": datetime.now().isoformat(),
+        },
+    )
 
 
+@tool_response
 def organization_billing_usage(
     start_time: str, end_time: str, aggregate_type: str
 ) -> Dict[str, Any]:
@@ -1299,7 +1474,8 @@ def organization_billing_usage(
     Returns:
         Usage metrics and billing information
     """
-    return build_request(
+    request_start_time = time.time()
+    usage_data = build_request(
         "GET",
         "billing/usage",
         {
@@ -1309,7 +1485,21 @@ def organization_billing_usage(
         },
     )
 
+    execution_time = (time.time() - request_start_time) * 1000
 
+    return ToolResponseBuilder.success(
+        message=f"Retrieved billing usage from {start_time} to {end_time} (aggregated by {aggregate_type})",
+        data=usage_data,
+        metadata={
+            "execution_time_ms": round(execution_time, 2),
+            "time_range": {"start": start_time, "end": end_time},
+            "aggregate_type": aggregate_type,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    )
+
+
+@tool_response
 def list_notebook_samples() -> List[Dict[str, Any]]:
     """
     Retrieve a catalog of pre-built notebook templates available in SingleStore Spaces.
@@ -1331,9 +1521,38 @@ def list_notebook_samples() -> List[Dict[str, Any]]:
     5. Performance monitoring
     6. Best practices demonstrations
     """
-    return build_request("GET", "spaces/notebooks")
+    start_time = time.time()
+    notebooks_data = build_request("GET", "spaces/notebooks")
+
+    # Calculate summary stats
+    total_likes = sum(nb.get("likes", 0) for nb in notebooks_data)
+    total_views = sum(nb.get("views", 0) for nb in notebooks_data)
+    total_downloads = sum(nb.get("downloads", 0) for nb in notebooks_data)
+
+    # Group by tags
+    tag_counts = {}
+    for notebook in notebooks_data:
+        for tag in notebook.get("tags", []):
+            tag_counts[tag] = tag_counts.get(tag, 0) + 1
+
+    execution_time = (time.time() - start_time) * 1000
+
+    return ToolResponseBuilder.success(
+        message=f"Retrieved {len(notebooks_data)} sample notebooks",
+        data={"notebooks": notebooks_data},
+        metadata={
+            "execution_time_ms": round(execution_time, 2),
+            "count": len(notebooks_data),
+            "total_likes": total_likes,
+            "total_views": total_views,
+            "total_downloads": total_downloads,
+            "tag_summary": tag_counts,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    )
 
 
+@tool_response
 def list_shared_files() -> Dict[str, Any]:
     """
     List all files and notebooks in your shared SingleStore space.
@@ -1356,9 +1575,38 @@ def list_shared_files() -> Dict[str, Any]:
     3. Check file timestamps and sizes
     4. Determine file permissions
     """
-    return build_request("GET", "files/fs/shared")
+    start_time = time.time()
+    files_data = build_request("GET", "files/fs/shared")
+
+    # Calculate file statistics
+    total_size = sum(f.get("size", 0) for f in files_data.get("content", []))
+    file_types = {}
+    mime_types = {}
+
+    for file_info in files_data.get("content", []):
+        file_type = file_info.get("type", "unknown")
+        file_types[file_type] = file_types.get(file_type, 0) + 1
+
+        mime_type = file_info.get("mimetype", "unknown")
+        mime_types[mime_type] = mime_types.get(mime_type, 0) + 1
+
+    execution_time = (time.time() - start_time) * 1000
+
+    return ToolResponseBuilder.success(
+        message=f"Retrieved {len(files_data.get('content', []))} files from shared space",
+        data=files_data,
+        metadata={
+            "execution_time_ms": round(execution_time, 2),
+            "file_count": len(files_data.get("content", [])),
+            "total_size_bytes": total_size,
+            "file_type_summary": file_types,
+            "mime_type_summary": mime_types,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    )
 
 
+@tool_response
 def get_job_details(job_id: str) -> Dict[str, Any]:
     """
     Retrieve comprehensive information about a scheduled notebook job.
@@ -1382,9 +1630,24 @@ def get_job_details(job_id: str) -> Dict[str, Any]:
     Returns:
         Dictionary with job details
     """
-    return build_request("GET", f"jobs/{job_id}")
+    start_time = time.time()
+    job_data = build_request("GET", f"jobs/{job_id}")
+    execution_time = (time.time() - start_time) * 1000
+
+    return ToolResponseBuilder.success(
+        message=f"Retrieved details for job '{job_data.get('name', job_id)}'",
+        data={"job": job_data},
+        metadata={
+            "execution_time_ms": round(execution_time, 2),
+            "job_id": job_id,
+            "job_status": job_data.get("status"),
+            "execution_count": job_data.get("completedExecutionsCount", 0),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    )
 
 
+@tool_response
 def list_job_executions(job_id: str, start: int = 1, end: int = 10) -> Dict[str, Any]:
     """
     Retrieve execution history and performance metrics for a scheduled notebook job.
@@ -1408,13 +1671,37 @@ def list_job_executions(job_id: str, start: int = 1, end: int = 10) -> Dict[str,
     Returns:
         Dictionary with execution records
     """
-    return build_request(
+    request_start_time = time.time()
+    executions_data = build_request(
         "GET",
         f"jobs/{job_id}/executions",
         params={"start": start, "end": end},
     )
 
+    # Calculate execution statistics
+    executions = executions_data.get("executions", [])
+    status_counts = {}
+    for execution in executions:
+        status = execution.get("status", "Unknown")
+        status_counts[status] = status_counts.get(status, 0) + 1
 
+    execution_time = (time.time() - request_start_time) * 1000
+
+    return ToolResponseBuilder.success(
+        message=f"Retrieved {len(executions)} executions for job {job_id} (range {start}-{end})",
+        data=executions_data,
+        metadata={
+            "execution_time_ms": round(execution_time, 2),
+            "job_id": job_id,
+            "requested_range": {"start": start, "end": end},
+            "execution_count": len(executions),
+            "status_summary": status_counts,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    )
+
+
+@tool_response
 def get_notebook_path(notebook_name: str, location: str = "personal") -> str:
     """
     Find the complete path of a notebook by its name and generate the properly formatted path for API operations.
@@ -1429,10 +1716,24 @@ def get_notebook_path(notebook_name: str, location: str = "personal") -> str:
     Required for:
     - Creating scheduled jobs (use returned path as notebook_path parameter)
     """
-    return __get_notebook_path_by_name(notebook_name, location)
+    start_time = time.time()
+    notebook_path = __get_notebook_path_by_name(notebook_name, location)
+    execution_time = (time.time() - start_time) * 1000
+
+    return ToolResponseBuilder.success(
+        message=f"Found notebook path for '{notebook_name}' in {location} space",
+        data={"notebook_path": notebook_path},
+        metadata={
+            "execution_time_ms": round(execution_time, 2),
+            "notebook_name": notebook_name,
+            "location": location,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    )
 
 
-async def get_organizations(ctx: Context) -> str:
+@tool_response
+async def get_organizations(ctx: Context) -> dict:
     """
     List all available SingleStore organizations your account has access to.
 
@@ -1462,13 +1763,7 @@ async def get_organizations(ctx: Context) -> str:
     )
 
     logger.debug("get_organizations called")
-    logger.debug(f"Auth method: {settings.auth_method}")
     logger.debug(f"Is remote: {settings.is_remote}")
-
-    # Only show organization selection for OAuth token authentication
-    if settings.auth_method != "oauth_token":
-        logger.debug("Skipping org selection - not OAuth token auth")
-        return "✅ Organization selection is only required for OAuth token authentication. Your current authentication method doesn't require this step."
 
     try:
         logger.debug("Calling query_graphql_organizations...")
@@ -1478,16 +1773,18 @@ async def get_organizations(ctx: Context) -> str:
 
         if not organizations:
             logger.warning("No organizations available")
-            return "❌ No organizations available for your account. Please check your access permissions."
+            return ToolResponseBuilder.error(
+                "No organizations available for your account. Please check your access permissions."
+            )
 
-        # Always return the list for user to choose from
+        # Format the organization list for display
         org_list = "\n".join(
             [f"- {org['name']} (ID: {org['orgID']})" for org in organizations]
         )
 
         logger.info(f"Found {len(organizations)} available organizations")
 
-        return f"""📋 **Available SingleStore Organizations:**
+        message = f"""📋 **Available SingleStore Organizations:**
 
 {org_list}
 
@@ -1499,12 +1796,31 @@ async def get_organizations(ctx: Context) -> str:
 
 Once you select an organization, all subsequent API calls will use that organization."""
 
+        return ToolResponseBuilder.success(
+            message=message,
+            data={
+                "organizations": organizations,
+                "count": len(organizations),
+                "instructions": "Use set_organization tool to select an organization",
+            },
+            metadata={
+                "total_organizations": len(organizations),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "user_id": user_id,
+            },
+        )
+
     except Exception as e:
         logger.error(f"Error retrieving organizations: {str(e)}")
-        return f"Error retrieving organizations: {e.with_traceback(None)}\n{str(e)}"
+        return ToolResponseBuilder.error(
+            f"Failed to retrieve organizations: {str(e)}",
+            error_code="ORGANIZATION_QUERY_FAILED",
+            error_details={"exception_type": type(e).__name__},
+        )
 
 
-async def set_organization(orgID: str, ctx: Context) -> str:
+@tool_response
+async def set_organization(orgID: str, ctx: Context) -> dict:
     """
     Select which SingleStore organization to use for all subsequent API calls.
 
@@ -1532,9 +1848,8 @@ async def set_organization(orgID: str, ctx: Context) -> str:
     )
 
     try:
-        # For OAuth token authentication, get the list of available organizations
-        # and validate that the provided orgID is one the user has access to
-        if settings.auth_method == "oauth_token":
+        # Try to get available organizations and validate the provided orgID
+        try:
             logger.debug("Getting available organizations for validation...")
             available_orgs = query_graphql_organizations()
 
@@ -1549,9 +1864,13 @@ async def set_organization(orgID: str, ctx: Context) -> str:
                 available_names = [
                     f"{org['name']} (ID: {org['orgID']})" for org in available_orgs
                 ]
-                return (
-                    f"Organization '{orgID}' not found. Available organizations:\n"
-                    + "\n".join(available_names)
+                return ToolResponseBuilder.error(
+                    f"Organization '{orgID}' not found.",
+                    error_code="ORGANIZATION_NOT_FOUND",
+                    error_details={
+                        "provided_org_id": orgID,
+                        "available_organizations": available_names,
+                    },
                 )
 
             # Update the settings with the organization ID
@@ -1563,43 +1882,145 @@ async def set_organization(orgID: str, ctx: Context) -> str:
                 setattr(settings, "org_id", selected_org["orgID"])
 
             logger.info(f"Settings updated with org_id: {selected_org['orgID']}")
-            return f"Successfully selected organization: {selected_org['name']} (ID: {selected_org['orgID']})"
 
-        else:
-            # For other authentication methods, try to get current organization
-            logger.debug("Getting current organization...")
-            current_org = get_current_organization()
+            return ToolResponseBuilder.success(
+                message=f"Successfully selected organization: {selected_org['name']} (ID: {selected_org['orgID']})",
+                data={
+                    "organization": {
+                        "orgID": selected_org["orgID"],
+                        "name": selected_org["name"],
+                    },
+                    "previous_org_id": getattr(settings, "org_id", None),
+                    "operation": "organization_set",
+                },
+                metadata={
+                    "user_id": user_id,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "validation_method": "graphql_query",
+                },
+            )
 
-            if not current_org:
-                logger.error("Unable to get current organization")
-                return "Unable to get current organization information."
+        except Exception as graphql_error:
+            # If GraphQL fails, try fallback approach
+            logger.warning(f"GraphQL organization query failed: {graphql_error}")
+            logger.debug("Attempting fallback approach...")
 
-            current_org_id = current_org.get("orgID") or current_org.get("id")
-            current_org_name = current_org.get("name")
+            try:
+                # Try to get current organization as fallback
+                current_org = get_current_organization()
+                if current_org:
+                    current_org_id = current_org.get("orgID") or current_org.get("id")
+                    current_org_name = current_org.get("name")
 
-            logger.debug(f"Current org: {current_org_name} (ID: {current_org_id})")
+                    logger.debug(
+                        f"Current org: {current_org_name} (ID: {current_org_id})"
+                    )
 
-            # Check if the provided orgID matches the current organization
-            if orgID != current_org_id and orgID.lower() != current_org_name.lower():
-                logger.warning(
-                    f"Org mismatch: provided '{orgID}' vs current '{current_org_id}'"
+                    # Check if the provided orgID matches the current organization
+                    if (
+                        orgID != current_org_id
+                        and orgID.lower() != current_org_name.lower()
+                    ):
+                        logger.warning(
+                            f"Org mismatch: provided '{orgID}' vs current '{current_org_id}'"
+                        )
+                        return ToolResponseBuilder.error(
+                            f"Organization '{orgID}' does not match your current organization '{current_org_name}' (ID: {current_org_id})",
+                            error_code="ORGANIZATION_MISMATCH",
+                            error_details={
+                                "provided_org_id": orgID,
+                                "current_org_id": current_org_id,
+                                "current_org_name": current_org_name,
+                            },
+                        )
+
+                    # Update the settings with the organization ID
+                    if hasattr(settings, "org_id"):
+                        settings.org_id = current_org_id
+                    else:
+                        setattr(settings, "org_id", current_org_id)
+
+                    logger.info(f"Settings updated with org_id: {current_org_id}")
+
+                    return ToolResponseBuilder.success(
+                        message=f"Successfully selected organization: {current_org_name} (ID: {current_org_id})",
+                        data={
+                            "organization": {
+                                "orgID": current_org_id,
+                                "name": current_org_name,
+                            },
+                            "operation": "organization_set",
+                        },
+                        metadata={
+                            "user_id": user_id,
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "validation_method": "current_org_api",
+                        },
+                    )
+                else:
+                    # Last resort: set the provided orgID directly
+                    logger.debug(
+                        "Cannot validate organization, setting provided orgID directly"
+                    )
+                    if hasattr(settings, "org_id"):
+                        settings.org_id = orgID
+                    else:
+                        setattr(settings, "org_id", orgID)
+
+                    logger.info(f"Settings updated with org_id: {orgID}")
+
+                    return ToolResponseBuilder.warning(
+                        message=f"Successfully set organization ID: {orgID}",
+                        warning_details="Could not validate organization, set directly",
+                        data={
+                            "organization": {"orgID": orgID, "name": "Unknown"},
+                            "operation": "organization_set_unvalidated",
+                        },
+                        metadata={
+                            "user_id": user_id,
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "validation_method": "direct_set",
+                        },
+                    )
+
+            except Exception as fallback_error:
+                logger.warning(f"Fallback approach also failed: {fallback_error}")
+                # Final fallback: just set the orgID
+                if hasattr(settings, "org_id"):
+                    settings.org_id = orgID
+                else:
+                    setattr(settings, "org_id", orgID)
+
+                logger.info(f"Settings updated with org_id: {orgID}")
+
+                return ToolResponseBuilder.warning(
+                    message=f"Successfully set organization ID: {orgID}",
+                    warning_details="All validation methods failed, set organization ID directly",
+                    data={
+                        "organization": {"orgID": orgID, "name": "Unknown"},
+                        "operation": "organization_force_set",
+                        "errors": {
+                            "graphql_error": str(graphql_error),
+                            "fallback_error": str(fallback_error),
+                        },
+                    },
+                    metadata={
+                        "user_id": user_id,
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "validation_method": "force_set",
+                    },
                 )
-                return f"Organization '{orgID}' does not match your current organization '{current_org_name}' (ID: {current_org_id})"
-
-            logger.debug("Organization match confirmed, updating settings...")
-            # Update the settings with the organization ID
-            if hasattr(settings, "org_id"):
-                settings.org_id = current_org_id
-            else:
-                # For LocalSettings, we need to add the org_id attribute
-                setattr(settings, "org_id", current_org_id)
-
-            logger.info(f"Settings updated with org_id: {current_org_id}")
-            return f"Successfully selected organization: {current_org_name} (ID: {current_org_id})"
 
     except Exception as e:
         logger.error(f"Error in set_organization: {str(e)}")
-        return f"Error setting organization: {str(e)}"
+        return ToolResponseBuilder.error(
+            f"Failed to set organization: {str(e)}",
+            error_code="ORGANIZATION_SET_FAILED",
+            error_details={
+                "provided_org_id": orgID,
+                "exception_type": type(e).__name__,
+            },
+        )
 
 
 def __get_workspace_by_id(workspace_id: str) -> WorkspaceTarget:
@@ -1727,6 +2148,7 @@ def create_starter_workspace(
         }
 
 
+@tool_response
 def terminate_virtual_workspace(
     ctx: Context,
     workspace_id: str,
@@ -1808,7 +2230,7 @@ def terminate_virtual_workspace(
         # Terminate the virtual workspace
         workspace_manager.terminate_starter_workspace(workspace_id)
 
-        termination_time = datetime.datetime.now().isoformat()
+        termination_time = datetime.now().isoformat()
 
         success_message = f"Virtual workspace '{workspace_name or workspace_id}' terminated successfully"
         ctx.info(success_message)

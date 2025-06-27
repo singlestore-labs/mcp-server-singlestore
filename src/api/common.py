@@ -94,7 +94,6 @@ def query_graphql_organizations():
     graphql_endpoint = settings.graphql_public_endpoint
 
     logger.debug(f"GraphQL endpoint: {graphql_endpoint}")
-    logger.debug(f"Settings auth method: {settings.auth_method}")
     logger.debug(f"Settings is_remote: {settings.is_remote}")
 
     # GraphQL query for organizations
