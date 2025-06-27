@@ -55,27 +55,32 @@ class TestToolsUUIDValidation:
 class TestToolsIntegration:
     """Test that UUID validation is properly integrated into tools."""
 
-    @patch("src.api.tools.tools.config")
-    @patch("src.api.tools.tools.__get_workspace_by_id")
-    def test_run_sql_validates_workspace_id(self, mock_get_workspace, mock_config):
+    def test_run_sql_validates_workspace_id(self):
         """Test that run_sql validates workspace ID."""
         from src.api.tools.tools import run_sql
         from mcp.server.fastmcp import Context
 
         # Mock the required dependencies
         mock_context = Mock(spec=Context)
-        mock_config.get_settings.return_value = Mock()
-        mock_workspace = Mock()
-        mock_get_workspace.return_value = mock_workspace
 
-        # Valid UUID should work (we test that it doesn't have UUID validation errors)
-        valid_uuid = str(uuid4())
+        with (
+            patch("src.api.tools.tools.config") as mock_config,
+            patch("src.api.tools.tools.__get_workspace_by_id") as mock_get_workspace,
+        ):
+            # Setup mocks
+            mock_settings = Mock()
+            mock_config.get_settings.return_value = mock_settings
+            mock_workspace = Mock()
+            mock_get_workspace.return_value = mock_workspace
 
-        # This should not raise an exception related to UUID validation
-        result = run_sql(mock_context, "SELECT 1", valid_uuid)
-        # The function returns an error response due to missing settings, but not UUID validation
-        assert result["status"] == "error"
-        assert "Invalid workspace ID format" not in result["message"]
+            # Valid UUID should work (we test that it doesn't have UUID validation errors)
+            valid_uuid = str(uuid4())
+
+            # This should not raise an exception related to UUID validation
+            result = run_sql(mock_context, "SELECT 1", valid_uuid)
+            # The function returns an error response due to missing settings, but not UUID validation
+            assert result["status"] == "error"
+            assert "Invalid workspace ID format" not in result["message"]
 
         # Invalid UUID should return error response with validation error
         result = run_sql(mock_context, "SELECT 1", "invalid-uuid")
@@ -94,20 +99,23 @@ class TestToolsIntegration:
         with pytest.raises(ValueError, match="Invalid UUID format"):
             validate_uuid_string("invalid-group-id", strict=True)
 
-    @patch("src.api.tools.tools.config")
-    def test_terminate_virtual_workspace_validates_id(self, mock_config):
+    def test_terminate_virtual_workspace_validates_id(self):
         """Test that terminate_virtual_workspace validates workspace ID."""
         from src.api.tools.tools import terminate_virtual_workspace
         from mcp.server.fastmcp import Context
 
         mock_context = Mock(spec=Context)
-        mock_config.get_settings.return_value = Mock()
-        mock_config.get_user_id.return_value = str(uuid4())
 
-        # Invalid UUID should return error response with validation error
-        result = terminate_virtual_workspace(mock_context, "invalid-workspace-id")
-        assert result["status"] == "error"
-        assert "Invalid workspace ID format" in result["message"]
+        with patch("src.api.tools.tools.config") as mock_config:
+            # Setup mocks
+            mock_settings = Mock()
+            mock_config.get_settings.return_value = mock_settings
+            mock_config.get_user_id.return_value = str(uuid4())
+
+            # Invalid UUID should return error response with validation error
+            result = terminate_virtual_workspace(mock_context, "invalid-workspace-id")
+            assert result["status"] == "error"
+            assert "Invalid workspace ID format" in result["message"]
 
 
 if __name__ == "__main__":
