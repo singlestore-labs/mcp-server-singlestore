@@ -2,6 +2,8 @@ from typing import Union, Optional
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 from datetime import datetime
 
+from src.utils.uuid_validation import validate_uuid_string
+
 
 # Pydantic models for OAuth server responses
 class OAuthServerConfig(BaseModel):
@@ -34,6 +36,12 @@ class AuthorizationParameters(BaseModel):
         default="S256", description="PKCE code challenge method"
     )
 
+    @field_validator("client_id", mode="before")
+    @classmethod
+    def validate_client_id_uuid(cls, v):
+        """Validate that client_id is a valid UUID."""
+        return validate_uuid_string(v)
+
 
 class CallbackParameters(BaseModel):
     """Model for OAuth callback parameters."""
@@ -52,6 +60,12 @@ class TokenRequest(BaseModel):
     redirect_uri: str = Field(..., description="Redirect URI")
     client_id: str = Field(..., description="OAuth client ID")
     code_verifier: str = Field(..., description="PKCE code verifier")
+
+    @field_validator("client_id", mode="before")
+    @classmethod
+    def validate_client_id_uuid(cls, v):
+        """Validate that client_id is a valid UUID."""
+        return validate_uuid_string(v)
 
 
 class TokenResponse(BaseModel):
@@ -135,6 +149,12 @@ class RefreshTokenRequest(BaseModel):
     grant_type: str = Field(default="refresh_token", description="OAuth grant type")
     refresh_token: str = Field(..., description="Refresh token")
     client_id: str = Field(..., description="OAuth client ID")
+
+    @field_validator("client_id", mode="before")
+    @classmethod
+    def validate_client_id_uuid(cls, v):
+        """Validate that client_id is a valid UUID."""
+        return validate_uuid_string(v)
 
 
 class TokenValidationResult(BaseModel):

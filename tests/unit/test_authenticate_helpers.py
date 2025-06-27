@@ -122,7 +122,7 @@ class TestCreateAuthorizationUrl:
         pkce_data = PKCEData(
             code_verifier="verifier123", code_challenge="challenge456", state="state789"
         )
-        client_id = "client123"
+        client_id = "b7dbf19e-d140-4334-bae4-e8cd03614485"
         redirect_uri = "http://localhost:8080/callback"
 
         # Act
@@ -272,7 +272,7 @@ class TestExchangeCodeForTokens:
             code_verifier="verifier123", code_challenge="challenge456", state="state789"
         )
         code = "auth_code_123"
-        client_id = "client123"
+        client_id = "b7dbf19e-d140-4334-bae4-e8cd03614485"
         redirect_uri = "http://localhost:8080/callback"
 
         # Mock datetime.now()
@@ -327,7 +327,7 @@ class TestExchangeCodeForTokens:
             code_verifier="verifier123", code_challenge="challenge456", state="state789"
         )
         code = "auth_code_123"
-        client_id = "client123"
+        client_id = "b7dbf19e-d140-4334-bae4-e8cd03614485"
         redirect_uri = "http://localhost:8080/callback"
 
         # Mock HTTP error response
@@ -355,7 +355,7 @@ class TestExchangeCodeForTokens:
             code_verifier="verifier123", code_challenge="challenge456", state="state789"
         )
         code = "auth_code_123"
-        client_id = "client123"
+        client_id = "b7dbf19e-d140-4334-bae4-e8cd03614485"
         redirect_uri = "http://localhost:8080/callback"
 
         # Mock OAuth error response
@@ -386,7 +386,7 @@ class TestExchangeCodeForTokens:
             code_verifier="verifier123", code_challenge="challenge456", state="state789"
         )
         code = "auth_code_123"
-        client_id = "client123"
+        client_id = "b7dbf19e-d140-4334-bae4-e8cd03614485"
         redirect_uri = "http://localhost:8080/callback"
 
         # Mock response without access token
