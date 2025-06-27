@@ -77,22 +77,6 @@ jobs:
       run: |
         uv sync --dev
 
-    - name: Create git tag
-      env:
-        NEW_VERSION: ${{ needs.check-version-bump.outputs.new-version }}
-      run: |
-        echo "🏷️  Creating tag for version: $NEW_VERSION"
-
-        # Configure git
-        git config user.name "github-actions[bot]"
-        git config user.email "github-actions[bot]@users.noreply.github.com"
-
-        # Create and push tag
-        git tag "v$NEW_VERSION"
-        git push origin "v$NEW_VERSION"
-
-        echo "✅ Created and pushed tag: v$NEW_VERSION"
-
     - name: Lint and format with Ruff
       run: |
         uv run ruff check src/ tests/
@@ -110,41 +94,3 @@ jobs:
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
         password: ${{ secrets.PYPI_API_KEY }}
-
-    - name: Create GitHub Release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: v${{ needs.check-version-bump.outputs.new-version }}
-        release_name: Release v${{ needs.check-version-bump.outputs.new-version }}
-        draft: false
-        prerelease: false
-
-    - name: Lint and format with Ruff
-      run: |
-        uv run ruff check src/ tests/
-        uv run ruff format --check src/ tests/
-
-    - name: Run tests
-      run: |
-        uv run pytest
-
-    - name: Build package
-      run: |
-        uv run python -m build
-
-    - name: Publish package to PyPI
-      uses: pypa/gh-action-pypi-publish@release/v1
-      with:
-        password: ${{ secrets.PYPI_API_KEY }}
-
-    - name: Create GitHub Release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
-        draft: false
-        prerelease: false
