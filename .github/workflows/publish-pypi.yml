@@ -66,7 +66,6 @@ jobs:
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
         password: ${{ secrets.PYPI_API_KEY }}
-<<<<<<< HEAD
 
     - name: Create GitHub Release
       uses: actions/create-release@v1
@@ -77,5 +76,3 @@ jobs:
         release_name: Release ${{ github.ref }}
         draft: false
         prerelease: false
-=======
->>>>>>> 2d00a72 (feat: replace Black and Flake8 with Ruff, add pre-commit hooks)
