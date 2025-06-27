@@ -1,0 +1,6 @@
+# Release marker for branch: feature/remove-api-key-as-auth-method
+# Created: 2025-06-27 00:26:47 UTC
+RELEASE_TYPE=minor
+CURRENT_VERSION=0.2.23
+NEW_VERSION=0.3.0
+BRANCH=feature/remove-api-key-as-auth-method
