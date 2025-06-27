@@ -1,7 +1,9 @@
 from pathlib import Path
 from src.api.resources.types import Resource
+from src.api.responses import resource_response
 
 
+@resource_response
 def get_singlestore_drizzle_guide() -> str:
     """
     SingleStore and Drizzle ORM Integration Guide
