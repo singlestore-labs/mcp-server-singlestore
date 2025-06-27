@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Script to run all code quality checks
+# Script to run code quality checks (without tests)
 set -e
 
 echo "🔍 Running Ruff linter..."
@@ -12,7 +12,4 @@ uv run ruff format --check src/ tests/
 echo "📋 Running pre-commit hooks..."
 uv run pre-commit run --all-files
 
-echo "🧪 Running tests..."
-uv run pytest
-
-echo "✅ All checks passed!"
+echo "✅ All quality checks passed!"

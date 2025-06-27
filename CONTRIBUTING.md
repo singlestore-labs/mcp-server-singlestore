@@ -146,13 +146,19 @@ uv run pre-commit run --all-files
 uv run pre-commit run
 ```
 
-### 6. Quick Quality Check
+### 6. Quick Quality Checks
 
-Use the provided script to run all checks at once:
+Use the provided scripts for different scenarios:
 
 ```bash
-# Run all quality checks (linting, formatting, pre-commit, tests)
+# Run only code quality checks (fast - good for pre-commit)
 ./scripts/check.sh
+
+# Run only tests
+./scripts/test.sh
+
+# Run everything (comprehensive - good for pre-PR)
+./scripts/check-all.sh
 ```
 
 ## Testing
@@ -260,21 +266,28 @@ uv run pre-commit run
 - Ruff linting (with auto-fix)
 - Ruff formatting
 
-**Note:** Pyright is configured to run manually only due to existing type issues. Run it separately when needed.
+**What runs manually/in CI:**
+
+- Full test suite (use `./scripts/test.sh` or CI)
+- Type checking with Pyright (use `uv run pyright src/`)
+
+**Note:** Tests are kept separate from pre-commit hooks to keep commits fast. Run tests manually or let CI handle them.
 
 ### Pre-commit Checks
 
 We recommend using pre-commit hooks, but if you need to run checks manually before committing:
 
 ```bash
-# Format, lint, type check, and test
+# Run only quality checks (fast - what pre-commit does)
+./scripts/check.sh
+
+# Or run individual commands
 uv run ruff format src/ tests/
 uv run ruff check --fix src/ tests/
-uv run pyright src/
-uv run pytest
-
-# Or run pre-commit hooks manually
 uv run pre-commit run --all-files
+
+# Run tests separately when needed
+./scripts/test.sh
 ```
 
 ## Debugging
@@ -461,12 +474,13 @@ The project uses GitHub Actions for automated publishing:
 
 1. **Use descriptive branch names**: `feature/add-ssl-support`, `fix/auth-timeout-bug`
 2. **Set up pre-commit hooks**: Run `uv run pre-commit install` after cloning
-3. **Test edge cases**: Test with invalid inputs, network failures, etc.
-4. **Mock external dependencies**: Use `unittest.mock` for database connections, API calls
-5. **Keep changes focused**: One feature or fix per pull request
-6. **Update tests**: Add or modify tests for any code changes
-7. **Use Ruff for formatting**: Run `uv run ruff format .` before committing
-8. **Check CI status**: Ensure all GitHub Actions pass before requesting review
-9. **Run pre-commit locally**: Use `uv run pre-commit run --all-files` to catch issues early
+3. **Fast pre-commit checks**: Use `./scripts/check.sh` for quick quality validation
+4. **Separate test runs**: Use `./scripts/test.sh` to run tests independently
+5. **Comprehensive validation**: Use `./scripts/check-all.sh` before creating PRs
+6. **Test edge cases**: Test with invalid inputs, network failures, etc.
+7. **Mock external dependencies**: Use `unittest.mock` for database connections, API calls
+8. **Keep changes focused**: One feature or fix per pull request
+9. **Update tests**: Add or modify tests for any code changes
+10. **Check CI status**: Ensure all GitHub Actions pass before requesting review
 
 Thank you for contributing to SingleStore MCP Server! 🚀
