@@ -1080,6 +1080,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "build" },
     { name = "pre-commit" },
     { name = "pyright" },
     { name = "pytest" },
@@ -1100,6 +1101,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "build", specifier = ">=1.0.3" },
     { name = "pre-commit", specifier = ">=4.0.1" },
     { name = "pyright", specifier = ">=1.1.391" },
     { name = "pytest", specifier = ">=8.3.4" },

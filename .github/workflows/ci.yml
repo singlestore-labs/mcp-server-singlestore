@@ -40,13 +40,10 @@ jobs:
         run: |
           uv sync --dev
 
-      - name: Check code format with Black
+      - name: Lint and format with Ruff
         run: |
-          uv run black --check src/ tests/
-
-      - name: Lint with Flake8
-        run: |
-          uv run flake8 src/ --ignore=E501,W503
+          uv run ruff check src/ tests/
+          uv run ruff format --check src/ tests/
 
   test:
     name: Test (Python ${{ matrix.python-version }})

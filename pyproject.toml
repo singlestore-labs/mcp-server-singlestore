@@ -80,6 +80,7 @@ docstring-code-line-length = "dynamic"
 
 [tool.uv]
 dev-dependencies = [
+    "build>=1.0.3",
     "pre-commit>=4.0.1",
     "pyright>=1.1.391",
     "pytest>=8.3.4",
