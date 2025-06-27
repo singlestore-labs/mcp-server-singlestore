@@ -51,7 +51,9 @@ jobs:
     if: needs.check-release-marker.outputs.should-release == 'true'
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # For creating tags
+      contents: write      # For creating tags and pushing commits
+      actions: write       # For workflow permissions
+      pull-requests: write # For creating PRs (if needed as fallback)
 
     steps:
     - uses: actions/checkout@v4
@@ -68,6 +70,7 @@ jobs:
       env:
         NEW_VERSION: ${{ needs.check-release-marker.outputs.new-version }}
         RELEASE_TYPE: ${{ needs.check-release-marker.outputs.release-type }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         echo "🚀 Processing $RELEASE_TYPE release: $NEW_VERSION"
 
@@ -87,8 +90,29 @@ jobs:
 
         # Create and push tag
         git tag "v$NEW_VERSION"
-        git push origin main
-        git push origin "v$NEW_VERSION"
 
-        echo "✅ Version bumped and tagged: v$NEW_VERSION"
-        echo "🚀 PyPI publication will be triggered automatically"
+        # Try to push to main - with error handling
+        if git push origin main; then
+          echo "✅ Successfully pushed to main"
+          git push origin "v$NEW_VERSION"
+          echo "✅ Version bumped and tagged: v$NEW_VERSION"
+          echo "🚀 PyPI publication will be triggered automatically"
+        else
+          echo "❌ Failed to push to main - branch protection issue"
+          echo "🔄 Attempting fallback: creating PR for version bump"
+
+          # Fallback: Create PR for version bump
+          TEMP_BRANCH="release-bump-$NEW_VERSION-$(date +%s)"
+          git checkout -b "$TEMP_BRANCH"
+          git push origin "$TEMP_BRANCH"
+
+          # Create PR
+          gh pr create \
+            --title "chore: bump version to $NEW_VERSION" \
+            --body "Automated version bump to $NEW_VERSION. This PR was created because the workflow couldn't push directly to main. Please review and merge, then manually create tag: git tag v$NEW_VERSION && git push origin v$NEW_VERSION" \
+            --base main \
+            --head "$TEMP_BRANCH"
+
+          echo "📋 Created PR for manual review and merge"
+          echo "⚠️  Manual action required: merge PR and create tag"
+        fi

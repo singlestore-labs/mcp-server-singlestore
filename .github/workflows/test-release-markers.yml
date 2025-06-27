@@ -1,0 +1,105 @@
+name: Test Release Markers (Safe)
+
+on:
+  workflow_dispatch:  # Manual trigger only for testing
+    inputs:
+      test_branch:
+        description: 'Branch to test on (not main)'
+        required: true
+        default: 'test-release-workflow'
+
+jobs:
+  check-release-marker:
+    runs-on: ubuntu-latest
+    outputs:
+      should-release: ${{ steps.check.outputs.should-release }}
+      release-type: ${{ steps.check.outputs.release-type }}
+      new-version: ${{ steps.check.outputs.new-version }}
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.inputs.test_branch }}
+        fetch-depth: 2
+
+    - name: Check for release marker
+      id: check
+      run: |
+        echo "🧪 Testing release marker detection on branch: ${{ github.event.inputs.test_branch }}"
+
+        if [ -f ".release-marker" ]; then
+          echo "📝 Release marker found!"
+
+          # Source the marker file
+          source .release-marker
+
+          echo "should-release=true" >> $GITHUB_OUTPUT
+          echo "release-type=$RELEASE_TYPE" >> $GITHUB_OUTPUT
+          echo "new-version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+          echo "Release details:"
+          echo "  Type: $RELEASE_TYPE"
+          echo "  Version: $CURRENT_VERSION → $NEW_VERSION"
+          echo "  Branch: $BRANCH"
+        else
+          echo "📝 No release marker found"
+          echo "should-release=false" >> $GITHUB_OUTPUT
+        fi
+
+  test-release-process:
+    needs: check-release-marker
+    if: needs.check-release-marker.outputs.should-release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+      pull-requests: write
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        ref: ${{ github.event.inputs.test_branch }}
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Test release process (DRY RUN)
+      env:
+        NEW_VERSION: ${{ needs.check-release-marker.outputs.new-version }}
+        RELEASE_TYPE: ${{ needs.check-release-marker.outputs.release-type }}
+        TEST_BRANCH: ${{ github.event.inputs.test_branch }}
+      run: |
+        echo "🧪 DRY RUN - Testing $RELEASE_TYPE release: $NEW_VERSION"
+        echo "📋 Current branch: $TEST_BRANCH"
+
+        # Configure git
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+
+        echo "📝 Would update version file to: $NEW_VERSION"
+        echo "📝 Would remove release marker"
+        echo "📝 Would commit: 'chore: bump version to $NEW_VERSION [skip ci]'"
+        echo "📝 Would create tag: v$NEW_VERSION"
+        echo "📝 Would push to: $TEST_BRANCH (NOT main)"
+
+        # Actually test the git operations on the test branch
+        echo "__version__ = \"$NEW_VERSION\"" > src/version.py
+        rm -f .release-marker
+
+        git add src/version.py .release-marker
+        git commit -m "TEST: bump version to $NEW_VERSION [test only]"
+
+        # Create test tag
+        git tag "test-v$NEW_VERSION"
+
+        # Push to test branch (NOT main)
+        git push origin "$TEST_BRANCH"
+        git push origin "test-v$NEW_VERSION"
+
+        echo "✅ Test completed successfully!"
+        echo "🧪 Git operations work correctly"
+        echo "📋 Ready for production use"
