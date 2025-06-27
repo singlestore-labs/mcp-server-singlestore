@@ -2,8 +2,8 @@ name: Publish Python Package
 
 on:
   push:
-    branches:
-      - main
+    tags:
+      - 'v*'  # Trigger on version tags like v1.2.3
   workflow_dispatch:  # Allows manual triggering
 
 jobs:
@@ -15,6 +15,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for version detection
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -29,6 +31,23 @@ jobs:
     - name: Install dependencies
       run: |
         uv sync --dev
+
+    - name: Verify tag matches version
+      run: |
+        # Extract version from tag (remove 'v' prefix)
+        TAG_VERSION=${GITHUB_REF#refs/tags/v}
+
+        # Get version from version.py
+        FILE_VERSION=$(python -c "exec(open('src/version.py').read()); print(__version__)")
+
+        echo "Tag version: $TAG_VERSION"
+        echo "File version: $FILE_VERSION"
+
+        if [ "$TAG_VERSION" != "$FILE_VERSION" ]; then
+          echo "❌ Version mismatch! Tag: $TAG_VERSION, File: $FILE_VERSION"
+          exit 1
+        fi
+        echo "✅ Version check passed"
 
     - name: Lint and format with Ruff
       run: |
@@ -47,3 +66,13 @@ jobs:
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
         password: ${{ secrets.PYPI_API_KEY }}
+
+    - name: Create GitHub Release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
+        draft: false
+        prerelease: false

@@ -158,39 +158,63 @@ cd mcp-server-singlestore
 uv sync --dev
 ```
 
-### Running Tests
-
-To run the test suite:
+1. Set up pre-commit hooks (optional but recommended):
 
 ```bash
-uv run pytest
+uv run pre-commit install
 ```
 
-For coverage reporting:
+### Development Workflow
 
 ```bash
+# Quick quality checks (fast feedback)
+./scripts/check.sh
+
+# Run tests independently
+./scripts/test.sh
+
+# Comprehensive validation (before PRs)
+./scripts/check-all.sh
+
+# Create and publish releases
+./scripts/release.sh
+```
+
+### Running Tests
+
+```bash
+# Run test suite with coverage
+./scripts/test.sh
+
+# Or use pytest directly
+uv run pytest
 uv run pytest --cov=src --cov-report=html
 ```
 
-The test suite includes:
-
-- Unit tests for CLI commands
-- Configuration validation tests
-- Integration tests for MCP server functionality
-
 ### Code Quality
 
-Format code with Black:
+We use [Ruff](https://docs.astral.sh/ruff/) for both linting and formatting:
 
 ```bash
-uv run black src/ tests/
+# Format code
+uv run ruff format src/ tests/
+
+# Lint code
+uv run ruff check src/ tests/
+
+# Lint and fix issues automatically
+uv run ruff check --fix src/ tests/
 ```
 
-Lint with Flake8:
+### Release Process
 
-```bash
-uv run flake8 src/
-```
+Releases are managed through git tags and automated PyPI publication:
+
+1. **Create release**: `./scripts/release.sh` (interactive tool)
+2. **Automatic publication**: Triggered by pushing version tags
+3. **No manual PyPI uploads** - fully automated pipeline
+
+See [`scripts/dev-workflow.md`](scripts/dev-workflow.md) for detailed workflow documentation.
 
 ### Building the Docker Image
 

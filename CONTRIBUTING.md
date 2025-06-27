@@ -477,10 +477,33 @@ The project uses GitHub Actions for automated publishing:
 3. **Fast pre-commit checks**: Use `./scripts/check.sh` for quick quality validation
 4. **Separate test runs**: Use `./scripts/test.sh` to run tests independently
 5. **Comprehensive validation**: Use `./scripts/check-all.sh` before creating PRs
-6. **Test edge cases**: Test with invalid inputs, network failures, etc.
-7. **Mock external dependencies**: Use `unittest.mock` for database connections, API calls
-8. **Keep changes focused**: One feature or fix per pull request
-9. **Update tests**: Add or modify tests for any code changes
-10. **Check CI status**: Ensure all GitHub Actions pass before requesting review
+6. **Smart releases**: Use `./scripts/release.sh` for controlled PyPI publication
+7. **Test edge cases**: Test with invalid inputs, network failures, etc.
+8. **Mock external dependencies**: Use `unittest.mock` for database connections, API calls
+9. **Keep changes focused**: One feature or fix per pull request
+10. **Update tests**: Add or modify tests for any code changes
+11. **Check CI status**: Ensure all GitHub Actions pass before requesting review
+
+## Release Management
+
+This project uses **tag-based publishing** for smart release control:
+
+- ✅ **Fast development**: Commits to main don't trigger publications
+- ✅ **Controlled releases**: Only publish when you create version tags
+- ✅ **Automated pipeline**: PyPI publication happens automatically on tags
+
+### Quick Release Process
+
+```bash
+# Ensure everything is ready
+git checkout main && git pull
+./scripts/check-all.sh
+
+# Create and publish release
+./scripts/release.sh  # Interactive tool
+# 🚀 Automatic PyPI publication triggered!
+```
+
+See [`scripts/dev-workflow.md`](scripts/dev-workflow.md) for complete workflow documentation.
 
 Thank you for contributing to SingleStore MCP Server! 🚀
