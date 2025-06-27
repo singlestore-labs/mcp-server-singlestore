@@ -17,7 +17,9 @@ from typing import Optional, Dict, Any, Tuple
 from datetime import datetime
 
 # Import centralized logger
-from ..logger import get_logger
+from src.auth.models.models import CredentialsModel, TokenSetModel
+from src.logger import get_logger
+
 
 # Get logger for this module
 logger = get_logger()
@@ -31,35 +33,14 @@ ALWAYS_PRESENT_SCOPES = [
     "offline_access",
 ]
 
-# Credential file path
-CREDENTIALS_FILE = Path.home() / ".singlestore-mcp-credentials.json"
+# Constants for file operations
+CREDENTIALS_FOLDER = ".singlestore"
+CREDENTIALS_FILE = "credentials.json"
 
 # Default OAuth configuration
 DEFAULT_OAUTH_HOST = "https://authsvc.singlestore.com"
 DEFAULT_CLIENT_ID = "b7dbf19e-d140-4334-bae4-e8cd03614485"
 DEFAULT_AUTH_TIMEOUT = 300  # 5 minutes
-
-
-class TokenSet:
-    """Class representing an OAuth token set"""
-
-    def __init__(self, data: Dict[str, Any]):
-        self.access_token = data.get("access_token")
-        self.token_type = data.get("token_type")
-        self.id_token = data.get("id_token")
-        self.refresh_token = data.get("refresh_token")
-        self.expires_at = data.get("expires_at")
-        self.raw_data = data
-
-    def is_expired(self) -> bool:
-        """Check if the access token is expired"""
-        if not self.expires_at:
-            return True
-        return datetime.now().timestamp() >= self.expires_at
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert token set to dictionary for serialization"""
-        return self.raw_data
 
 
 class AuthCallbackHandler(http.server.SimpleHTTPRequestHandler):
@@ -157,7 +138,36 @@ def discover_oauth_server(oauth_host: str) -> Dict[str, Any]:
         raise Exception(f"Failed to discover OAuth endpoints: {e}")
 
 
-def save_credentials(token_set: TokenSet) -> None:
+def load_validated_credentials() -> Optional[CredentialsModel]:
+    """
+    Load and validate authentication credentials from file.
+
+    Returns:
+        Validated CredentialsModel instance or None if not available or invalid
+    """
+    # Get home directory and construct credentials path
+    home_dir = Path.home()
+    credentials_dir = home_dir / CREDENTIALS_FOLDER
+    credentials_path = credentials_dir / CREDENTIALS_FILE
+
+    if not credentials_path.exists():
+        return None
+
+    try:
+        # Read and parse the file
+        with open(credentials_path, "r") as f:
+            content = f.read().strip()
+            if not content:
+                return None
+            raw_credentials = json.loads(content)
+
+        # Validate structure using Pydantic
+        return CredentialsModel.model_validate(raw_credentials)
+    except Exception:
+        return None
+
+
+def save_credentials(token_set: TokenSetModel) -> None:
     """
     Save authentication token to credentials file.
 
@@ -166,44 +176,31 @@ def save_credentials(token_set: TokenSet) -> None:
     """
     # Create credential data structure
     creds = {
-        "token_set": token_set.to_dict(),
+        "token_set": token_set.model_dump(),
         "timestamp": time.time(),
     }
 
+    # Get home directory and construct credentials path
+    home_dir = Path.home()
+    credentials_dir = home_dir / CREDENTIALS_FOLDER
+    credentials_path = credentials_dir / CREDENTIALS_FILE
+
     # Ensure directory exists
-    CREDENTIALS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    credentials_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Write credentials to file with secure permissions
-    with open(CREDENTIALS_FILE, "w") as f:
+    with open(credentials_path, "w") as f:
         json.dump(creds, f, indent=2)
 
     # Set secure permissions (readable only by user)
-    os.chmod(CREDENTIALS_FILE, 0o600)
-
-
-def load_credentials() -> Optional[Dict[str, Any]]:
-    """
-    Load authentication credentials from file.
-
-    Returns:
-        Dict containing credentials or None if not available
-    """
-    if not CREDENTIALS_FILE.exists():
-        return None
-
-    try:
-        with open(CREDENTIALS_FILE, "r") as f:
-            return json.load(f)
-    except (json.JSONDecodeError, IOError) as e:
-        logger.error(f"Failed to load credentials: {e}")
-        return None
+    os.chmod(credentials_path, 0o600)
 
 
 def refresh_token(
-    token_set: TokenSet,
+    token_set: TokenSetModel,
     client_id: str = DEFAULT_CLIENT_ID,
     oauth_host: str = DEFAULT_OAUTH_HOST,
-) -> Optional[TokenSet]:
+) -> Optional[TokenSetModel]:
     """
     Refresh an OAuth token using the refresh token.
 
@@ -251,12 +248,12 @@ def refresh_token(
 
         # Add expires_at if we got expires_in
         if "expires_in" in token_data and "expires_at" not in token_data:
-            token_data["expires_at"] = (
+            token_data["expires_at"] = int(
                 datetime.now().timestamp() + token_data["expires_in"]
             )
 
         # Create new token set
-        new_token_set = TokenSet(token_data)
+        new_token_set = TokenSetModel.model_validate(token_data)
         save_credentials(new_token_set)
 
         logger.info("Token refreshed successfully")
@@ -271,7 +268,7 @@ def authenticate(
     client_id: str = DEFAULT_CLIENT_ID,
     oauth_host: str = DEFAULT_OAUTH_HOST,
     auth_timeout: int = DEFAULT_AUTH_TIMEOUT,
-) -> Tuple[bool, Optional[TokenSet]]:
+) -> Tuple[bool, Optional[TokenSetModel]]:
     """
     Launch browser authentication flow and capture OAuth token.
 
@@ -281,7 +278,7 @@ def authenticate(
         auth_timeout: Timeout in seconds for authentication
 
     Returns:
-        Tuple of (success: bool, token_set: Optional[TokenSet])
+        Tuple of (success: bool, token_set: Optional[TokenSetModel])
     """
     try:
         # Discover OAuth server endpoints
@@ -436,12 +433,12 @@ def authenticate(
 
             # Add expires_at if we got expires_in
             if "expires_in" in token_response and "expires_at" not in token_response:
-                token_response["expires_at"] = (
+                token_response["expires_at"] = int(
                     datetime.now().timestamp() + token_response["expires_in"]
                 )
 
             # Create token set
-            token_set = TokenSet(token_response)
+            token_set = TokenSetModel.model_validate(token_response)
             save_credentials(token_set)
 
             return True, token_set
@@ -471,34 +468,38 @@ def get_authentication_token(
         Access token if available, None otherwise
     """
     if not force_reauth:
-        # Check saved credentials file
-        credentials = load_credentials()
-        if credentials and "token_set" in credentials:
-            token_set = TokenSet(credentials["token_set"])
+        # Check saved credentials file using the validated loader
+        try:
+            credentials = load_validated_credentials()
+            if credentials and credentials.token_set:
+                token_set = credentials.token_set
 
-            # If token is expired, try to refresh it
-            if token_set.is_expired() and token_set.refresh_token:
-                logger.debug("Access token expired, attempting to refresh...")
-                refreshed_token_set = refresh_token(token_set, client_id, oauth_host)
-                if refreshed_token_set:
-                    logger.debug("Token refreshed successfully")
-                    return refreshed_token_set.access_token
-                else:
-                    logger.debug(
-                        "Token refresh failed, proceeding to re-authentication"
+                # If token is expired, try to refresh it
+                if token_set.is_expired() and token_set.refresh_token:
+                    logger.debug("Access token expired, attempting to refresh...")
+                    refreshed_token_set = refresh_token(
+                        token_set, client_id, oauth_host
                     )
+                    if refreshed_token_set:
+                        logger.debug("Token refreshed successfully")
+                        return refreshed_token_set.access_token
+                    else:
+                        logger.debug(
+                            "Token refresh failed, proceeding to re-authentication"
+                        )
 
-            # If we have a valid token, use it
-            if not token_set.is_expired() and token_set.access_token:
-                logger.debug("Using saved authentication token")
-                return token_set.access_token
+                # If we have a valid token, use it
+                if not token_set.is_expired() and token_set.access_token:
+                    logger.debug("Using saved authentication token")
+                    return token_set.access_token
+        except Exception as e:
+            logger.debug(f"Failed to load saved credentials: {e}")
 
-        else:
-            # If no valid credentials found, launch browser authentication
-            logger.debug("No valid authentication token found")
-            logger.debug("Starting browser-based authentication with SingleStore...")
+        # If no valid credentials found, launch browser authentication
+        logger.debug("No valid authentication token found")
+        logger.debug("Starting browser-based authentication with SingleStore...")
 
-            success, token_set = authenticate(client_id, oauth_host, auth_timeout)
+        success, token_set = authenticate(client_id, oauth_host, auth_timeout)
 
     if success and token_set and token_set.access_token:
         return token_set.access_token
