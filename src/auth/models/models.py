@@ -127,3 +127,22 @@ class CredentialsModel(BaseModel):
             ),
             timestamp=1734567890000,
         )
+
+
+class RefreshTokenRequest(BaseModel):
+    """Model for OAuth refresh token request data."""
+
+    grant_type: str = Field(default="refresh_token", description="OAuth grant type")
+    refresh_token: str = Field(..., description="Refresh token")
+    client_id: str = Field(..., description="OAuth client ID")
+
+
+class TokenValidationResult(BaseModel):
+    """Model for token validation result."""
+
+    is_valid: bool = Field(..., description="Whether the token is valid")
+    is_expired: bool = Field(..., description="Whether the token is expired")
+    needs_refresh: bool = Field(..., description="Whether the token needs refresh")
+    has_refresh_token: bool = Field(
+        ..., description="Whether refresh token is available"
+    )

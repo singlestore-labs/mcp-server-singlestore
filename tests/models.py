@@ -9,6 +9,8 @@ from src.auth.models.models import (
     CallbackParameters,
     TokenRequest,
     TokenResponse,
+    RefreshTokenRequest,
+    TokenValidationResult,
 )
 
 # Re-export for convenience
@@ -21,4 +23,6 @@ __all__ = [
     "CallbackParameters",
     "TokenRequest",
     "TokenResponse",
+    "RefreshTokenRequest",
+    "TokenValidationResult",
 ]

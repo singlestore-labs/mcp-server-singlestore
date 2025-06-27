@@ -26,6 +26,8 @@ from src.auth.models.models import (
     CallbackParameters,
     TokenRequest,
     TokenResponse,
+    RefreshTokenRequest,
+    TokenValidationResult,
 )
 from src.logger import get_logger
 
@@ -221,49 +223,24 @@ def refresh_token(
     Returns:
         A new token set or None if refresh failed
     """
-    if not token_set.refresh_token:
-        logger.debug("No refresh token available")
-        return None
-
     try:
-        # Discover OAuth server endpoints
-        oauth_config = discover_oauth_server(oauth_host)
-        token_endpoint = oauth_config.get("token_endpoint")
-
-        if not token_endpoint:
-            logger.error("Invalid OAuth server configuration")
+        # Validate token set for refresh
+        validation_result = validate_token_for_refresh(token_set)
+        if not validation_result.has_refresh_token:
+            logger.debug("No refresh token available")
             return None
 
-        # Prepare refresh token request
-        data = {
-            "grant_type": "refresh_token",
-            "refresh_token": token_set.refresh_token,
-            "client_id": client_id,
-        }
+        # Setup OAuth configuration
+        oauth_config = setup_oauth_config(oauth_host)
 
-        logger.debug(f"Refreshing token using endpoint: {token_endpoint}")
+        # Create refresh token request
+        refresh_request = create_refresh_token_request(token_set, client_id)
 
-        # Send refresh token request
-        response = requests.post(
-            token_endpoint,
-            data=data,
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-            timeout=10,
-        )
-        response.raise_for_status()
+        # Send refresh request
+        token_response = send_refresh_token_request(oauth_config, refresh_request)
 
-        # Parse token response
-        token_data = response.json()
-
-        # Add expires_at if we got expires_in
-        if "expires_in" in token_data and "expires_at" not in token_data:
-            token_data["expires_at"] = int(
-                datetime.now().timestamp() + token_data["expires_in"]
-            )
-
-        # Create new token set
-        new_token_set = TokenSetModel.model_validate(token_data)
-        save_credentials(new_token_set)
+        # Process response and create new token set
+        new_token_set = process_refresh_token_response(token_response)
 
         logger.info("Token refreshed successfully")
         return new_token_set
@@ -607,40 +584,197 @@ def get_authentication_token(
         Access token if available, None otherwise
     """
     if not force_reauth:
-        # Check saved credentials file using the validated loader
-        try:
-            credentials = load_validated_credentials()
-            if credentials and credentials.token_set:
-                token_set = credentials.token_set
+        # Check saved credentials
+        credentials = check_saved_credentials()
+        if credentials and credentials.token_set:
+            token_set = credentials.token_set
+            validation_result = validate_token_for_refresh(token_set)
 
-                # If token is expired, try to refresh it
-                if token_set.is_expired() and token_set.refresh_token:
-                    logger.debug("Access token expired, attempting to refresh...")
-                    refreshed_token_set = refresh_token(
-                        token_set, client_id, oauth_host
-                    )
-                    if refreshed_token_set:
-                        logger.debug("Token refreshed successfully")
-                        return refreshed_token_set.access_token
-                    else:
-                        logger.debug(
-                            "Token refresh failed, proceeding to re-authentication"
-                        )
+            # If token is valid, use it
+            if validation_result.is_valid:
+                logger.debug("Using saved authentication token")
+                return token_set.access_token
 
-                # If we have a valid token, use it
-                if not token_set.is_expired() and token_set.access_token:
-                    logger.debug("Using saved authentication token")
-                    return token_set.access_token
-        except Exception as e:
-            logger.debug(f"Failed to load saved credentials: {e}")
+            # If token needs refresh, try to refresh it
+            if validation_result.needs_refresh:
+                refreshed_token_set = attempt_token_refresh(
+                    token_set, client_id, oauth_host
+                )
+                if refreshed_token_set:
+                    return refreshed_token_set.access_token
 
         # If no valid credentials found, launch browser authentication
         logger.debug("No valid authentication token found")
         logger.debug("Starting browser-based authentication with SingleStore...")
 
-        success, token_set = authenticate(client_id, oauth_host, auth_timeout)
+    # Perform browser authentication
+    success, token_set = authenticate(client_id, oauth_host, auth_timeout)
 
     if success and token_set and token_set.access_token:
         return token_set.access_token
     else:
+        return None
+
+
+def validate_token_for_refresh(token_set: TokenSetModel) -> TokenValidationResult:
+    """
+    Validate a token set to determine if refresh is needed or possible.
+
+    Args:
+        token_set: Token set to validate
+
+    Returns:
+        TokenValidationResult with validation status
+    """
+    has_refresh_token = bool(token_set.refresh_token)
+    is_expired = token_set.is_expired()
+    is_valid = bool(token_set.access_token) and not is_expired
+    needs_refresh = is_expired and has_refresh_token
+
+    return TokenValidationResult(
+        is_valid=is_valid,
+        is_expired=is_expired,
+        needs_refresh=needs_refresh,
+        has_refresh_token=has_refresh_token,
+    )
+
+
+def create_refresh_token_request(
+    token_set: TokenSetModel, client_id: str
+) -> RefreshTokenRequest:
+    """
+    Create a refresh token request from a token set.
+
+    Args:
+        token_set: Token set containing refresh token
+        client_id: OAuth client ID
+
+    Returns:
+        Validated refresh token request
+
+    Raises:
+        Exception: If no refresh token is available
+    """
+    if not token_set.refresh_token:
+        raise Exception("No refresh token available")
+
+    return RefreshTokenRequest(
+        refresh_token=token_set.refresh_token, client_id=client_id
+    )
+
+
+def send_refresh_token_request(
+    oauth_config: OAuthServerConfig, refresh_request: RefreshTokenRequest
+) -> TokenResponse:
+    """
+    Send refresh token request to OAuth server.
+
+    Args:
+        oauth_config: OAuth server configuration
+        refresh_request: Refresh token request data
+
+    Returns:
+        Token response from server
+
+    Raises:
+        Exception: If refresh request fails
+    """
+    logger.debug(f"Refreshing token using endpoint: {oauth_config.token_endpoint}")
+
+    # Send refresh token request
+    response = requests.post(
+        oauth_config.token_endpoint,
+        data=refresh_request.model_dump(),
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        timeout=10,
+    )
+
+    if response.status_code != 200:
+        raise Exception(f"Token refresh failed with status {response.status_code}")
+
+    # Parse and validate token response
+    token_response = TokenResponse.model_validate(response.json())
+
+    if token_response.error:
+        error_description = token_response.error_description or token_response.error
+        raise Exception(f"Token refresh error: {error_description}")
+
+    if not token_response.access_token:
+        raise Exception("No access token received from refresh")
+
+    return token_response
+
+
+def process_refresh_token_response(token_response: TokenResponse) -> TokenSetModel:
+    """
+    Process refresh token response and create new token set.
+
+    Args:
+        token_response: Token response from OAuth server
+
+    Returns:
+        New token set with refreshed tokens
+    """
+    # Add expires_at if we got expires_in
+    token_data = token_response.model_dump(exclude_none=True)
+    if token_response.expires_in and "expires_at" not in token_data:
+        token_data["expires_at"] = int(
+            datetime.now().timestamp() + token_response.expires_in
+        )
+
+    # Create and save new token set
+    new_token_set = TokenSetModel.model_validate(token_data)
+    save_credentials(new_token_set)
+
+    return new_token_set
+
+
+def check_saved_credentials() -> Optional[CredentialsModel]:
+    """
+    Check for saved credentials and validate them.
+
+    Returns:
+        Valid credentials if available, None otherwise
+    """
+    try:
+        credentials = load_validated_credentials()
+        if credentials and credentials.token_set:
+            return credentials
+    except Exception as e:
+        logger.debug(f"Failed to load saved credentials: {e}")
+
+    return None
+
+
+def attempt_token_refresh(
+    token_set: TokenSetModel, client_id: str, oauth_host: str
+) -> Optional[TokenSetModel]:
+    """
+    Attempt to refresh an expired token.
+
+    Args:
+        token_set: Token set to refresh
+        client_id: OAuth client ID
+        oauth_host: OAuth server host
+
+    Returns:
+        Refreshed token set if successful, None otherwise
+    """
+    validation_result = validate_token_for_refresh(token_set)
+
+    if not validation_result.needs_refresh:
+        return None
+
+    logger.debug("Access token expired, attempting to refresh...")
+
+    try:
+        refreshed_token_set = refresh_token(token_set, client_id, oauth_host)
+        if refreshed_token_set:
+            logger.debug("Token refreshed successfully")
+            return refreshed_token_set
+        else:
+            logger.debug("Token refresh failed, proceeding to re-authentication")
+            return None
+    except Exception as e:
+        logger.debug(f"Token refresh failed: {e}")
         return None
