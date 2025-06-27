@@ -19,20 +19,20 @@ With MCP, you can use Claude Desktop, Cursor, or any compatible MCP client to in
 The simplest way to set up the MCP server is to use the initialization command:
 
 ```bash
-uvx singlestore-mcp-server init --api-key <SINGLESTORE_API_KEY>
+uvx singlestore-mcp-server init
 ```
 
 This command will:
 
-1. Authenticate the user
-2. Automatically locate the configuration file for your platform
-3. Create or update the configuration to include the SingleStore MCP server
+1. Automatically locate the configuration file for your platform
+2. Create or update the configuration to include the SingleStore MCP server
+3. Configure browser-based OAuth authentication
 4. Provide instructions for starting the server
 
 To specify a client (e.g., `claude` or `cursor`), use the `--client` flag:
 
 ```bash
-uvx singlestore-mcp-server init --api-key <SINGLESTORE_API_KEY> --client=<client>
+uvx singlestore-mcp-server init --client=<client>
 ```
 
 ### 2. Installing via Smithery
@@ -61,14 +61,14 @@ Replace `<client>` with `claude` or `cursor` as needed.
       "command": "uvx",
       "args": [
         "singlestore-mcp-server",
-        "start",
-        "--api-key",
-        "<SINGLESTORE_API_KEY>"
+        "start"
       ]
      }
     }
   }
   ```
+
+   **No API keys, tokens, or environment variables required!** The server automatically handles authentication via browser OAuth when started.
 
 2. Restart your client after making changes to the configuration.
 
@@ -136,7 +136,85 @@ The server implements the following tools:
   - Arguments: `job_id`, `start` (optional), `end` (optional)
   - Returns execution history for the specified job
 
-## Dockerization
+## Development
+
+### Prerequisites
+
+- Python >= 3.11
+- [uv](https://docs.astral.sh/uv/) for dependency management
+
+### Setup
+
+1. Clone the repository:
+
+```bash
+git clone https://github.com/singlestore-labs/mcp-server-singlestore.git
+cd mcp-server-singlestore
+```
+
+1. Install dependencies:
+
+```bash
+uv sync --dev
+```
+
+1. Set up pre-commit hooks (optional but recommended):
+
+```bash
+uv run pre-commit install
+```
+
+### Development Workflow
+
+```bash
+# Quick quality checks (fast feedback)
+./scripts/check.sh
+
+# Run tests independently
+./scripts/test.sh
+
+# Comprehensive validation (before PRs)
+./scripts/check-all.sh
+
+# Create and publish releases
+./scripts/release.sh
+```
+
+### Running Tests
+
+```bash
+# Run test suite with coverage
+./scripts/test.sh
+
+# Or use pytest directly
+uv run pytest
+uv run pytest --cov=src --cov-report=html
+```
+
+### Code Quality
+
+We use [Ruff](https://docs.astral.sh/ruff/) for both linting and formatting:
+
+```bash
+# Format code
+uv run ruff format src/ tests/
+
+# Lint code
+uv run ruff check src/ tests/
+
+# Lint and fix issues automatically
+uv run ruff check --fix src/ tests/
+```
+
+### Release Process
+
+Releases are managed through git tags and automated PyPI publication:
+
+1. **Create release**: `./scripts/release.sh` (interactive tool)
+2. **Automatic publication**: Triggered by pushing version tags
+3. **No manual PyPI uploads** - fully automated pipeline
+
+See [`scripts/dev-workflow.md`](scripts/dev-workflow.md) for detailed workflow documentation.
 
 ### Building the Docker Image
 

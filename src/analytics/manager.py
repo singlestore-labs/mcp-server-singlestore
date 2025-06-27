@@ -1,5 +1,10 @@
 import segment.analytics as segment_analytics
 
+from ..logger import get_logger
+
+# Get logger for this module
+logger = get_logger()
+
 
 class AnalyticsManager:
     def __init__(self, segment_write_key=None, debug=False, enabled=True):
@@ -12,7 +17,7 @@ class AnalyticsManager:
     def _init_analytics(self):
         # Analytics are not enabled for local instances
         if not self.enabled:
-            print("[AnalyticsManager] Analytics are not available for local instances.")
+            logger.debug("Analytics are not available for local instances.")
             return
         try:
             if self.segment_write_key:
@@ -22,11 +27,11 @@ class AnalyticsManager:
                 self.analytics = segment_analytics
                 self.enabled = True
         except Exception as e:
-            print(f"[AnalyticsManager] Analytics not enabled: {e}")
+            logger.warning(f"Analytics not enabled: {e}")
             self.enabled = False
 
     def _on_error(self, error, items):
-        print("[AnalyticsManager] Error:", error)
+        logger.error("Analytics error:", error)
 
     def track_event(
         self, user_id: str, event_name: str, properties: dict | None = None
@@ -38,7 +43,7 @@ class AnalyticsManager:
                 user_id=user_id, event=event_name, properties=properties or {}
             )
         except Exception as e:
-            print(f"[AnalyticsManager] Failed to track event: {e}")
+            logger.error(f"Failed to track event: {e}")
 
     def identify(self, user_id: str, traits: dict | None = None):
         try:
@@ -46,4 +51,4 @@ class AnalyticsManager:
                 return
             self.analytics.identify(user_id=user_id, traits=traits or {})
         except Exception as e:
-            print(f"[AnalyticsManager] Failed to identify user: {e}")
+            logger.error(f"Failed to identify user: {e}")

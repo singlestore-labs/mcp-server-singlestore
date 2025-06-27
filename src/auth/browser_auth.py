@@ -11,12 +11,17 @@ import http.server
 import socketserver
 import urllib.parse
 import requests
+import logging
 from pathlib import Path
 from typing import Optional, Dict, Any, Tuple
 from datetime import datetime
 
+# Import centralized logger
+from ..logger import get_logger
 
-# Scopes that are always required
+# Get logger for this module
+logger = get_logger()
+
 ALWAYS_PRESENT_SCOPES = [
     "openid",
     "profile",
@@ -188,9 +193,13 @@ def load_credentials() -> Optional[Dict[str, Any]]:
 
     try:
         with open(CREDENTIALS_FILE, "r") as f:
+            # Check if the file is empty
+            if f.readable() and f.tell() == 0:
+                logger.debug("Credentials file is empty")
+                return None
             return json.load(f)
     except (json.JSONDecodeError, IOError) as e:
-        print(f"Failed to load credentials: {e}")
+        logger.error(f"Failed to load credentials: {e}")
         return None
 
 
@@ -211,7 +220,7 @@ def refresh_token(
         A new token set or None if refresh failed
     """
     if not token_set.refresh_token:
-        print("No refresh token available")
+        logger.debug("No refresh token available")
         return None
 
     try:
@@ -220,7 +229,7 @@ def refresh_token(
         token_endpoint = oauth_config.get("token_endpoint")
 
         if not token_endpoint:
-            print("Invalid OAuth server configuration")
+            logger.error("Invalid OAuth server configuration")
             return None
 
         # Prepare refresh token request
@@ -229,6 +238,8 @@ def refresh_token(
             "refresh_token": token_set.refresh_token,
             "client_id": client_id,
         }
+
+        logger.debug(f"Refreshing token using endpoint: {token_endpoint}")
 
         # Send refresh token request
         response = requests.post(
@@ -252,11 +263,11 @@ def refresh_token(
         new_token_set = TokenSet(token_data)
         save_credentials(new_token_set)
 
-        print("Token refreshed successfully")
+        logger.info("Token refreshed successfully")
         return new_token_set
 
     except Exception as e:
-        print(f"Token refresh failed: {e}")
+        logger.error(f"Token refresh failed: {e}")
         return None
 
 
@@ -278,13 +289,13 @@ def authenticate(
     """
     try:
         # Discover OAuth server endpoints
-        print("Discovering OAuth server endpoints...")
+        logger.debug("Discovering OAuth server endpoints...")
         oauth_config = discover_oauth_server(oauth_host)
         authorization_endpoint = oauth_config.get("authorization_endpoint")
         token_endpoint = oauth_config.get("token_endpoint")
 
         if not authorization_endpoint or not token_endpoint:
-            print("Invalid OAuth server configuration")
+            logger.error("Invalid OAuth server configuration")
             return False, None
 
         # Generate PKCE code verifier and challenge
@@ -314,7 +325,7 @@ def authenticate(
 
         # Start a temporary web server to capture the callback
         with CallbackServer(("127.0.0.1", port), handler) as httpd:
-            print(f"Starting temporary authentication server on port {port}...")
+            logger.debug(f"Starting temporary authentication server on port {port}")
 
             # Prepare authorization URL
             scopes = " ".join(ALWAYS_PRESENT_SCOPES)
@@ -330,51 +341,58 @@ def authenticate(
 
             auth_url = f"{authorization_endpoint}?{urllib.parse.urlencode(auth_params)}"
 
-            print(f"\n{'=' * 60}")
-            print("🚀 Starting browser authentication...")
-            print(f"Client ID: {client_id}")
-            print(f"Redirect URI: {redirect_uri}")
-            print(f"{'=' * 60}")
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(
+                    f"Starting browser authentication with Client ID: {client_id}"
+                )
+                logger.debug(f"Redirect URI: {redirect_uri}")
+                logger.debug(f"Auth URL: {auth_url}")
 
             # Open browser to auth URL
-            print("Opening browser for SingleStore authentication...")
+            logger.info("Opening browser for SingleStore authentication...")
             webbrowser.open(auth_url)
 
-            print("If the browser doesn't open automatically, please visit:")
-            print(f"{auth_url}")
+            if logger.isEnabledFor(logging.INFO):
+                logger.info("If the browser doesn't open automatically, please visit:")
+                logger.info(f"{auth_url}")
 
             # Set timeout for each request
             httpd.timeout = 1
 
             # Serve until callback is received or timeout
             start_time = time.time()
-            print(f"\nWaiting for authentication (timeout: {auth_timeout}s)...")
+            logger.debug(f"Waiting for authentication (timeout: {auth_timeout}s)...")
 
             while not httpd.received_callback:
                 httpd.handle_request()
                 elapsed = time.time() - start_time
 
-                # Print progress every 30 seconds
-                if int(elapsed) % 30 == 0 and elapsed > 0:
+                # Log progress every 30 seconds in debug mode
+                if (
+                    logger.isEnabledFor(logging.DEBUG)
+                    and int(elapsed) % 30 == 0
+                    and elapsed > 0
+                ):
                     remaining = auth_timeout - elapsed
                     if remaining > 0:
-                        print(f"Still waiting... ({remaining:.0f}s remaining)")
+                        logger.debug(f"Still waiting... ({remaining:.0f}s remaining)")
 
                 if elapsed > auth_timeout:
-                    print("\n❌ Authentication timed out")
-                    print(
-                        "Please try again or check your browser for any blocked popups."
-                    )
+                    logger.error("Authentication timed out")
+                    if logger.isEnabledFor(logging.DEBUG):
+                        logger.debug(
+                            "Please try again or check your browser for any blocked popups."
+                        )
                     return False, None
 
             # Process callback parameters
             if not httpd.callback_params:
-                print("❌ No callback parameters received")
+                logger.error("No callback parameters received")
                 return False, None
 
             # Check state parameter
             if httpd.callback_params.get("state") != state:
-                print("❌ State parameter mismatch, possible CSRF attack")
+                logger.error("State parameter mismatch, possible CSRF attack")
                 return False, None
 
             # Extract authorization code
@@ -384,10 +402,10 @@ def authenticate(
                 error_description = httpd.callback_params.get(
                     "error_description", "Unknown error"
                 )
-                print(f"❌ Authorization failed: {error} - {error_description}")
+                logger.error(f"Authorization failed: {error} - {error_description}")
                 return False, None
 
-            print("✅ Authorization code received, exchanging for tokens...")
+            logger.debug("Authorization code received, exchanging for tokens...")
 
             # Exchange code for tokens
             token_data = {
@@ -407,16 +425,16 @@ def authenticate(
             )
 
             if response.status_code != 200:
-                print(f"❌ Token exchange failed: {response.status_code}")
-                print(f"Response: {response.text}")
+                logger.error(f"Token exchange failed: {response.status_code}")
+                logger.debug(f"Response: {response.text}")
                 return False, None
 
             # Parse token response
             token_response = response.json()
 
             if "error" in token_response:
-                print(
-                    f"❌ Token exchange error: {token_response.get('error_description', token_response['error'])}"
+                logger.error(
+                    f"Token exchange error: {token_response.get('error_description', token_response['error'])}"
                 )
                 return False, None
 
@@ -430,11 +448,10 @@ def authenticate(
             token_set = TokenSet(token_response)
             save_credentials(token_set)
 
-            print("✅ Authentication successful!")
             return True, token_set
 
     except Exception as e:
-        print(f"❌ Authentication failed: {e}")
+        logger.error(f"Authentication failed: {e}")
         return False, None
 
 
@@ -465,49 +482,28 @@ def get_authentication_token(
 
             # If token is expired, try to refresh it
             if token_set.is_expired() and token_set.refresh_token:
-                print("Access token expired, attempting to refresh...")
+                logger.debug("Access token expired, attempting to refresh...")
                 refreshed_token_set = refresh_token(token_set, client_id, oauth_host)
                 if refreshed_token_set:
-                    print("✅ Token refreshed successfully")
+                    logger.debug("Token refreshed successfully")
                     return refreshed_token_set.access_token
                 else:
-                    print("Token refresh failed, proceeding to re-authentication")
+                    logger.debug(
+                        "Token refresh failed, proceeding to re-authentication"
+                    )
 
             # If we have a valid token, use it
             if not token_set.is_expired() and token_set.access_token:
-                print("✅ Using saved authentication token")
+                logger.debug("Using saved authentication token")
                 return token_set.access_token
 
     # If no valid credentials found, launch browser authentication
-    print("\n🔐 No valid authentication token found")
-    print("Starting browser-based authentication with SingleStore...")
+    logger.debug("No valid authentication token found")
+    logger.debug("Starting browser-based authentication with SingleStore...")
 
     success, token_set = authenticate(client_id, oauth_host, auth_timeout)
 
     if success and token_set and token_set.access_token:
-        print("🎉 Authentication completed successfully!")
         return token_set.access_token
     else:
-        print("❌ Authentication failed")
-        print("Please try again or check your network connection.")
         return None
-
-
-def clear_credentials() -> bool:
-    """
-    Clear saved credentials.
-
-    Returns:
-        True if credentials were cleared, False if no credentials exist
-    """
-    if CREDENTIALS_FILE.exists():
-        try:
-            CREDENTIALS_FILE.unlink()
-            print(f"✅ Credentials cleared from {CREDENTIALS_FILE}")
-            return True
-        except Exception as e:
-            print(f"❌ Failed to clear credentials: {e}")
-            return False
-    else:
-        print("No saved credentials found")
-        return False

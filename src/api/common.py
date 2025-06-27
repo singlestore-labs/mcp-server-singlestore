@@ -371,9 +371,9 @@ def get_access_token() -> str:
             f"Remote access token retrieved (length: {len(access_token) if access_token else 0})"
         )
     else:
-        access_token = settings.api_key
+        access_token = settings.jwt_token
         logger.debug(
-            f"Local access token retrieved (length: {len(access_token) if access_token else 0})"
+            f"Local JWT token retrieved (length: {len(access_token) if access_token else 0})"
         )
 
     if not access_token:

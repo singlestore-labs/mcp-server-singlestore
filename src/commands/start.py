@@ -1,6 +1,5 @@
 from mcp.server.fastmcp import FastMCP
 from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions
-import logging
 
 from src.auth.callback import make_auth_callback_handler
 from src.api.tools import register_tools
@@ -8,33 +7,25 @@ from src.auth.provider import SingleStoreOAuthProvider
 from src.api.resources.register import register_resources
 from src.auth.browser_auth import get_authentication_token
 import src.config.config as config
+from src.logger import get_logger
 
-# Configure logging to enable debug messages
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler()],
-)
+logger = get_logger()
 
 
-def start_command(transport, api_key):
-    # Handle browser authentication for stdio mode when no API key is provided
-    if transport == config.Transport.STDIO and not api_key:
-        print("No API key provided for stdio mode. Starting browser authentication...")
+def start_command(transport):
+    # Always use browser authentication for stdio mode
+    if transport == config.Transport.STDIO:
         oauth_token = get_authentication_token()
         if not oauth_token:
-            print(
-                "❌ Authentication failed. Cannot start MCP server without valid credentials."
-            )
+            logger.error("Authentication failed. Please try again")
             return
-        print("✅ Authentication successful. Starting MCP server...")
+        logger.info("Authentication successful")
 
-        # Create settings with OAuth token
-        settings = config.init_settings(transport=transport, api_key=oauth_token)
-        if isinstance(settings, config.LocalSettings):
-            settings.set_oauth_token(oauth_token)
+        # Create settings with OAuth token as JWT token
+        settings = config.init_settings(transport=transport, jwt_token=oauth_token)
     else:
-        settings = config.init_settings(transport=transport, api_key=api_key)
+        raise NotImplementedError("Only stdio transport is currently supported.")
+        # settings = config.init_settings(transport=transport, jwt_token=None)
 
     mcp_args = {
         "name": "SingleStore MCP Server",
@@ -69,5 +60,9 @@ def start_command(transport, api_key):
         mcp.custom_route("/callback", methods=["GET"])(
             make_auth_callback_handler(provider)
         )
+
+    logger.info(
+        f"Starting MCP server with transport={transport} on {settings.host}:{settings.port}"
+    )
 
     mcp.run(transport=transport)
