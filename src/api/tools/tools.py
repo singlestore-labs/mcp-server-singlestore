@@ -25,6 +25,7 @@ from src.api.common import (
 )
 from src.api.tools.types import Tool
 from src.api.tools.types import WorkspaceTarget
+from src.utils.uuid_validation import validate_workspace_id, validate_uuid_string
 
 # Import response standardization system
 from src.api.responses import ToolResponseBuilder, tool_response
@@ -767,15 +768,17 @@ def run_sql(
     Returns:
         Standardized response with query results and metadata
     """
+    # Validate workspace ID format
+    validated_id = validate_workspace_id(id)
 
     ctx.info(
-        f"Running SQL query on workspace ID '{id}' with database '{database}': {sql_query}"
+        f"Running SQL query on workspace ID '{validated_id}' with database '{database}': {sql_query}"
     )
 
     settings = config.get_settings()
 
     # Target can either be a workspace or a virtual workspace
-    target = __get_workspace_by_id(id)
+    target = __get_workspace_by_id(validated_id)
     database_name = database
 
     # For virtual workspaces, use their database name if not specified
@@ -1295,19 +1298,22 @@ def workspaces_info(workspace_group_id: str) -> List[Dict[str, Any]]:
     Returns:
         List of workspace information dictionaries
     """
+    # Validate workspace group ID format
+    validated_group_id = validate_uuid_string(workspace_group_id)
+
     start_time = time.time()
     settings = config.get_settings()
     user_id = config.get_user_id()
     settings.analytics_manager.track_event(
         user_id,
         "tool_calling",
-        {"name": "workspaces_info", "workspace_group_id": workspace_group_id},
+        {"name": "workspaces_info", "workspace_group_id": validated_group_id},
     )
 
     workspaces_data = build_request(
         "GET",
         "workspaces",
-        {"workspaceGroupID": workspace_group_id},
+        {"workspaceGroupID": validated_group_id},
     )
 
     workspaces = [
@@ -2191,7 +2197,10 @@ def terminate_virtual_workspace(
         print(f"Failed to terminate workspace: {result['message']}")
     ```
     """
-    ctx.info(f"Terminating virtual workspace with ID: {workspace_id}")
+    # Validate workspace ID format
+    validated_workspace_id = validate_workspace_id(workspace_id)
+
+    ctx.info(f"Terminating virtual workspace with ID: {validated_workspace_id}")
 
     settings = config.get_settings()
     user_id = config.get_user_id()
@@ -2202,7 +2211,7 @@ def terminate_virtual_workspace(
         "tool_calling",
         {
             "name": "terminate_virtual_workspace",
-            "workspace_id": workspace_id,
+            "workspace_id": validated_workspace_id,
         },
     )
 
@@ -2217,41 +2226,45 @@ def terminate_virtual_workspace(
         # First, try to get the workspace details before termination
         workspace_name = None
         try:
-            starter_workspace = workspace_manager.get_starter_workspace(workspace_id)
+            starter_workspace = workspace_manager.get_starter_workspace(
+                validated_workspace_id
+            )
             workspace_name = starter_workspace.name
-            ctx.info(f"Found virtual workspace '{workspace_name}' (ID: {workspace_id})")
+            ctx.info(
+                f"Found virtual workspace '{workspace_name}' (ID: {validated_workspace_id})"
+            )
         except Exception as e:
             # If we can't get the workspace, it might not exist or already be terminated
             ctx.warning(f"Could not retrieve workspace details: {str(e)}")
             raise ValueError(
-                f"Virtual workspace '{workspace_id}' does not exist or has already been terminated."
+                f"Virtual workspace '{validated_workspace_id}' does not exist or has already been terminated."
             )
 
         # Terminate the virtual workspace
-        workspace_manager.terminate_starter_workspace(workspace_id)
+        workspace_manager.terminate_starter_workspace(validated_workspace_id)
 
         termination_time = datetime.now().isoformat()
 
-        success_message = f"Virtual workspace '{workspace_name or workspace_id}' terminated successfully"
+        success_message = f"Virtual workspace '{workspace_name or validated_workspace_id}' terminated successfully"
         ctx.info(success_message)
 
         return {
             "status": "success",
             "message": success_message,
-            "workspace_id": workspace_id,
+            "workspace_id": validated_workspace_id,
             "workspace_name": workspace_name,
             "termination_time": termination_time,
         }
 
     except Exception as e:
-        error_msg = f"Failed to terminate virtual workspace '{workspace_id}': {str(e)}"
+        error_msg = f"Failed to terminate virtual workspace '{validated_workspace_id}': {str(e)}"
         ctx.error(error_msg)
 
         return {
             "status": "error",
             "message": error_msg,
             "error": str(e),
-            "workspace_id": workspace_id,
+            "workspace_id": validated_workspace_id,
         }
 
 

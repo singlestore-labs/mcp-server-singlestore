@@ -6,10 +6,11 @@ from abc import ABC
 from contextvars import ContextVar
 from enum import Enum
 from mcp.server.fastmcp import FastMCP
-from pydantic import AnyHttpUrl
+from pydantic import AnyHttpUrl, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from starlette.requests import Request
 from src.analytics.manager import AnalyticsManager
+from src.utils.uuid_validation import validate_uuid_string
 
 
 class Transport(str, Enum):
@@ -42,6 +43,12 @@ class LocalSettings(Settings):
 
     analytics_manager: AnalyticsManager = AnalyticsManager(enabled=False)
 
+    @field_validator("org_id", mode="before")
+    @classmethod
+    def validate_org_id_uuid(cls, v):
+        """Validate that org_id is a valid UUID."""
+        return validate_uuid_string(v)
+
 
 class RemoteSettings(Settings):
     host: str
@@ -65,6 +72,12 @@ class RemoteSettings(Settings):
     analytics_manager: AnalyticsManager | None = None
 
     model_config = SettingsConfigDict(env_prefix="MCP_", env_file=".env.remote")
+
+    @field_validator("org_id", "client_id", mode="before")
+    @classmethod
+    def validate_uuid_fields(cls, v):
+        """Validate that org_id and client_id are valid UUIDs."""
+        return validate_uuid_string(v)
 
     def __init__(self, **data):
         """Initialize settings with values from environment variables."""
