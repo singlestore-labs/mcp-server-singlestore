@@ -1,0 +1,94 @@
+name: Process Release Markers
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  check-release-marker:
+    runs-on: ubuntu-latest
+    outputs:
+      should-release: ${{ steps.check.outputs.should-release }}
+      release-type: ${{ steps.check.outputs.release-type }}
+      new-version: ${{ steps.check.outputs.new-version }}
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 2  # Need previous commit to detect changes
+
+    - name: Check for release marker
+      id: check
+      run: |
+        # Check if release marker exists and was added in this push
+        if [ -f ".release-marker" ]; then
+          # Check if this file was added in the current push
+          if git diff --name-only HEAD~1 HEAD | grep -q "^\.release-marker$"; then
+            echo "📝 Release marker found and was just added"
+
+            # Source the marker file
+            source .release-marker
+
+            echo "should-release=true" >> $GITHUB_OUTPUT
+            echo "release-type=$RELEASE_TYPE" >> $GITHUB_OUTPUT
+            echo "new-version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+            echo "Release details:"
+            echo "  Type: $RELEASE_TYPE"
+            echo "  Version: $CURRENT_VERSION → $NEW_VERSION"
+            echo "  Branch: $BRANCH"
+          else
+            echo "📝 Release marker exists but wasn't added in this push"
+            echo "should-release=false" >> $GITHUB_OUTPUT
+          fi
+        else
+          echo "📝 No release marker found"
+          echo "should-release=false" >> $GITHUB_OUTPUT
+        fi
+
+  create-release:
+    needs: check-release-marker
+    if: needs.check-release-marker.outputs.should-release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # For creating tags
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Process release
+      env:
+        NEW_VERSION: ${{ needs.check-release-marker.outputs.new-version }}
+        RELEASE_TYPE: ${{ needs.check-release-marker.outputs.release-type }}
+      run: |
+        echo "🚀 Processing $RELEASE_TYPE release: $NEW_VERSION"
+
+        # Update version file
+        echo "__version__ = \"$NEW_VERSION\"" > src/version.py
+
+        # Remove release marker
+        rm -f .release-marker
+
+        # Configure git
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+
+        # Commit version bump
+        git add src/version.py .release-marker
+        git commit -m "chore: bump version to $NEW_VERSION [skip ci]"
+
+        # Create and push tag
+        git tag "v$NEW_VERSION"
+        git push origin main
+        git push origin "v$NEW_VERSION"
+
+        echo "✅ Version bumped and tagged: v$NEW_VERSION"
+        echo "🚀 PyPI publication will be triggered automatically"

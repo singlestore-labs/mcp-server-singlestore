@@ -444,17 +444,44 @@ Brief description of changes made.
 
 > **Note**: This section is for maintainers
 
-### Version Bumping
+### For Regular Development (PR-based Workflow)
 
-1. Update version in `src/version.py`
-2. Update CHANGELOG.md with new version details
-3. Create a pull request with version changes
-4. After merge, create a git tag:
+When your feature/fix is ready and you want it to trigger a release:
 
 ```bash
-git tag v1.2.3
-git push upstream v1.2.3
+# 1. On your feature branch
+./scripts/mark-release.sh
+
+# Choose release type:
+# - Patch: Bug fixes, documentation, CI improvements
+# - Minor: New features, backwards-compatible changes
+# - Major: Breaking changes, API modifications
+
+# 2. Push and create PR
+git push origin your-branch-name
+
+# 3. When PR is merged to main:
+# → Automatic version bump
+# → Automatic PyPI publication
+# → Automatic GitHub release
 ```
+
+### For Emergency Releases (Direct to main)
+
+For hotfixes or emergency releases that can't wait for PR review:
+
+```bash
+git checkout main
+git pull origin main
+./scripts/release.sh  # Interactive release
+git push origin main --tags
+```
+
+### Release Types Guide
+
+- **🔧 Patch (X.Y.Z+1)**: Bug fixes, docs, tests, CI changes
+- **✨ Minor (X.Y+1.0)**: New tools, features, backwards-compatible changes
+- **💥 Major (X+1.0.0)**: Breaking changes, removed features, API changes
 
 ### Automated Publishing
 
