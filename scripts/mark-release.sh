@@ -93,6 +93,8 @@ echo "__version__ = \"$NEW_VERSION\"" > src/version.py
 git add src/version.py
 git commit -m "release: bump version to $NEW_VERSION ($RELEASE_TYPE release)"
 
+git push origin "$CURRENT_BRANCH"
+
 echo ""
 echo -e "${GREEN}✅ Branch marked for release!${NC}"
 echo ""
