@@ -3,6 +3,72 @@ from pydantic import BaseModel, Field, ConfigDict, field_validator
 from datetime import datetime
 
 
+# Pydantic models for OAuth server responses
+class OAuthServerConfig(BaseModel):
+    """Model for OAuth server configuration endpoints."""
+
+    authorization_endpoint: str = Field(..., description="Authorization endpoint URL")
+    token_endpoint: str = Field(..., description="Token endpoint URL")
+
+    model_config = ConfigDict(extra="allow")
+
+
+class PKCEData(BaseModel):
+    """Model for PKCE code verifier and challenge data."""
+
+    code_verifier: str = Field(..., description="PKCE code verifier")
+    code_challenge: str = Field(..., description="PKCE code challenge")
+    state: str = Field(..., description="OAuth state parameter")
+
+
+class AuthorizationParameters(BaseModel):
+    """Model for OAuth authorization parameters."""
+
+    client_id: str = Field(..., description="OAuth client ID")
+    redirect_uri: str = Field(..., description="Redirect URI")
+    response_type: str = Field(default="code", description="OAuth response type")
+    scope: str = Field(..., description="OAuth scopes")
+    state: str = Field(..., description="OAuth state parameter")
+    code_challenge: str = Field(..., description="PKCE code challenge")
+    code_challenge_method: str = Field(
+        default="S256", description="PKCE code challenge method"
+    )
+
+
+class CallbackParameters(BaseModel):
+    """Model for OAuth callback parameters."""
+
+    code: Optional[str] = Field(None, description="Authorization code")
+    state: Optional[str] = Field(None, description="OAuth state parameter")
+    error: Optional[str] = Field(None, description="Error code")
+    error_description: Optional[str] = Field(None, description="Error description")
+
+
+class TokenRequest(BaseModel):
+    """Model for OAuth token request data."""
+
+    grant_type: str = Field(..., description="OAuth grant type")
+    code: str = Field(..., description="Authorization code")
+    redirect_uri: str = Field(..., description="Redirect URI")
+    client_id: str = Field(..., description="OAuth client ID")
+    code_verifier: str = Field(..., description="PKCE code verifier")
+
+
+class TokenResponse(BaseModel):
+    """Model for OAuth token response."""
+
+    access_token: Optional[str] = Field(None, description="Access token")
+    token_type: Optional[str] = Field(None, description="Token type")
+    refresh_token: Optional[str] = Field(None, description="Refresh token")
+    expires_in: Optional[int] = Field(None, description="Token expiration in seconds")
+    id_token: Optional[str] = Field(None, description="ID token")
+    scope: Optional[str] = Field(None, description="Granted scopes")
+    error: Optional[str] = Field(None, description="Error code")
+    error_description: Optional[str] = Field(None, description="Error description")
+
+    model_config = ConfigDict(extra="allow")
+
+
 # Pydantic models for credentials
 class TokenSetModel(BaseModel):
     """Model for OAuth token set."""

@@ -17,7 +17,16 @@ from typing import Optional, Dict, Any, Tuple
 from datetime import datetime
 
 # Import centralized logger
-from src.auth.models.models import CredentialsModel, TokenSetModel
+from src.auth.models.models import (
+    CredentialsModel,
+    TokenSetModel,
+    OAuthServerConfig,
+    PKCEData,
+    AuthorizationParameters,
+    CallbackParameters,
+    TokenRequest,
+    TokenResponse,
+)
 from src.logger import get_logger
 
 
@@ -281,22 +290,10 @@ def authenticate(
         Tuple of (success: bool, token_set: Optional[TokenSetModel])
     """
     try:
-        # Discover OAuth server endpoints
-        logger.debug("Discovering OAuth server endpoints...")
-        oauth_config = discover_oauth_server(oauth_host)
-        authorization_endpoint = oauth_config.get("authorization_endpoint")
-        token_endpoint = oauth_config.get("token_endpoint")
+        oauth_config = setup_oauth_config(oauth_host)
 
-        if not authorization_endpoint or not token_endpoint:
-            logger.error("Invalid OAuth server configuration")
-            return False, None
-
-        # Generate PKCE code verifier and challenge
-        code_verifier = generate_code_verifier()
-        code_challenge = generate_code_challenge(code_verifier)
-
-        # Generate state for security
-        state = generate_state()
+        # Generate PKCE code verifier, challenge, and state
+        pkce_data = generate_pkce_data()
 
         # Find an available port for the redirect server
         with socketserver.TCPServer(("127.0.0.1", 0), None) as s:
@@ -320,19 +317,10 @@ def authenticate(
         with CallbackServer(("127.0.0.1", port), handler) as httpd:
             logger.debug(f"Starting temporary authentication server on port {port}")
 
-            # Prepare authorization URL
-            scopes = " ".join(ALWAYS_PRESENT_SCOPES)
-            auth_params = {
-                "client_id": client_id,
-                "redirect_uri": redirect_uri,
-                "response_type": "code",
-                "scope": scopes,
-                "state": state,
-                "code_challenge": code_challenge,
-                "code_challenge_method": "S256",
-            }
-
-            auth_url = f"{authorization_endpoint}?{urllib.parse.urlencode(auth_params)}"
+            # Create OAuth authorization URL
+            auth_url = create_authorization_url(
+                oauth_config, pkce_data, client_id, redirect_uri
+            )
 
             if logger.isEnabledFor(logging.DEBUG):
                 logger.debug(
@@ -349,103 +337,254 @@ def authenticate(
                 logger.info("If the browser doesn't open automatically, please visit:")
                 logger.info(f"{auth_url}")
 
-            # Set timeout for each request
-            httpd.timeout = 1
+            # Wait for callback with timeout
+            callback_params = wait_for_callback(httpd, auth_timeout)
 
-            # Serve until callback is received or timeout
-            start_time = time.time()
-            logger.debug(f"Waiting for authentication (timeout: {auth_timeout}s)...")
+            # Validate and process callback parameters
+            code = validate_callback(callback_params, pkce_data.state)
 
-            while not httpd.received_callback:
-                httpd.handle_request()
-                elapsed = time.time() - start_time
-
-                # Log progress every 30 seconds in debug mode
-                if (
-                    logger.isEnabledFor(logging.DEBUG)
-                    and int(elapsed) % 30 == 0
-                    and elapsed > 0
-                ):
-                    remaining = auth_timeout - elapsed
-                    if remaining > 0:
-                        logger.debug(f"Still waiting... ({remaining:.0f}s remaining)")
-
-                if elapsed > auth_timeout:
-                    logger.error("Authentication timed out")
-                    if logger.isEnabledFor(logging.DEBUG):
-                        logger.debug(
-                            "Please try again or check your browser for any blocked popups."
-                        )
-                    return False, None
-
-            # Process callback parameters
-            if not httpd.callback_params:
-                logger.error("No callback parameters received")
-                return False, None
-
-            # Check state parameter
-            if httpd.callback_params.get("state") != state:
-                logger.error("State parameter mismatch, possible CSRF attack")
-                return False, None
-
-            # Extract authorization code
-            code = httpd.callback_params.get("code")
-            if not code:
-                error = httpd.callback_params.get("error")
-                error_description = httpd.callback_params.get(
-                    "error_description", "Unknown error"
-                )
-                logger.error(f"Authorization failed: {error} - {error_description}")
-                return False, None
-
-            logger.debug("Authorization code received, exchanging for tokens...")
-
-            # Exchange code for tokens
-            token_data = {
-                "grant_type": "authorization_code",
-                "code": code,
-                "redirect_uri": redirect_uri,
-                "client_id": client_id,
-                "code_verifier": code_verifier,
-            }
-
-            # Send token request
-            response = requests.post(
-                token_endpoint,
-                data=token_data,
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
-                timeout=10,
+            # Exchange authorization code for tokens
+            token_set = exchange_code_for_tokens(
+                oauth_config, code, pkce_data, client_id, redirect_uri
             )
-
-            if response.status_code != 200:
-                logger.error(f"Token exchange failed: {response.status_code}")
-                logger.debug(f"Response: {response.text}")
-                return False, None
-
-            # Parse token response
-            token_response = response.json()
-
-            if "error" in token_response:
-                logger.error(
-                    f"Token exchange error: {token_response.get('error_description', token_response['error'])}"
-                )
-                return False, None
-
-            # Add expires_at if we got expires_in
-            if "expires_in" in token_response and "expires_at" not in token_response:
-                token_response["expires_at"] = int(
-                    datetime.now().timestamp() + token_response["expires_in"]
-                )
-
-            # Create token set
-            token_set = TokenSetModel.model_validate(token_response)
-            save_credentials(token_set)
 
             return True, token_set
 
     except Exception as e:
         logger.error(f"Authentication failed: {e}")
         return False, None
+
+
+def setup_oauth_config(oauth_host: str) -> OAuthServerConfig:
+    """
+    Discover and validate OAuth server endpoints.
+
+    Args:
+        oauth_host: OAuth server host
+
+    Returns:
+        Validated OAuth server configuration
+
+    Raises:
+        Exception: If OAuth server discovery fails or endpoints are invalid
+    """
+    logger.debug("Discovering OAuth server endpoints...")
+    oauth_config = discover_oauth_server(oauth_host)
+
+    # Validate the required endpoints exist
+    authorization_endpoint = oauth_config.get("authorization_endpoint")
+    token_endpoint = oauth_config.get("token_endpoint")
+
+    if not authorization_endpoint or not token_endpoint:
+        raise Exception(
+            "Invalid OAuth server configuration - missing required endpoints"
+        )
+
+    return OAuthServerConfig(
+        authorization_endpoint=authorization_endpoint, token_endpoint=token_endpoint
+    )
+
+
+def generate_pkce_data() -> PKCEData:
+    """
+    Generate PKCE code verifier, challenge, and state for OAuth flow.
+
+    Returns:
+        PKCEData containing code_verifier, code_challenge, and state
+    """
+    code_verifier = generate_code_verifier()
+    code_challenge = generate_code_challenge(code_verifier)
+    state = generate_state()
+
+    return PKCEData(
+        code_verifier=code_verifier, code_challenge=code_challenge, state=state
+    )
+
+
+def create_authorization_url(
+    oauth_config: OAuthServerConfig,
+    pkce_data: PKCEData,
+    client_id: str,
+    redirect_uri: str,
+) -> str:
+    """
+    Create OAuth authorization URL with all required parameters.
+
+    Args:
+        oauth_config: OAuth server configuration
+        pkce_data: PKCE data (code challenge, state)
+        client_id: OAuth client ID
+        redirect_uri: Redirect URI for the callback
+
+    Returns:
+        Complete authorization URL
+    """
+    scopes = " ".join(ALWAYS_PRESENT_SCOPES)
+
+    auth_params = AuthorizationParameters(
+        client_id=client_id,
+        redirect_uri=redirect_uri,
+        scope=scopes,
+        state=pkce_data.state,
+        code_challenge=pkce_data.code_challenge,
+    )
+
+    # Convert to URL parameters
+    params_dict = auth_params.model_dump()
+    auth_url = (
+        f"{oauth_config.authorization_endpoint}?{urllib.parse.urlencode(params_dict)}"
+    )
+
+    return auth_url
+
+
+def wait_for_callback(httpd, auth_timeout: int) -> CallbackParameters:
+    """
+    Wait for OAuth callback and return the parameters.
+
+    Args:
+        httpd: HTTP server instance
+        auth_timeout: Timeout in seconds
+
+    Returns:
+        Callback parameters from the OAuth server
+
+    Raises:
+        Exception: If timeout occurs or no callback received
+    """
+    # Set timeout for each request
+    httpd.timeout = 1
+
+    # Serve until callback is received or timeout
+    start_time = time.time()
+    logger.debug(f"Waiting for authentication (timeout: {auth_timeout}s)...")
+
+    while not httpd.received_callback:
+        httpd.handle_request()
+        elapsed = time.time() - start_time
+
+        # Log progress every 30 seconds in debug mode
+        if (
+            logger.isEnabledFor(logging.DEBUG)
+            and int(elapsed) % 30 == 0
+            and elapsed > 0
+        ):
+            remaining = auth_timeout - elapsed
+            if remaining > 0:
+                logger.debug(f"Still waiting... ({remaining:.0f}s remaining)")
+
+        if elapsed > auth_timeout:
+            raise Exception("Authentication timed out")
+
+    # Process callback parameters
+    if not httpd.callback_params:
+        raise Exception("No callback parameters received")
+
+    return CallbackParameters.model_validate(httpd.callback_params)
+
+
+def validate_callback(callback_params: CallbackParameters, expected_state: str) -> str:
+    """
+    Validate callback parameters and extract authorization code.
+
+    Args:
+        callback_params: Callback parameters from OAuth server
+        expected_state: Expected state parameter value
+
+    Returns:
+        Authorization code
+
+    Raises:
+        Exception: If validation fails or error in callback
+    """
+    # Check for errors first (errors may not have state)
+    if callback_params.error:
+        error_description = callback_params.error_description or "Unknown error"
+        raise Exception(
+            f"Authorization failed: {callback_params.error} - {error_description}"
+        )
+
+    # Check state parameter
+    if callback_params.state != expected_state:
+        raise Exception("State parameter mismatch, possible CSRF attack")
+
+    # Extract authorization code
+    if not callback_params.code:
+        raise Exception("No authorization code received")
+
+    return callback_params.code
+
+
+def exchange_code_for_tokens(
+    oauth_config: OAuthServerConfig,
+    code: str,
+    pkce_data: PKCEData,
+    client_id: str,
+    redirect_uri: str,
+) -> TokenSetModel:
+    """
+    Exchange authorization code for OAuth tokens.
+
+    Args:
+        oauth_config: OAuth server configuration
+        code: Authorization code from callback
+        pkce_data: PKCE data containing code_verifier
+        client_id: OAuth client ID
+        redirect_uri: Redirect URI used in authorization
+
+    Returns:
+        Token set with access token and other OAuth tokens
+
+    Raises:
+        Exception: If token exchange fails
+    """
+    logger.debug("Authorization code received, exchanging for tokens...")
+
+    # Prepare token request
+    token_request = TokenRequest(
+        grant_type="authorization_code",
+        code=code,
+        redirect_uri=redirect_uri,
+        client_id=client_id,
+        code_verifier=pkce_data.code_verifier,
+    )
+
+    # Send token request
+    response = requests.post(
+        oauth_config.token_endpoint,
+        data=token_request.model_dump(),
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        timeout=10,
+    )
+
+    if response.status_code != 200:
+        logger.error(f"Token exchange failed: {response.status_code}")
+        logger.debug(f"Response: {response.text}")
+        raise Exception(f"Token exchange failed with status {response.status_code}")
+
+    # Parse token response
+    token_response = TokenResponse.model_validate(response.json())
+
+    if token_response.error:
+        error_description = token_response.error_description or token_response.error
+        raise Exception(f"Token exchange error: {error_description}")
+
+    # Ensure we have required tokens
+    if not token_response.access_token:
+        raise Exception("No access token received from token exchange")
+
+    # Add expires_at if we got expires_in
+    token_data = token_response.model_dump(exclude_none=True)
+    if token_response.expires_in and "expires_at" not in token_data:
+        token_data["expires_at"] = int(
+            datetime.now().timestamp() + token_response.expires_in
+        )
+
+    # Create and save token set
+    token_set = TokenSetModel.model_validate(token_data)
+    save_credentials(token_set)
+
+    return token_set
 
 
 def get_authentication_token(
