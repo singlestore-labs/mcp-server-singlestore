@@ -28,13 +28,14 @@ git add . && git commit -m "feat: add awesome feature"
 # 3. When ready for release, mark the branch
 ./scripts/mark-release.sh
 # Choose: patch/minor/major
+# This updates version.py and commits it
 
 # 4. Push and create PR
 git push origin feature/awesome-feature
 # Create PR on GitHub
 
 # 5. When PR is merged to main:
-# → Automatic version bump and PyPI publication
+# → Automatic PyPI publication (triggered by version.py change)
 ```
 
 ### Emergency Direct Release (from main):
@@ -53,10 +54,10 @@ git push origin main --tags
 
 ## How It Works
 
-1. **Branch Marking**: `mark-release.sh` creates `.release-marker` file
-2. **PR Merge**: When merged to main, GitHub Actions detects the marker
-3. **Auto Release**: Workflow bumps version, creates tag, triggers PyPI publication
-4. **Cleanup**: Marker file is removed, version file is updated
+1. **Version Bump**: `mark-release.sh` updates `src/version.py` and commits it
+2. **PR Review**: Version change goes through normal PR review process
+3. **Auto Release**: When PR merges, publish workflow detects version change
+4. **Publication**: Automatic PyPI publication and GitHub release creation
 
 ## Script Details
 
@@ -69,8 +70,8 @@ Mark your current PR branch for automatic release when merged:
 Features:
 - **Branch validation**: Only works on non-main branches
 - **Version calculation**: Shows patch/minor/major options
-- **Release marker**: Creates `.release-marker` file with release intent
-- **Auto commit**: Commits marker with descriptive message
+- **Direct version update**: Updates `src/version.py` directly
+- **Auto commit**: Commits version change with descriptive message
 
 **Release Types:**
 - **🔧 Patch (X.Y.Z+1)**: Bug fixes, documentation, CI improvements
@@ -122,9 +123,9 @@ Runs both quality checks and tests for complete validation:
 
 ## Files Created
 
-- `.release-marker` - Temporary file marking release intent
-- Automatic commits: `"release: mark branch for X release"`
-- Automatic tags: `vX.Y.Z`
+- Updated `src/version.py` - Version source of truth
+- Automatic commits: `"release: bump version to X.Y.Z"`
+- Automatic tags: `vX.Y.Z` (created during publication)
 
 This system ensures all releases go through PR review while maintaining automation!
 

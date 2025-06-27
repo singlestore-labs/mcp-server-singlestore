@@ -86,20 +86,12 @@ if [[ $confirm != [yY] ]]; then
   exit 0
 fi
 
-# Create release marker file
-RELEASE_MARKER=".release-marker"
-cat > "$RELEASE_MARKER" << EOF
-# Release marker for branch: $CURRENT_BRANCH
-# Created: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-RELEASE_TYPE=$RELEASE_TYPE
-CURRENT_VERSION=$CURRENT_VERSION
-NEW_VERSION=$NEW_VERSION
-BRANCH=$CURRENT_BRANCH
-EOF
+# Update version file directly
+echo "__version__ = \"$NEW_VERSION\"" > src/version.py
 
 # Add to git
-git add "$RELEASE_MARKER"
-git commit -m "release: mark branch for $RELEASE_TYPE release ($CURRENT_VERSION → $NEW_VERSION)"
+git add src/version.py
+git commit -m "release: bump version to $NEW_VERSION ($RELEASE_TYPE release)"
 
 echo ""
 echo -e "${GREEN}✅ Branch marked for release!${NC}"
@@ -110,6 +102,6 @@ echo "2. Create PR to main"
 echo "3. When PR is merged, automatic release will be triggered"
 echo ""
 echo -e "${BLUE}Release details:${NC}"
-echo "  📁 Marker file: $RELEASE_MARKER"
 echo "  🏷️  Release type: $RELEASE_TYPE"
 echo "  📦 New version: $NEW_VERSION"
+echo "  📝 Version file updated and committed"
