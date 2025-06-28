@@ -1,15 +1,15 @@
 from typing import List
 import requests
 import json
-import logging
 
 from starlette.exceptions import HTTPException
 
 from src.api.types import MCPConcept, AVAILABLE_FLAGS
 from src.config.config import get_session_request, get_settings
+from src.logger import get_logger
 
 # Set up logger for this module
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 def filter_mcp_concepts(mcp_concepts: List[MCPConcept], **flags) -> List[MCPConcept]:
