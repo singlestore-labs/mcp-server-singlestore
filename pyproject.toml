@@ -8,7 +8,6 @@ dependencies = [
  "mcp[cli]>=1.9.4",
  "nbformat>=5.10.4",
  "pydantic-settings>=2.9.1",
- "pytest-asyncio>=1.0.0",
  "segment-analytics-python>=2.3.4",
  "singlestoredb",
  "starlette>=0.46.2",

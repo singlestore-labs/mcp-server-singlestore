@@ -11,7 +11,7 @@ import http.server
 import socketserver
 import urllib.parse
 import requests
-import logging
+import logging  # Keep for level constants (DEBUG, INFO) used in isEnabledFor() checks
 from pathlib import Path
 from typing import Optional, Dict, Any, Tuple
 from datetime import datetime

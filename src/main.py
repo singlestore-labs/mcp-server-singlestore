@@ -1,5 +1,4 @@
 import click
-import logging
 
 from src.commands.constants import (
     CLIENT_CHOICES,
@@ -9,6 +8,10 @@ from src.commands.constants import (
 )
 from src.commands.init import init_command
 from src.commands import start_command
+from src.logger import get_logger
+
+# Get logger for this module
+logger = get_logger()
 
 
 @click.group()
@@ -32,7 +35,7 @@ def start(transport: str):
     """
 
     # transport is already a string, no need to convert
-    logging.info(f"Starting MCP server with transport={transport}")
+    logger.info(f"Starting MCP server with transport={transport}")
     start_command(transport)
 
 
@@ -48,7 +51,7 @@ def init(client: str):
     Shows configuration information for SingleStore MCP server with OAuth authentication.
     """
     # client is already a string, no need to convert
-    logging.info(f"Initializing SingleStore MCP server for {client.capitalize()}...")
+    logger.info(f"Initializing SingleStore MCP server for {client.capitalize()}...")
     init_command(client)
 
 

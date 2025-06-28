@@ -1,8 +1,11 @@
-import logging
 from src.auth.provider import SingleStoreOAuthProvider
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.responses import JSONResponse, RedirectResponse, Response
+from src.logger import get_logger
+
+# Get logger for this module
+logger = get_logger()
 
 
 def make_auth_callback_handler(oauth_provider: SingleStoreOAuthProvider):
@@ -21,7 +24,7 @@ def make_auth_callback_handler(oauth_provider: SingleStoreOAuthProvider):
         except HTTPException:
             raise
         except Exception as e:
-            logging.error("Unexpected error", exc_info=e)
+            logger.error("Unexpected error", exc_info=e)
             return JSONResponse(
                 status_code=500,
                 content={

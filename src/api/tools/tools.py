@@ -1,6 +1,5 @@
 from enum import Enum
 import json
-import logging
 import os
 import re
 import time
@@ -26,10 +25,10 @@ from src.api.common import (
 from src.api.tools.types import Tool
 from src.api.tools.types import WorkspaceTarget
 from src.utils.uuid_validation import validate_workspace_id, validate_uuid_string
-
+from src.logger import get_logger
 
 # Set up logger for this module
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 SAMPLE_NOTEBOOK_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "sample_notebook.ipynb"
@@ -1736,7 +1735,7 @@ def get_notebook_path(notebook_name: str, location: str = "personal") -> str:
     }
 
 
-async def get_organizations(ctx: Context) -> dict:
+def get_organizations(ctx: Context) -> dict:
     """
     List all available SingleStore organizations your account has access to.
 
@@ -1825,7 +1824,7 @@ Once you select an organization, all subsequent API calls will use that organiza
         }
 
 
-async def set_organization(orgID: str, ctx: Context) -> dict:
+def set_organization(orgID: str, ctx: Context) -> dict:
     """
     Select which SingleStore organization to use for all subsequent API calls.
 
