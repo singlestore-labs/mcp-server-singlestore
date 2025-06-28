@@ -1,10 +1,8 @@
 from pathlib import Path
 from src.api.resources.types import Resource
-from src.api.responses import resource_response
 
 
-@resource_response
-def get_singlestore_drizzle_guide() -> str:
+def get_singlestore_drizzle_guide() -> dict:
     """
     SingleStore and Drizzle ORM Integration Guide
 
@@ -21,9 +19,26 @@ def get_singlestore_drizzle_guide() -> str:
 
     try:
         with open(docs_path, "r", encoding="utf-8") as f:
-            return f.read()
+            content = f.read()
+            return {
+                "status": "success",
+                "message": "SingleStore Drizzle integration guide retrieved successfully",
+                "content": content,
+                "uri": "docs://singlestore/drizzle-integration",
+                "metadata": {
+                    "content_length": len(content),
+                    "file_path": str(docs_path),
+                },
+            }
     except FileNotFoundError:
-        return "SingleStore Drizzle integration guide not found."
+        return {
+            "status": "error",
+            "message": "SingleStore Drizzle integration guide not found",
+            "content": "SingleStore Drizzle integration guide not found.",
+            "uri": "docs://singlestore/drizzle-integration",
+            "error_code": "FileNotFound",
+            "error_details": {"file_path": str(docs_path)},
+        }
 
 
 resources_definitions = [
