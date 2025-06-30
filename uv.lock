@@ -1095,7 +1095,7 @@ requires-dist = [
     { name = "nbformat", specifier = ">=5.10.4" },
     { name = "pydantic-settings", specifier = ">=2.9.1" },
     { name = "segment-analytics-python", specifier = ">=2.3.4" },
-    { name = "singlestoredb", git = "https://github.com/Rodriguespn/singlestoredb-python?rev=feature%2Ffree-tier-endpoints" },
+    { name = "singlestoredb", specifier = ">=1.14.2" },
     { name = "starlette", specifier = ">=0.46.2" },
 ]
 
@@ -1113,7 +1113,7 @@ dev = [
 [[package]]
 name = "singlestoredb"
 version = "1.14.2"
-source = { git = "https://github.com/Rodriguespn/singlestoredb-python?rev=feature%2Ffree-tier-endpoints#e157e27583eea6d809e9af2e54ad6b29ad68884e" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "build" },
     { name = "parsimonious" },
@@ -1124,6 +1124,15 @@ dependencies = [
     { name = "tomli", marker = "python_full_version < '3.11'" },
     { name = "typing-extensions", marker = "python_full_version < '3.11'" },
     { name = "wheel" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f8/8a/be48b3f6158cf59f99d15b898b53e08e79f427bf60ac64b4b002f49ab6e3/singlestoredb-1.14.2.tar.gz", hash = "sha256:fc947ea7cb99f6bd0a7d027a8e27d3b5f80e35aac7f24f3fb31df81b39e611ba", size = 324031, upload-time = "2025-06-17T20:57:17.662Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/70/48/36bd3b6813e770314b277f01b4bd91c010ff3522c684b5a7d894aad128d2/singlestoredb-1.14.2-cp38-abi3-macosx_10_9_universal2.whl", hash = "sha256:b86ce1d156c099d4a4453f7c663334e197572d11db2c2a5d59128ea43e9a6f38", size = 411027, upload-time = "2025-06-17T20:57:09.096Z" },
+    { url = "https://files.pythonhosted.org/packages/e1/0c/dadc95430357bdd96458e271b7cc448fab6917341792fe2141ffa16cdc50/singlestoredb-1.14.2-cp38-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:638f27f256004f1fff4d7f71dee556025deb55a616524d06048988c180bc4b40", size = 449250, upload-time = "2025-06-17T20:57:10.809Z" },
+    { url = "https://files.pythonhosted.org/packages/5e/74/5ebc6f67a5e0b12e8e4ac4788293f07f4e5757876a08600cc379d2e22c02/singlestoredb-1.14.2-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:fd3e0fa7b097644e739da0c2039903caa46a9c08b758f38cc237923a63c23df4", size = 450664, upload-time = "2025-06-17T20:57:12.669Z" },
+    { url = "https://files.pythonhosted.org/packages/be/54/1859f4212bcbb8dc48cf0c62824cb139bbdc979f19fadc682db609822f0e/singlestoredb-1.14.2-cp38-abi3-win32.whl", hash = "sha256:eac51596b54c6526f414a8fb1a52945964ad24462c4890de73124beded61a7b2", size = 388670, upload-time = "2025-06-17T20:57:13.983Z" },
+    { url = "https://files.pythonhosted.org/packages/a3/fc/53413119ab061c8dddc734024190d707df60f82b0d441054800cb1ce6999/singlestoredb-1.14.2-cp38-abi3-win_amd64.whl", hash = "sha256:854fec1fd6be5801759fdbef6c763103593e46c3d5aad8028575a3e2eb788eea", size = 387061, upload-time = "2025-06-17T20:57:15.311Z" },
+    { url = "https://files.pythonhosted.org/packages/68/6e/3c35f345fa230036a09c1ffa276b1e8b524a97b92d2b6e961f857d56c29c/singlestoredb-1.14.2-py3-none-any.whl", hash = "sha256:06fa7e3a2006c6980c1e034fef0f88aa0281be13d3604434a4d5f47d8b42369d", size = 356036, upload-time = "2025-06-17T20:57:16.597Z" },
 ]
 
 [[package]]

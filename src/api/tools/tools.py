@@ -2048,21 +2048,43 @@ def __get_workspace_by_id(workspace_id: str) -> WorkspaceTarget:
     Raises:
         ValueError: If workspace cannot be found
     """
-    workspace_manager = s2.manage_workspaces(
-        access_token=get_access_token(), organization_id=get_org_id()
-    )
 
     target = None
     is_shared = False
 
     try:
-        target = workspace_manager.get_workspace(workspace_id)
+        # Try as dedicated workspace first
+        workspace_data = build_request("GET", f"workspaces/{workspace_id}")
+
+        # Create a simple object to match the SDK interface
+        class SimpleWorkspace:
+            def __init__(self, data):
+                self.name = data.get("name", "")
+                self.id = data.get("workspaceID", workspace_id)
+                self.endpoint = data.get("endpoint")
+
+        target = SimpleWorkspace(workspace_data)
         is_shared = False  # Dedicated workspace
     except Exception as e:
         if "404" in str(e):
             # Try as virtual workspace
-            target = workspace_manager.get_starter_workspace(workspace_id)
-            is_shared = True  # Shared/virtual workspace
+            try:
+                virtual_workspace_data = build_request(
+                    "GET", f"sharedtier/virtualWorkspaces/{workspace_id}"
+                )
+
+                # Create a simple object to match the SDK interface
+                class SimpleVirtualWorkspace:
+                    def __init__(self, data):
+                        self.name = data.get("name", "")
+                        self.id = data.get("virtualWorkspaceID", workspace_id)
+                        self.endpoint = data.get("endpoint")
+                        self.database_name = data.get("databaseName", "")
+
+                target = SimpleVirtualWorkspace(virtual_workspace_data)
+                is_shared = True  # Shared/virtual workspace
+            except Exception:
+                raise ValueError(f"Cannot find workspace {workspace_id}")
         else:
             raise e
 
@@ -2120,31 +2142,29 @@ def create_starter_workspace(
     )
 
     try:
-        # Initialize workspace manager using the SDK
-        workspace_manager = s2.manage_workspaces(
-            access_token=get_access_token(),
-            base_url=settings.s2_api_base_url,
-            organization_id=get_org_id(),
-        )
-
-        # Create the starter workspace
-        starter_workspace = workspace_manager.create_starter_workspace(
-            name=name,
-            database_name=database_name,
+        # Create the starter workspace using the API
+        payload = {
+            "name": name,
+            "databaseName": database_name,
             # TODO: Dinamically set region_id if needed
-            workspace_group={"cell_id": "3482219c-a389-4079-b18b-d50662524e8a"},
+            "workspaceGroup": {"cellID": "3482219c-a389-4079-b18b-d50662524e8a"},
+        }
+
+        starter_workspace_data = build_request(
+            "POST", "sharedtier/virtualWorkspaces", data=payload
         )
 
         ctx.info(
-            f"Starter workspace '{name}' created successfully with ID: {starter_workspace.workspace_id}"
+            f"Starter workspace '{name}' created successfully with ID: {starter_workspace_data.get('virtualWorkspaceID')}"
         )
 
         return {
             "status": "success",
             "message": f"Starter workspace '{name}' created successfully",
-            "name": starter_workspace.name,
-            "endpoint": starter_workspace.endpoint,
-            "database_name": starter_workspace.database_name,
+            "workspace_id": starter_workspace_data.get("virtualWorkspaceID"),
+            "name": starter_workspace_data.get("name"),
+            "endpoint": starter_workspace_data.get("endpoint"),
+            "database_name": starter_workspace_data.get("databaseName"),
         }
 
     except Exception as e:
@@ -2221,20 +2241,13 @@ def terminate_virtual_workspace(
     )
 
     try:
-        # Initialize workspace manager using the SDK
-        workspace_manager = s2.manage_workspaces(
-            access_token=get_access_token(),
-            base_url=settings.s2_api_base_url,
-            organization_id=get_org_id(),
-        )
-
         # First, try to get the workspace details before termination
         workspace_name = None
         try:
-            starter_workspace = workspace_manager.get_starter_workspace(
-                validated_workspace_id
+            starter_workspace_data = build_request(
+                "GET", f"sharedtier/virtualWorkspaces/{validated_workspace_id}"
             )
-            workspace_name = starter_workspace.name
+            workspace_name = starter_workspace_data.get("name")
             ctx.info(
                 f"Found virtual workspace '{workspace_name}' (ID: {validated_workspace_id})"
             )
@@ -2246,7 +2259,9 @@ def terminate_virtual_workspace(
             )
 
         # Terminate the virtual workspace
-        workspace_manager.terminate_starter_workspace(validated_workspace_id)
+        build_request(
+            "DELETE", f"sharedtier/virtualWorkspaces/{validated_workspace_id}"
+        )
 
         termination_time = datetime.now().isoformat()
 
@@ -2297,7 +2312,7 @@ tools_definition = [
     {"func": complete_database_migration, "internal": True},
     # This tool is under development and not yet available for public use
     {"func": create_starter_workspace, "internal": True},
-    {"func": terminate_virtual_workspace},
+    {"func": terminate_virtual_workspace, "internal": True},
 ]
 
 # Export the tools
