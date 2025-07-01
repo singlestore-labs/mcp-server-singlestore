@@ -1,4 +1,4 @@
-FROM python:3.12-slim-bookworm
+FROM python:3.11-slim-bookworm
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 # Copy the project into the image
@@ -11,4 +11,4 @@ RUN uv sync --locked
 # Expose the port the MCP server runs on
 EXPOSE 8000
 
-CMD ["uv", "run", "src/main.py", "start", "--transport", "sse"]
+CMD ["uv", "run", "src/main.py", "start", "--transport", "stdio"]
