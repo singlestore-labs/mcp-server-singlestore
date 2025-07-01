@@ -1086,7 +1086,6 @@ dev = [
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "ruff" },
-    { name = "singlestore-mcp-server" },
 ]
 
 [package.metadata]
@@ -1107,7 +1106,6 @@ dev = [
     { name = "pytest", specifier = ">=8.3.4" },
     { name = "pytest-cov", specifier = ">=6.0.0" },
     { name = "ruff", specifier = ">=0.8.5" },
-    { name = "singlestore-mcp-server", editable = "." },
 ]
 
 [[package]]
