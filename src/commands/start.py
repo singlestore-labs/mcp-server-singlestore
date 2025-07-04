@@ -12,7 +12,7 @@ from src.logger import get_logger
 logger = get_logger()
 
 
-def start_command(transport):
+def start_command(transport: str, host: str):
     # Always use browser authentication for stdio mode
     if transport == config.Transport.STDIO:
         oauth_token = get_authentication_token()
@@ -22,7 +22,9 @@ def start_command(transport):
         logger.info("Authentication successful")
 
         # Create settings with OAuth token as JWT token
-        settings = config.init_settings(transport=transport, jwt_token=oauth_token)
+        settings = config.init_settings(
+            transport=transport, jwt_token=oauth_token, host=host
+        )
     else:
         raise NotImplementedError("Only stdio transport is currently supported.")
         # settings = config.init_settings(transport=transport, jwt_token=None)
