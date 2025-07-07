@@ -1,3 +1,4 @@
+import os
 from mcp.server.fastmcp import FastMCP
 from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions
 
@@ -13,18 +14,26 @@ logger = get_logger()
 
 
 def start_command(transport: str, host: str):
-    # Always use browser authentication for stdio mode
-    if transport == config.Transport.STDIO:
-        oauth_token = get_authentication_token()
-        if not oauth_token:
-            logger.error("Authentication failed. Please try again")
-            return
-        logger.info("Authentication successful")
+    api_key = os.environ.get("MCP_API_KEY")
 
-        # Create settings with OAuth token as JWT token
-        settings = config.init_settings(
-            transport=transport, jwt_token=oauth_token, host=host
-        )
+    if transport == config.Transport.STDIO:
+        if api_key:
+            # Silent API key authentication for Docker containers
+            logger.debug("Using API key authentication")
+            settings = config.init_settings(transport=transport, host=host)
+            # API key will be automatically loaded from env vars via Pydantic
+        else:
+            # Use browser authentication for stdio mode
+            oauth_token = get_authentication_token()
+            if not oauth_token:
+                logger.error("Authentication failed. Please try again")
+                return
+            logger.info("Authentication successful")
+
+            # Create settings with OAuth token as JWT token
+            settings = config.init_settings(
+                transport=transport, jwt_token=oauth_token, host=host
+            )
     else:
         raise NotImplementedError("Only stdio transport is currently supported.")
         # settings = config.init_settings(transport=transport, jwt_token=None)
