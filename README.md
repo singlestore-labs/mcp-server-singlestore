@@ -231,6 +231,10 @@ To run the Docker container, use the following command:
 ```bash
 docker run -d \
   -p 8000:8000 \
+  -e MCP_API_KEY="your_api_key_here" \
+  -it \
   --name mcp-server \
   mcp-server-singlestore
 ```
+
+Note: An API key is needed when using Docker because the OAuth flow isn't supported locally for servers running in a Docker container. We're working with the Docker team to enable OAuth for local servers in the future. For better security, we recommend using Docker Desktop to configure the S2 MCP server—see [this blog post](https://www.docker.com/blog/docker-mcp-catalog-secure-way-to-discover-and-run-mcp-servers/) for details on Docker's new MCP Catalog.
