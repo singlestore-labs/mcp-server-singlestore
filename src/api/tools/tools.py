@@ -1,10 +1,10 @@
-from enum import Enum
 import json
 import os
 import re
 import time
 import uuid
 from datetime import datetime, timezone
+from enum import Enum
 import singlestoredb as s2
 import nbformat as nbf
 import nbformat.v4 as nbfv4
@@ -13,6 +13,36 @@ from typing import Any, Dict, List, Optional
 from mcp.server.fastmcp import Context
 
 from src.config import config
+from src.api.tools.models import (
+    Tool,
+    WorkspaceTarget,
+    ToolMetadata,
+    SqlResponse,
+    SqlResult,
+    OrganizationsResponse,
+    SetOrganizationResponse,
+    OrganizationInfoResponse,
+    RegionsResponse,
+    VirtualWorkspacesResponse,
+    WorkspaceGroupsResponse,
+    WorkspacesResponse,
+    UserIDResponse,
+    Organization,
+    SetOrganizationData,
+    GetOrganizationsData,
+    OrganizationInfoData,
+    Region,
+    RegionsData,
+    VirtualWorkspace,
+    VirtualWorkspacesData,
+    WorkspaceGroup,
+    WorkspaceGroupsData,
+    Workspace,
+    WorkspacesData,
+    UserIDData,
+    CreateStarterWorkspaceResponse,
+    TerminateVirtualWorkspaceResponse,
+)
 from src.api.tools.s2_manager import S2Manager
 from src.api.common import (
     __get_user_id,
@@ -22,8 +52,6 @@ from src.api.common import (
     query_graphql_organizations,
     get_current_organization,
 )
-from src.api.tools.types import Tool
-from src.api.tools.types import WorkspaceTarget
 from src.utils.uuid_validation import validate_workspace_id, validate_uuid_string
 from src.logger import get_logger
 
@@ -556,7 +584,7 @@ def __complete_database_migration(
         }
 
 
-def get_user_id(ctx: Context) -> str:
+def get_user_id(ctx: Context) -> UserIDResponse:
     """
     Retrieve the current user's unique identifier.
 
@@ -570,25 +598,42 @@ def get_user_id(ctx: Context) -> str:
     Cache the returned ID when making multiple API calls.
     """
     start_time = time.time()
-    settings = config.get_settings()
-    user_id = config.get_user_id()
-    # Track tool call event
-    settings.analytics_manager.track_event(
-        user_id, "tool_calling", {"name": "get_user_id"}
-    )
 
-    retrieved_user_id = __get_user_id()
-    execution_time = (time.time() - start_time) * 1000
+    try:
+        settings = config.get_settings()
+        user_id = config.get_user_id()
+        # Track tool call event
+        settings.analytics_manager.track_event(
+            user_id, "tool_calling", {"name": "get_user_id"}
+        )
 
-    return {
-        "status": "success",
-        "message": "Retrieved user ID successfully",
-        "data": {"user_id": retrieved_user_id},
-        "metadata": {
-            "execution_time_ms": round(execution_time, 2),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        },
-    }
+        retrieved_user_id = __get_user_id()
+        execution_time = (time.time() - start_time) * 1000
+
+        return UserIDResponse(
+            status="success",
+            message="Retrieved user ID successfully",
+            data=UserIDData(user_id=retrieved_user_id),
+            metadata=ToolMetadata(
+                execution_time_ms=round(execution_time, 2),
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                user_id=user_id,
+            ),
+        )
+    except Exception as e:
+        execution_time = (time.time() - start_time) * 1000
+
+        return UserIDResponse(
+            status="error",
+            message=f"Failed to retrieve user ID: {str(e)}",
+            error_code="USER_ID_RETRIEVAL_FAILED",
+            error_details={"exception_type": type(e).__name__},
+            metadata=ToolMetadata(
+                execution_time_ms=round(execution_time, 2),
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                user_id=config.get_user_id(),
+            ),
+        )
 
 
 def prepare_database_migration(
@@ -745,7 +790,7 @@ def complete_database_migration(
 
 def run_sql(
     ctx: Context, sql_query: str, id: str, database: Optional[str] = None
-) -> Dict[str, Any]:
+) -> SqlResponse:
     """
     Use this tool to execute a single SQL statement against a SingleStore database.
 
@@ -764,6 +809,178 @@ def run_sql(
     Returns:
         Standardized response with query results and metadata
     """
+    # Validate workspace ID format
+    validated_workspace_id = validate_workspace_id(id)
+
+    settings = config.get_settings()
+    user_id = config.get_user_id()
+    settings.analytics_manager.track_event(
+        user_id,
+        "tool_calling",
+        {
+            "name": "run_sql",
+            "workspace_id": validated_workspace_id,
+            "has_database": database is not None,
+        },
+    )
+
+    start_time = time.time()
+
+    try:
+        workspace_target = __get_workspace_by_id(validated_workspace_id)
+
+        # Connect to the workspace
+        conn = s2.connect(
+            host=workspace_target.endpoint,
+            user="admin",
+            password="",
+            database=database,
+        )
+
+        cursor = conn.cursor()
+        cursor.execute(sql_query)
+
+        # Fetch column names
+        columns = [desc[0] for desc in cursor.description] if cursor.description else []
+
+        # Fetch all rows
+        rows = cursor.fetchall() if cursor.description else []
+
+        # Close cursor and connection
+        cursor.close()
+        conn.close()
+
+        # Calculate execution time
+        execution_time = (time.time() - start_time) * 1000
+
+        # Create response using our structured model
+        result = SqlResult(
+            columns=columns,
+            rows=rows,
+            row_count=len(rows),
+            workspace_type="shared" if workspace_target.is_shared else "dedicated",
+            workspace_name=workspace_target.name,
+        )
+
+        return SqlResponse(
+            status="success",
+            message=f"Query executed successfully, returned {len(rows)} rows",
+            data=result,
+            metadata=ToolMetadata(
+                execution_time_ms=round(execution_time, 2),
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                user_id=user_id,
+            ),
+        )
+
+    except Exception as e:
+        # Calculate execution time even for failed queries
+        execution_time = (time.time() - start_time) * 1000
+
+        error_message = str(e)
+        ctx.error(f"SQL query error: {error_message}")
+
+        return SqlResponse(
+            status="error",
+            message=f"SQL query failed: {error_message}",
+            error_code="SQL_EXECUTION_ERROR",
+            error_details={
+                "exception": type(e).__name__,
+                "workspace_id": validated_workspace_id,
+                "database": database,
+            },
+            metadata=ToolMetadata(
+                execution_time_ms=round(execution_time, 2),
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                user_id=user_id,
+            ),
+        )
+    # Validate workspace ID format
+    validated_workspace_id = validate_workspace_id(id)
+
+    settings = config.get_settings()
+    user_id = config.get_user_id()
+    settings.analytics_manager.track_event(
+        user_id,
+        "tool_calling",
+        {
+            "name": "run_sql",
+            "workspace_id": validated_workspace_id,
+            "has_database": database is not None,
+        },
+    )
+
+    start_time = time.time()
+
+    try:
+        workspace_target = __get_workspace_by_id(validated_workspace_id)
+
+        # Connect to the workspace
+        conn = s2.connect(
+            host=workspace_target.endpoint,
+            user="admin",
+            password="",
+            database=database,
+        )
+
+        cursor = conn.cursor()
+        cursor.execute(sql_query)
+
+        # Fetch column names
+        columns = [desc[0] for desc in cursor.description] if cursor.description else []
+
+        # Fetch all rows
+        rows = cursor.fetchall() if cursor.description else []
+
+        # Close cursor and connection
+        cursor.close()
+        conn.close()
+
+        # Calculate execution time
+        execution_time = (time.time() - start_time) * 1000
+
+        # Create response using our structured model
+        result = SqlResult(
+            columns=columns,
+            rows=rows,
+            row_count=len(rows),
+            workspace_type="shared" if workspace_target.is_shared else "dedicated",
+            workspace_name=workspace_target.name,
+        )
+
+        return SqlResponse(
+            status="success",
+            message=f"Query executed successfully, returned {len(rows)} rows",
+            data=result,
+            metadata=ToolMetadata(
+                execution_time_ms=round(execution_time, 2),
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                user_id=user_id,
+            ),
+        )
+
+    except Exception as e:
+        # Calculate execution time even for failed queries
+        execution_time = (time.time() - start_time) * 1000
+
+        error_message = str(e)
+        ctx.error(f"SQL query error: {error_message}")
+
+        return SqlResponse(
+            status="error",
+            message=f"SQL query failed: {error_message}",
+            error_code="SQL_EXECUTION_ERROR",
+            error_details={
+                "exception": type(e).__name__,
+                "workspace_id": validated_workspace_id,
+                "database": database,
+            },
+            metadata=ToolMetadata(
+                execution_time_ms=round(execution_time, 2),
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                user_id=user_id,
+            ),
+        )
     # Validate workspace ID format
     validated_id = validate_workspace_id(id)
 
@@ -1208,7 +1425,7 @@ def __get_notebook_path_by_name(notebook_name: str, location: str = "personal") 
     return notebook_path
 
 
-def workspace_groups_info() -> List[Dict[str, Any]]:
+def workspace_groups_info() -> WorkspaceGroupsResponse:
     """
     List all workspace groups accessible to the user in SingleStore.
 
@@ -1237,43 +1454,60 @@ def workspace_groups_info() -> List[Dict[str, Any]]:
         user_id, "tool_calling", {"name": "workspace_groups_info"}
     )
 
-    groups_data = build_request("GET", "workspaceGroups")
-    groups = [
-        {
-            "name": group["name"],
-            "deploymentType": group["deploymentType"],
-            "state": group["state"],
-            "workspaceGroupID": group["workspaceGroupID"],
-            "firewallRanges": group.get("firewallRanges", []),
-            "createdAt": group["createdAt"],
-            "regionID": group["regionID"],
-            "updateWindow": group["updateWindow"],
-        }
-        for group in groups_data
-    ]
+    try:
+        groups_data = build_request("GET", "workspaceGroups")
 
-    # Calculate states summary
-    state_counts = {}
-    for group in groups:
-        state = group["state"]
-        state_counts[state] = state_counts.get(state, 0) + 1
+        # Convert to typed WorkspaceGroup objects
+        group_objects = []
+        for group in groups_data:
+            group_objects.append(
+                WorkspaceGroup(
+                    name=group.get("name", ""),
+                    deploymentType=group.get("deploymentType", ""),
+                    state=group.get("state", ""),
+                    workspaceGroupID=group.get("workspaceGroupID", ""),
+                    firewallRanges=group.get("firewallRanges", []),
+                    createdAt=group.get("createdAt", ""),
+                    regionID=group.get("regionID", ""),
+                    updateWindow=group.get("updateWindow", {}),
+                )
+            )
 
-    execution_time = (time.time() - start_time) * 1000
+        # Calculate states summary
+        state_counts = {}
+        for group in group_objects:
+            state = group.state
+            state_counts[state] = state_counts.get(state, 0) + 1
 
-    return {
-        "status": "success",
-        "message": f"Retrieved {len(groups)} workspace groups",
-        "data": {"workspace_groups": groups},
-        "metadata": {
-            "execution_time_ms": round(execution_time, 2),
-            "count": len(groups),
-            "state_summary": state_counts,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        },
-    }
+        execution_time = (time.time() - start_time) * 1000
+
+        return WorkspaceGroupsResponse(
+            status="success",
+            message=f"Retrieved {len(group_objects)} workspace groups",
+            data=WorkspaceGroupsData(workspace_groups=group_objects),
+            metadata=ToolMetadata(
+                execution_time_ms=round(execution_time, 2),
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                user_id=user_id,
+            ),
+        )
+    except Exception as e:
+        execution_time = (time.time() - start_time) * 1000
+
+        return WorkspaceGroupsResponse(
+            status="error",
+            message=f"Failed to retrieve workspace groups: {str(e)}",
+            error_code="WORKSPACE_GROUPS_RETRIEVAL_FAILED",
+            error_details={"exception_type": type(e).__name__},
+            metadata=ToolMetadata(
+                execution_time_ms=round(execution_time, 2),
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                user_id=user_id,
+            ),
+        )
 
 
-def workspaces_info(workspace_group_id: str) -> List[Dict[str, Any]]:
+def workspaces_info(workspace_group_id: str) -> WorkspacesResponse:
     """
     List all workspaces within a specified workspace group in SingleStore.
 
@@ -1292,69 +1526,87 @@ def workspaces_info(workspace_group_id: str) -> List[Dict[str, Any]]:
         workspace_group_id: Unique identifier of the workspace group
 
     Returns:
-        List of workspace information dictionaries
+        Structured response with workspace information
     """
-    # Validate workspace group ID format
-    validated_group_id = validate_uuid_string(workspace_group_id)
-
     start_time = time.time()
-    settings = config.get_settings()
-    user_id = config.get_user_id()
-    settings.analytics_manager.track_event(
-        user_id,
-        "tool_calling",
-        {"name": "workspaces_info", "workspace_group_id": validated_group_id},
-    )
 
-    workspaces_data = build_request(
-        "GET",
-        "workspaces",
-        {"workspaceGroupID": validated_group_id},
-    )
+    try:
+        # Validate workspace group ID format
+        validated_group_id = validate_uuid_string(workspace_group_id)
 
-    workspaces = [
-        {
-            "createdAt": workspace["createdAt"],
-            "deploymentType": workspace.get("deploymentType", ""),
-            "endpoint": workspace.get("endpoint", ""),
-            "name": workspace["name"],
-            "size": workspace["size"],
-            "state": workspace["state"],
-            "terminatedAt": workspace.get("terminatedAt", False),
-            "workspaceGroupID": workspace["workspaceGroupID"],
-            "workspaceID": workspace["workspaceID"],
-        }
-        for workspace in workspaces_data
-    ]
+        settings = config.get_settings()
+        user_id = config.get_user_id()
+        settings.analytics_manager.track_event(
+            user_id,
+            "tool_calling",
+            {"name": "workspaces_info", "workspace_group_id": validated_group_id},
+        )
 
-    # Calculate state summary and sizes
-    state_counts = {}
-    size_counts = {}
-    for workspace in workspaces:
-        state = workspace["state"]
-        state_counts[state] = state_counts.get(state, 0) + 1
+        workspaces_data = build_request(
+            "GET",
+            "workspaces",
+            {"workspaceGroupID": validated_group_id},
+        )
 
-        size = workspace["size"]
-        size_counts[size] = size_counts.get(size, 0) + 1
+        # Convert raw data to typed Workspace objects
+        workspace_objects = []
+        for workspace in workspaces_data:
+            workspace_objects.append(
+                Workspace(
+                    createdAt=workspace["createdAt"],
+                    deploymentType=workspace.get("deploymentType", ""),
+                    endpoint=workspace.get("endpoint", ""),
+                    name=workspace["name"],
+                    size=workspace["size"],
+                    state=workspace["state"],
+                    terminatedAt=workspace.get("terminatedAt", False),
+                    workspaceGroupID=workspace["workspaceGroupID"],
+                    workspaceID=workspace["workspaceID"],
+                )
+            )
 
-    execution_time = (time.time() - start_time) * 1000
+        # Calculate state summary and sizes
+        state_counts = {}
+        size_counts = {}
+        for workspace in workspace_objects:
+            state = workspace.state
+            state_counts[state] = state_counts.get(state, 0) + 1
 
-    return {
-        "status": "success",
-        "message": f"Retrieved {len(workspaces)} workspaces from group {workspace_group_id}",
-        "data": {"workspaces": workspaces},
-        "metadata": {
-            "execution_time_ms": round(execution_time, 2),
-            "workspace_group_id": workspace_group_id,
-            "count": len(workspaces),
-            "state_summary": state_counts,
-            "size_summary": size_counts,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        },
-    }
+            size = workspace.size
+            size_counts[size] = size_counts.get(size, 0) + 1
+
+        execution_time = (time.time() - start_time) * 1000
+
+        return WorkspacesResponse(
+            status="success",
+            message=f"Retrieved {len(workspace_objects)} workspaces from group {workspace_group_id}",
+            data=WorkspacesData(workspaces=workspace_objects),
+            metadata=ToolMetadata(
+                execution_time_ms=round(execution_time, 2),
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                user_id=user_id,
+            ),
+        )
+    except Exception as e:
+        execution_time = (time.time() - start_time) * 1000
+
+        return WorkspacesResponse(
+            status="error",
+            message=f"Failed to retrieve workspaces: {str(e)}",
+            error_code="WORKSPACES_RETRIEVAL_FAILED",
+            error_details={
+                "exception_type": type(e).__name__,
+                "workspace_group_id": workspace_group_id,
+            },
+            metadata=ToolMetadata(
+                execution_time_ms=round(execution_time, 2),
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                user_id=user_id,
+            ),
+        )
 
 
-def organization_info() -> Dict[str, Any]:
+def organization_info() -> OrganizationInfoResponse:
     """
     Retrieve information about the current user's organization in SingleStore.
 
@@ -1369,22 +1621,41 @@ def organization_info() -> Dict[str, Any]:
         user_id, "tool_calling", {"name": "organization_info"}
     )
 
-    org_data = build_request("GET", "organizations/current")
-    execution_time = (time.time() - start_time) * 1000
+    try:
+        org_data = build_request("GET", "organizations/current")
+        execution_time = (time.time() - start_time) * 1000
 
-    return {
-        "status": "success",
-        "message": f"Retrieved organization information for '{org_data.get('name', 'Unknown')}'",
-        "data": {"organization": org_data},
-        "metadata": {
-            "execution_time_ms": round(execution_time, 2),
-            "org_id": org_data.get("orgID"),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        },
-    }
+        # Create the Organization model
+        org = Organization(
+            orgID=org_data.get("orgID"), name=org_data.get("name", "Unknown")
+        )
+
+        return OrganizationInfoResponse(
+            status="success",
+            message=f"Retrieved organization information for '{org_data.get('name', 'Unknown')}'",
+            data=OrganizationInfoData(organization=org),
+            metadata=ToolMetadata(
+                execution_time_ms=round(execution_time, 2),
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                user_id=user_id,
+            ),
+        )
+    except Exception as e:
+        execution_time = (time.time() - start_time) * 1000
+        return OrganizationInfoResponse(
+            status="error",
+            message=f"Failed to retrieve organization information: {str(e)}",
+            error_code="ORGANIZATION_INFO_FAILED",
+            error_details={"exception_type": type(e).__name__},
+            metadata=ToolMetadata(
+                execution_time_ms=round(execution_time, 2),
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                user_id=user_id,
+            ),
+        )
 
 
-def list_of_regions() -> List[Dict[str, Any]]:
+def list_of_regions() -> RegionsResponse:
     """
     List all available deployment regions where SingleStore workspaces can be deployed for the user.
 
@@ -1402,30 +1673,53 @@ def list_of_regions() -> List[Dict[str, Any]]:
     2. Plan multi-region deployments
     """
     start_time = time.time()
-    regions_data = build_request("GET", "regions")
 
-    # Group regions by provider
-    provider_counts = {}
-    for region in regions_data:
-        provider = region.get("provider", "Unknown")
-        provider_counts[provider] = provider_counts.get(provider, 0) + 1
+    try:
+        regions_data = build_request("GET", "regions")
 
-    execution_time = (time.time() - start_time) * 1000
+        # Group regions by provider
+        provider_counts = {}
+        region_objects = []
 
-    return {
-        "status": "success",
-        "message": f"Retrieved {len(regions_data)} available deployment regions",
-        "data": {"regions": regions_data},
-        "metadata": {
-            "execution_time_ms": round(execution_time, 2),
-            "count": len(regions_data),
-            "provider_summary": provider_counts,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        },
-    }
+        for region in regions_data:
+            provider = region.get("provider", "Unknown")
+            provider_counts[provider] = provider_counts.get(provider, 0) + 1
+
+            # Convert to typed Region object
+            region_objects.append(
+                Region(
+                    regionID=region.get("regionID"),
+                    provider=provider,
+                    name=region.get("name", ""),
+                )
+            )
+
+        execution_time = (time.time() - start_time) * 1000
+
+        return RegionsResponse(
+            status="success",
+            message=f"Retrieved {len(regions_data)} available deployment regions",
+            data=RegionsData(regions=region_objects),
+            metadata=ToolMetadata(
+                execution_time_ms=round(execution_time, 2),
+                timestamp=datetime.now(timezone.utc).isoformat(),
+            ),
+        )
+    except Exception as e:
+        execution_time = (time.time() - start_time) * 1000
+        return RegionsResponse(
+            status="error",
+            message=f"Failed to retrieve regions: {str(e)}",
+            error_code="REGIONS_RETRIEVAL_FAILED",
+            error_details={"exception_type": type(e).__name__},
+            metadata=ToolMetadata(
+                execution_time_ms=round(execution_time, 2),
+                timestamp=datetime.now(timezone.utc).isoformat(),
+            ),
+        )
 
 
-def list_virtual_workspaces() -> List[Dict[str, Any]]:
+def list_virtual_workspaces() -> VirtualWorkspacesResponse:
     """
     List all starter (virtual) workspaces available to the user in SingleStore.
 
@@ -1443,18 +1737,53 @@ def list_virtual_workspaces() -> List[Dict[str, Any]]:
     2. Check starter workspace availability and status
     3. Obtain connection details for database access
     """
-    workspaces = build_request("GET", "sharedtier/virtualWorkspaces")
+    start_time = time.time()
 
-    return {
-        "status": "success",
-        "message": f"Retrieved {len(workspaces)} virtual workspaces",
-        "data": {"workspaces": workspaces, "count": len(workspaces)},
-        "metadata": {
-            "total_count": len(workspaces),
-            "active_count": sum(1 for w in workspaces if w.get("state") == "ACTIVE"),
-            "retrieved_at": datetime.now().isoformat(),
-        },
-    }
+    try:
+        workspaces_data = build_request("GET", "sharedtier/virtualWorkspaces")
+
+        # Convert to typed VirtualWorkspace objects
+        workspace_objects = []
+        for workspace in workspaces_data:
+            workspace_objects.append(
+                VirtualWorkspace(
+                    virtualWorkspaceID=workspace.get("virtualWorkspaceID"),
+                    name=workspace.get("name", ""),
+                    endpoint=workspace.get("endpoint", ""),
+                    databaseName=workspace.get("databaseName", ""),
+                    mysqlDmlPort=workspace.get("mysqlDmlPort"),
+                    webSocketPort=workspace.get("webSocketPort"),
+                    state=workspace.get("state", "UNKNOWN"),
+                )
+            )
+
+        execution_time = (time.time() - start_time) * 1000
+
+        return VirtualWorkspacesResponse(
+            status="success",
+            message=f"Retrieved {len(workspaces_data)} virtual workspaces",
+            data=VirtualWorkspacesData(
+                workspaces=workspace_objects, count=len(workspaces_data)
+            ),
+            metadata=ToolMetadata(
+                execution_time_ms=round(execution_time, 2),
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                user_id=config.get_user_id(),
+            ),
+        )
+    except Exception as e:
+        execution_time = (time.time() - start_time) * 1000
+        return VirtualWorkspacesResponse(
+            status="error",
+            message=f"Failed to retrieve virtual workspaces: {str(e)}",
+            error_code="VIRTUAL_WORKSPACES_RETRIEVAL_FAILED",
+            error_details={"exception_type": type(e).__name__},
+            metadata=ToolMetadata(
+                execution_time_ms=round(execution_time, 2),
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                user_id=config.get_user_id(),
+            ),
+        )
 
 
 def organization_billing_usage(
@@ -1735,7 +2064,7 @@ def get_notebook_path(notebook_name: str, location: str = "personal") -> str:
     }
 
 
-def get_organizations(ctx: Context) -> dict:
+def get_organizations(ctx: Context) -> OrganizationsResponse:
     """
     List all available SingleStore organizations your account has access to.
 
@@ -1775,10 +2104,11 @@ def get_organizations(ctx: Context) -> dict:
 
         if not organizations:
             logger.warning("No organizations available")
-            return {
-                "status": "error",
-                "message": "No organizations available for your account. Please check your access permissions.",
-            }
+            return OrganizationsResponse(
+                status="error",
+                message="No organizations available for your account. Please check your access permissions.",
+                error_code="NO_ORGANIZATIONS",
+            )
 
         # Format the organization list for display
         org_list = "\n".join(
@@ -1799,32 +2129,36 @@ def get_organizations(ctx: Context) -> dict:
 
 Once you select an organization, all subsequent API calls will use that organization."""
 
-        return {
-            "status": "success",
-            "message": message,
-            "data": {
-                "organizations": organizations,
-                "count": len(organizations),
-                "instructions": "Use set_organization tool to select an organization",
-            },
-            "metadata": {
-                "total_organizations": len(organizations),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "user_id": user_id,
-            },
-        }
+        # Convert raw organizations to the typed model
+        org_objects = [
+            Organization(orgID=org["orgID"], name=org["name"]) for org in organizations
+        ]
+
+        return OrganizationsResponse(
+            status="success",
+            message=message,
+            data=GetOrganizationsData(
+                organizations=org_objects,
+                count=len(organizations),
+                instructions="Use set_organization tool to select an organization",
+            ),
+            metadata=ToolMetadata(
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                user_id=user_id,
+            ),
+        )
 
     except Exception as e:
         logger.error(f"Error retrieving organizations: {str(e)}")
-        return {
-            "status": "error",
-            "message": f"Failed to retrieve organizations: {str(e)}",
-            "error_code": "ORGANIZATION_QUERY_FAILED",
-            "error_details": {"exception_type": type(e).__name__},
-        }
+        return OrganizationsResponse(
+            status="error",
+            message=f"Failed to retrieve organizations: {str(e)}",
+            error_code="ORGANIZATION_QUERY_FAILED",
+            error_details={"exception_type": type(e).__name__},
+        )
 
 
-def set_organization(orgID: str, ctx: Context) -> dict:
+def set_organization(orgID: str, ctx: Context) -> SetOrganizationResponse:
     """
     Select which SingleStore organization to use for all subsequent API calls.
 
@@ -1868,15 +2202,15 @@ def set_organization(orgID: str, ctx: Context) -> dict:
                 available_names = [
                     f"{org['name']} (ID: {org['orgID']})" for org in available_orgs
                 ]
-                return {
-                    "status": "error",
-                    "message": f"Organization '{orgID}' not found.",
-                    "error_code": "ORGANIZATION_NOT_FOUND",
-                    "error_details": {
+                return SetOrganizationResponse(
+                    status="error",
+                    message=f"Organization '{orgID}' not found.",
+                    error_code="ORGANIZATION_NOT_FOUND",
+                    error_details={
                         "provided_org_id": orgID,
                         "available_organizations": available_names,
                     },
-                }
+                )
 
             # Update the settings with the organization ID
             logger.debug(f"Setting org_id to: {selected_org['orgID']}")
@@ -1889,23 +2223,22 @@ def set_organization(orgID: str, ctx: Context) -> dict:
 
             logger.info(f"Settings updated with org_id: {selected_org['orgID']}")
 
-            return {
-                "status": "success",
-                "message": f"Successfully selected organization: {selected_org['name']} (ID: {selected_org['orgID']})",
-                "data": {
-                    "organization": {
-                        "orgID": selected_org["orgID"],
-                        "name": selected_org["name"],
-                    },
-                    "previous_org_id": previous_org_id,
-                    "operation": "organization_set",
-                },
-                "metadata": {
-                    "user_id": user_id,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "validation_method": "graphql_query",
-                },
-            }
+            return SetOrganizationResponse(
+                status="success",
+                message=f"Successfully selected organization: {selected_org['name']} (ID: {selected_org['orgID']})",
+                data=SetOrganizationData(
+                    organization=Organization(
+                        orgID=selected_org["orgID"],
+                        name=selected_org["name"],
+                    ),
+                    previous_org_id=previous_org_id,
+                    operation="organization_set",
+                ),
+                metadata=ToolMetadata(
+                    user_id=user_id,
+                    timestamp=datetime.now(timezone.utc).isoformat(),
+                ),
+            )
 
         except Exception as graphql_error:
             # If GraphQL fails, try fallback approach
@@ -1931,16 +2264,20 @@ def set_organization(orgID: str, ctx: Context) -> dict:
                         logger.warning(
                             f"Org mismatch: provided '{orgID}' vs current '{current_org_id}'"
                         )
-                        return {
-                            "status": "error",
-                            "message": f"Organization '{orgID}' does not match your current organization '{current_org_name}' (ID: {current_org_id})",
-                            "error_code": "ORGANIZATION_MISMATCH",
-                            "error_details": {
+                        return SetOrganizationResponse(
+                            status="error",
+                            message=f"Organization '{orgID}' does not match your current organization '{current_org_name}' (ID: {current_org_id})",
+                            error_code="ORGANIZATION_MISMATCH",
+                            error_details={
                                 "provided_org_id": orgID,
                                 "current_org_id": current_org_id,
                                 "current_org_name": current_org_name,
                             },
-                        }
+                            metadata=ToolMetadata(
+                                user_id=user_id,
+                                timestamp=datetime.now(timezone.utc).isoformat(),
+                            ),
+                        )
 
                     # Update the settings with the organization ID
                     if hasattr(settings, "org_id"):
@@ -1950,22 +2287,21 @@ def set_organization(orgID: str, ctx: Context) -> dict:
 
                     logger.info(f"Settings updated with org_id: {current_org_id}")
 
-                    return {
-                        "status": "success",
-                        "message": f"Successfully selected organization: {current_org_name} (ID: {current_org_id})",
-                        "data": {
-                            "organization": {
-                                "orgID": current_org_id,
-                                "name": current_org_name,
-                            },
-                            "operation": "organization_set",
-                        },
-                        "metadata": {
-                            "user_id": user_id,
-                            "timestamp": datetime.now(timezone.utc).isoformat(),
-                            "validation_method": "current_org_api",
-                        },
-                    }
+                    return SetOrganizationResponse(
+                        status="success",
+                        message=f"Successfully selected organization: {current_org_name} (ID: {current_org_id})",
+                        data=SetOrganizationData(
+                            organization=Organization(
+                                orgID=current_org_id,
+                                name=current_org_name,
+                            ),
+                            operation="organization_set",
+                        ),
+                        metadata=ToolMetadata(
+                            user_id=user_id,
+                            timestamp=datetime.now(timezone.utc).isoformat(),
+                        ),
+                    )
                 else:
                     # Last resort: set the provided orgID directly
                     logger.debug(
@@ -1978,20 +2314,19 @@ def set_organization(orgID: str, ctx: Context) -> dict:
 
                     logger.info(f"Settings updated with org_id: {orgID}")
 
-                    return {
-                        "status": "warning",
-                        "message": f"Successfully set organization ID: {orgID}",
-                        "warning_details": "Could not validate organization, set directly",
-                        "data": {
-                            "organization": {"orgID": orgID, "name": "Unknown"},
-                            "operation": "organization_set_unvalidated",
-                        },
-                        "metadata": {
-                            "user_id": user_id,
-                            "timestamp": datetime.now(timezone.utc).isoformat(),
-                            "validation_method": "direct_set",
-                        },
-                    }
+                    return SetOrganizationResponse(
+                        status="warning",
+                        message=f"Successfully set organization ID: {orgID}",
+                        warning_details="Could not validate organization, set directly",
+                        data=SetOrganizationData(
+                            organization=Organization(orgID=orgID, name="Unknown"),
+                            operation="organization_set_unvalidated",
+                        ),
+                        metadata=ToolMetadata(
+                            user_id=user_id,
+                            timestamp=datetime.now(timezone.utc).isoformat(),
+                        ),
+                    )
 
             except Exception as fallback_error:
                 logger.warning(f"Fallback approach also failed: {fallback_error}")
@@ -2003,36 +2338,35 @@ def set_organization(orgID: str, ctx: Context) -> dict:
 
                 logger.info(f"Settings updated with org_id: {orgID}")
 
-                return {
-                    "status": "warning",
-                    "message": f"Successfully set organization ID: {orgID}",
-                    "warning_details": "All validation methods failed, set organization ID directly",
-                    "data": {
-                        "organization": {"orgID": orgID, "name": "Unknown"},
-                        "operation": "organization_force_set",
-                        "errors": {
-                            "graphql_error": str(graphql_error),
-                            "fallback_error": str(fallback_error),
-                        },
+                return SetOrganizationResponse(
+                    status="warning",
+                    message=f"Successfully set organization ID: {orgID}",
+                    warning_details="All validation methods failed, set organization ID directly",
+                    data=SetOrganizationData(
+                        organization=Organization(orgID=orgID, name="Unknown"),
+                        operation="organization_force_set",
+                    ),
+                    error_details={
+                        "graphql_error": str(graphql_error),
+                        "fallback_error": str(fallback_error),
                     },
-                    "metadata": {
-                        "user_id": user_id,
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                        "validation_method": "force_set",
-                    },
-                }
+                    metadata=ToolMetadata(
+                        user_id=user_id,
+                        timestamp=datetime.now(timezone.utc).isoformat(),
+                    ),
+                )
 
     except Exception as e:
         logger.error(f"Error in set_organization: {str(e)}")
-        return {
-            "status": "error",
-            "message": f"Failed to set organization: {str(e)}",
-            "error_code": "ORGANIZATION_SET_FAILED",
-            "error_details": {
+        return SetOrganizationResponse(
+            status="error",
+            message=f"Failed to set organization: {str(e)}",
+            error_code="ORGANIZATION_SET_FAILED",
+            error_details={
                 "provided_org_id": orgID,
                 "exception_type": type(e).__name__,
             },
-        }
+        )
 
 
 def __get_workspace_by_id(workspace_id: str) -> WorkspaceTarget:
@@ -2096,7 +2430,7 @@ def __get_workspace_by_id(workspace_id: str) -> WorkspaceTarget:
 
 def create_starter_workspace(
     ctx: Context, name: str, database_name: str
-) -> Dict[str, Any]:
+) -> CreateStarterWorkspaceResponse:
     """
     Create a new starter workspace using the SingleStore SDK.
 
@@ -2158,32 +2492,32 @@ def create_starter_workspace(
             f"Starter workspace '{name}' created successfully with ID: {starter_workspace_data.get('virtualWorkspaceID')}"
         )
 
-        return {
-            "status": "success",
-            "message": f"Starter workspace '{name}' created successfully",
-            "workspace_id": starter_workspace_data.get("virtualWorkspaceID"),
-            "name": starter_workspace_data.get("name"),
-            "endpoint": starter_workspace_data.get("endpoint"),
-            "database_name": starter_workspace_data.get("databaseName"),
-        }
+        return CreateStarterWorkspaceResponse(
+            status="success",
+            message=f"Starter workspace '{name}' created successfully",
+            workspace_id=starter_workspace_data.get("virtualWorkspaceID"),
+            name=starter_workspace_data.get("name"),
+            endpoint=starter_workspace_data.get("endpoint"),
+            database_name=starter_workspace_data.get("databaseName"),
+        )
 
     except Exception as e:
         error_msg = f"Failed to create starter workspace '{name}': {str(e)}"
         ctx.error(error_msg)
 
-        return {
-            "status": "error",
-            "message": error_msg,
-            "error": str(e),
-            "workspace_name": name,
-            "database_name": database_name,
-        }
+        return CreateStarterWorkspaceResponse(
+            status="error",
+            message=error_msg,
+            error=str(e),
+            name=name,
+            database_name=database_name,
+        )
 
 
 def terminate_virtual_workspace(
     ctx: Context,
     workspace_id: str,
-) -> Dict[str, Any]:
+) -> TerminateVirtualWorkspaceResponse:
     """
     Terminate a virtual (starter) workspace using the SingleStore SDK.
 
@@ -2222,25 +2556,25 @@ def terminate_virtual_workspace(
         print(f"Failed to terminate workspace: {result['message']}")
     ```
     """
-    # Validate workspace ID format
-    validated_workspace_id = validate_workspace_id(workspace_id)
-
-    ctx.info(f"Terminating virtual workspace with ID: {validated_workspace_id}")
-
-    settings = config.get_settings()
-    user_id = config.get_user_id()
-
-    # Track analytics event
-    settings.analytics_manager.track_event(
-        user_id,
-        "tool_calling",
-        {
-            "name": "terminate_virtual_workspace",
-            "workspace_id": validated_workspace_id,
-        },
-    )
-
     try:
+        # Validate workspace ID format
+        validated_workspace_id = validate_workspace_id(workspace_id)
+
+        ctx.info(f"Terminating virtual workspace with ID: {validated_workspace_id}")
+
+        settings = config.get_settings()
+        user_id = config.get_user_id()
+
+        # Track analytics event
+        settings.analytics_manager.track_event(
+            user_id,
+            "tool_calling",
+            {
+                "name": "terminate_virtual_workspace",
+                "workspace_id": validated_workspace_id,
+            },
+        )
+
         # First, try to get the workspace details before termination
         workspace_name = None
         try:
@@ -2268,24 +2602,21 @@ def terminate_virtual_workspace(
         success_message = f"Virtual workspace '{workspace_name or validated_workspace_id}' terminated successfully"
         ctx.info(success_message)
 
-        return {
-            "status": "success",
-            "message": success_message,
-            "workspace_id": validated_workspace_id,
-            "workspace_name": workspace_name,
-            "termination_time": termination_time,
-        }
+        return TerminateVirtualWorkspaceResponse(
+            status="success",
+            message=success_message,
+            workspace_id=validated_workspace_id,
+            workspace_name=workspace_name,
+            termination_time=termination_time,
+        )
 
     except Exception as e:
-        error_msg = f"Failed to terminate virtual workspace '{validated_workspace_id}': {str(e)}"
+        error_msg = f"Failed to terminate virtual workspace '{workspace_id}': {str(e)}"
         ctx.error(error_msg)
 
-        return {
-            "status": "error",
-            "message": error_msg,
-            "error": str(e),
-            "workspace_id": validated_workspace_id,
-        }
+        return TerminateVirtualWorkspaceResponse(
+            status="error", message=error_msg, workspace_id=workspace_id, error=str(e)
+        )
 
 
 tools_definition = [

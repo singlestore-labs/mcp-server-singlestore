@@ -1,5 +1,11 @@
+"""
+Structural models for SingleStore MCP server tools.
+
+This module defines data structure models used within the tools.
+"""
+
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, Optional
 
 import singlestoredb.management.workspace as s2_wksp
 
@@ -8,6 +14,8 @@ from src.api.types import MCPConcept
 
 @dataclass()
 class Tool(MCPConcept):
+    """Tool representation for MCP."""
+
     func: Callable = None
 
 
@@ -33,7 +41,7 @@ class WorkspaceTarget:
         return self.workspace.name
 
     @property
-    def database_name(self) -> str:
+    def database_name(self) -> Optional[str]:
         """Get the database name (for virtual workspaces)."""
         if hasattr(self.workspace, "database_name"):
             return self.workspace.database_name
