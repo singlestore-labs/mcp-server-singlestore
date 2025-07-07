@@ -2,7 +2,7 @@ from typing import List
 from mcp.server.fastmcp import FastMCP
 
 from src.api.common import filter_tools_by_flags
-from .types import Tool
+from .models import Tool
 from .tools import tools as tool_list
 
 
