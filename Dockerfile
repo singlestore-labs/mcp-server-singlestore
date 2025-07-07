@@ -12,4 +12,4 @@ RUN uv sync --locked --no-cache
 # Expose the port the MCP server runs on
 EXPOSE 8000
 
-CMD ["uv", "run", "src/main.py", "start", "--transport", "stdio"]
+CMD ["uv", "run", "src/main.py", "start", "--transport", "stdio", "--host", "0.0.0.0"]

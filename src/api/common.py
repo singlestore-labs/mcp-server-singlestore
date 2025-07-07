@@ -5,6 +5,7 @@ import json
 from starlette.exceptions import HTTPException
 
 from src.api.types import MCPConcept, AVAILABLE_FLAGS
+import src.config.config as config
 from src.config.config import get_session_request, get_settings
 from src.logger import get_logger
 
@@ -208,7 +209,12 @@ def build_request(
         if params is None:
             params = {}
 
-        params["organizationID"] = get_org_id()
+        # Get organization ID (might be None for API key auth)
+        org_id = get_org_id()
+
+        # Only add organizationID if it's not None (not using API key)
+        if org_id is not None:
+            params["organizationID"] = org_id
 
         if params and type == "GET":  # Only add query params for GET requests
             url += "?"
@@ -331,14 +337,22 @@ def __get_user_id() -> str:
     raise ValueError("Could not retrieve user ID from the API")
 
 
-def get_org_id() -> str:
+def get_org_id() -> str | None:
     """
     Get the organization ID from the management API.
 
+    For API key authentication, organization ID is not required.
+    For JWT token authentication, organization ID is required.
+
     Returns:
-        str: The organization ID
+        str or None: The organization ID, or None if using API key authentication
     """
     settings = get_settings()
+
+    # If using API key authentication, no org_id is needed
+    if not settings.is_remote and settings.api_key:
+        logger.debug("Using API key authentication, no organization ID needed")
+        return None
 
     org_id = settings.org_id
 
@@ -370,10 +384,15 @@ def get_access_token() -> str:
             f"Remote access token retrieved (length: {len(access_token) if access_token else 0})"
         )
     else:
-        access_token = settings.jwt_token
-        logger.debug(
-            f"Local JWT token retrieved (length: {len(access_token) if access_token else 0})"
-        )
+        # Check for API key first, then fall back to JWT token
+        if isinstance(settings, config.LocalSettings) and settings.api_key:
+            access_token = settings.api_key
+            logger.debug("Using API key for authentication")
+        else:
+            access_token = settings.jwt_token
+            logger.debug(
+                f"Local JWT token retrieved (length: {len(access_token) if access_token else 0})"
+            )
 
     if not access_token:
         logger.warning("No access token available!")

@@ -27,16 +27,19 @@ def cli():
     default=DEFAULT_TRANSPORT,
     help="Only stdio transport is currently supported for local development. ",
 )
-def start(transport: str):
+@click.option(
+    "--host",
+    type=str,
+    default="localhost",
+    help="Host to bind the MCP server to (default: localhost)",
+)
+def start(transport: str, host: str):
     """
     Start the MCP server with the specified transport.
 
     The server will automatically handle authentication via browser OAuth.
     """
-
-    # transport is already a string, no need to convert
-    logger.info(f"Starting MCP server with transport={transport}")
-    start_command(transport)
+    start_command(transport, host)
 
 
 @cli.command()
