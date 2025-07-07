@@ -70,6 +70,32 @@ Replace `<client>` with `claude` or `cursor` as needed.
 
    **No API keys, tokens, or environment variables required!** The server automatically handles authentication via browser OAuth when started.
 
+### 4. Using Docker
+
+#### Building the Docker Image
+
+To build the Docker image for the MCP server, run the following command in the project root:
+
+```bash
+docker build -t mcp-server-singlestore .
+```
+
+#### Running the Docker Container
+
+To run the Docker container, use the following command:
+
+```bash
+docker run -d \
+  -p 8000:8000 \
+  -e MCP_API_KEY="your_api_key_here" \
+  -it \
+  --name mcp-server \
+  mcp-server-singlestore
+```
+
+Note: An API key is needed when using Docker because the OAuth flow isn't supported locally for servers running in a Docker container. We're working with the Docker team to enable OAuth for local servers in the future. For better security, we recommend using Docker Desktop to configure the S2 MCP server—see [this blog post](https://www.docker.com/blog/docker-mcp-catalog-secure-way-to-discover-and-run-mcp-servers/) for details on Docker's new MCP Catalog.
+
+
 2. Restart your client after making changes to the configuration.
 
 ## Components
@@ -215,26 +241,3 @@ Releases are managed through git tags and automated PyPI publication:
 3. **No manual PyPI uploads** - fully automated pipeline
 
 See [`scripts/dev-workflow.md`](scripts/dev-workflow.md) for detailed workflow documentation.
-
-### Building the Docker Image
-
-To build the Docker image for the MCP server, run the following command in the project root:
-
-```bash
-docker build -t mcp-server-singlestore .
-```
-
-### Running the Docker Container
-
-To run the Docker container, use the following command:
-
-```bash
-docker run -d \
-  -p 8000:8000 \
-  -e MCP_API_KEY="your_api_key_here" \
-  -it \
-  --name mcp-server \
-  mcp-server-singlestore
-```
-
-Note: An API key is needed when using Docker because the OAuth flow isn't supported locally for servers running in a Docker container. We're working with the Docker team to enable OAuth for local servers in the future. For better security, we recommend using Docker Desktop to configure the S2 MCP server—see [this blog post](https://www.docker.com/blog/docker-mcp-catalog-secure-way-to-discover-and-run-mcp-servers/) for details on Docker's new MCP Catalog.
