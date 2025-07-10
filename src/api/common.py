@@ -399,21 +399,3 @@ def get_access_token() -> str:
         raise HTTPException(401, "Unauthorized: No access token provided")
 
     return access_token
-
-
-def get_current_organization():
-    """
-    Get the current organization details from the management API.
-
-    Returns:
-        dict: Organization details including orgID and name
-    """
-    try:
-        organization = build_request("GET", "organizations/current")
-        logger.debug(f"Current organization response: {organization}")
-        return organization
-    except Exception as e:
-        logger.error(f"Failed to get current organization: {str(e)}")
-        raise ValueError(
-            f"Could not retrieve current organization from the API: {str(e)}"
-        )
