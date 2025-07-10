@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 import singlestoredb as s2
 import nbformat as nbf
 import nbformat.v4 as nbfv4
+from pydantic import BaseModel, Field
 
 from typing import Any, Dict, List, Optional
 from mcp.server.fastmcp import Context
@@ -20,7 +21,6 @@ from src.api.common import (
     get_access_token,
     get_org_id,
     query_graphql_organizations,
-    get_current_organization,
 )
 from src.api.tools.types import Tool
 from src.api.tools.types import WorkspaceTarget
@@ -1747,7 +1747,7 @@ def get_notebook_path(notebook_name: str, location: str = "personal") -> str:
     }
 
 
-def get_organizations(ctx: Context) -> dict:
+async def get_organizations(ctx: Context) -> dict:
     """
     List all available SingleStore organizations your account has access to.
 
@@ -1762,11 +1762,11 @@ def get_organizations(ctx: Context) -> dict:
     2. To verify permissions across multiple organizations
     3. Before switching context to a different organization
 
-    After viewing the list, the tool will prompt you to select an organization:
-    - If only one organization is available, it will be selected automatically
-    - If multiple organizations are available, you'll be prompted to select one by name or ID
-    - You can change your organization selection anytime using the `set_organization` tool
-    - If no organizations are available, an error will be returned
+    The tool will:
+    1. List all available organizations
+    2. If multiple organizations exist, prompt the user to select one
+    3. If only one organization exists, automatically select it
+    4. Update the context to use the selected organization
     """
 
     settings = config.get_settings()
@@ -1792,39 +1792,86 @@ def get_organizations(ctx: Context) -> dict:
                 "message": "No organizations available for your account. Please check your access permissions.",
             }
 
-        # Format the organization list for display
-        org_list = "\n".join(
-            [f"- {org['name']} (ID: {org['orgID']})" for org in organizations]
-        )
+        selected_org = None
 
-        logger.info(f"Found {len(organizations)} available organizations")
+        # If only one organization is available, select it automatically
+        if len(organizations) == 1:
+            selected_org = organizations[0]
+        else:
 
-        message = f"""📋 **Available SingleStore Organizations:**
+            class OrganizationChoice(BaseModel):
+                """Schema for collecting organization selection."""
 
-{org_list}
+                organization: str = Field(
+                    description="Select the organization name or ID to use",
+                    choices=[
+                        f"{org['name']} (ID: {org['orgID']})" for org in organizations
+                    ],
+                )
 
-✅ To select an organization, please use the `set_organization` tool with either the organization name or ID.
+            # For multiple organizations, use elicitation to let the user choose
+            # Format the organization list for display
+            org_list = "\n".join(
+                [f"- {org['name']} (ID: {org['orgID']})" for org in organizations]
+            )
 
-**Example:**
-- `set_organization("your-org-name")`
-- `set_organization("org-id-12345")`
+            try:
+                result = await ctx.elicit(
+                    message=f"""📋 **Available SingleStore Organizations:**\n\n{org_list}\n\nPlease select an organization to use:""",
+                    schema=OrganizationChoice,
+                )
 
-Once you select an organization, all subsequent API calls will use that organization."""
+                if result.action == "accept" and result.data:
+                    # Parse the selection to get the org ID
+                    selected = result.data.organization
+                    # Extract orgID from the selection string
+                    org_id = selected.split("ID: ")[-1].rstrip(")")
+                    # Find the matching organization
+                    selected_org = next(
+                        org for org in organizations if org["orgID"] == org_id
+                    )
+                else:
+                    return {
+                        "status": "cancelled",
+                        "message": "Organization selection was cancelled",
+                        "data": {
+                            "organizations": organizations,
+                            "count": len(organizations),
+                        },
+                    }
 
-        return {
-            "status": "success",
-            "message": message,
-            "data": {
-                "result": organizations,
-                "count": len(organizations),
-                "instructions": "Use set_organization tool to select an organization",
-            },
-            "metadata": {
-                "total_organizations": len(organizations),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "user_id": user_id,
-            },
-        }
+            except Exception as elicit_error:
+                logger.error(
+                    f"Error during organization elicitation: {str(elicit_error)}"
+                )
+                return {
+                    "status": "error",
+                    "message": f"Failed to process organization selection: {str(elicit_error)}",
+                    "error_code": "ELICITATION_FAILED",
+                    "error_details": {"exception_type": type(elicit_error).__name__},
+                }
+
+        # Set the selected organization in settings
+        if selected_org:
+            if hasattr(settings, "org_id"):
+                settings.org_id = selected_org["orgID"]
+            else:
+                setattr(settings, "org_id", selected_org["orgID"])
+
+            # Return consistent response regardless of selection method
+            return {
+                "status": "success",
+                "message": f"Successfully selected organization: {selected_org['name']} (ID: {selected_org['orgID']})",
+                "data": {
+                    "organization": selected_org,
+                    "count": len(organizations),
+                },
+                "metadata": {
+                    "total_organizations": len(organizations),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "user_id": user_id,
+                },
+            }
 
     except Exception as e:
         logger.error(f"Error retrieving organizations: {str(e)}")
@@ -1833,217 +1880,6 @@ Once you select an organization, all subsequent API calls will use that organiza
             "message": f"Failed to retrieve organizations: {str(e)}",
             "error_code": "ORGANIZATION_QUERY_FAILED",
             "error_details": {"exception_type": type(e).__name__},
-        }
-
-
-def set_organization(orgID: str, ctx: Context) -> dict:
-    """
-    Select which SingleStore organization to use for all subsequent API calls.
-
-    This tool must be called after logging in and before making other API requests.
-    Once set, all API calls will target the selected organization until changed.
-
-    Args:
-        orgID: Name or ID of the organization to select (use get_organizations to see available options)
-
-    Returns:
-        Success message with the selected organization details
-
-    Usage:
-    - Call get_organizations first to see available options
-    - Then call this tool with either the organization's name or ID
-    - All subsequent API calls will use the selected organization
-    - You can call this tool anytime to switch to a different organization
-    """
-
-    settings = config.get_settings()
-    user_id = config.get_user_id()
-    # Track tool call event
-    settings.analytics_manager.track_event(
-        user_id, "tool_calling", {"name": "set_organization", "orgID": orgID}
-    )
-
-    try:
-        # Try to get available organizations and validate the provided orgID
-        try:
-            logger.debug("Getting available organizations for validation...")
-            available_orgs = query_graphql_organizations()
-
-            # Find the organization by ID or name
-            selected_org = None
-            for org in available_orgs:
-                if orgID == org["orgID"] or orgID.lower() == org["name"].lower():
-                    selected_org = org
-                    break
-
-            if not selected_org:
-                available_names = [
-                    f"{org['name']} (ID: {org['orgID']})" for org in available_orgs
-                ]
-                return {
-                    "status": "error",
-                    "message": f"Organization '{orgID}' not found.",
-                    "error_code": "ORGANIZATION_NOT_FOUND",
-                    "error_details": {
-                        "provided_org_id": orgID,
-                        "available_organizations": available_names,
-                    },
-                }
-
-            # Update the settings with the organization ID
-            logger.debug(f"Setting org_id to: {selected_org['orgID']}")
-            previous_org_id = getattr(settings, "org_id", None)
-            if hasattr(settings, "org_id"):
-                settings.org_id = selected_org["orgID"]
-            else:
-                # For LocalSettings, we need to add the org_id attribute
-                setattr(settings, "org_id", selected_org["orgID"])
-
-            logger.info(f"Settings updated with org_id: {selected_org['orgID']}")
-
-            return {
-                "status": "success",
-                "message": f"Successfully selected organization: {selected_org['name']} (ID: {selected_org['orgID']})",
-                "data": {
-                    "result": {
-                        "orgID": selected_org["orgID"],
-                        "name": selected_org["name"],
-                    },
-                    "previous_org_id": previous_org_id,
-                    "operation": "organization_set",
-                },
-                "metadata": {
-                    "user_id": user_id,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "validation_method": "graphql_query",
-                },
-            }
-
-        except Exception as graphql_error:
-            # If GraphQL fails, try fallback approach
-            logger.warning(f"GraphQL organization query failed: {graphql_error}")
-            logger.debug("Attempting fallback approach...")
-
-            try:
-                # Try to get current organization as fallback
-                current_org = get_current_organization()
-                if current_org:
-                    current_org_id = current_org.get("orgID") or current_org.get("id")
-                    current_org_name = current_org.get("name")
-
-                    logger.debug(
-                        f"Current org: {current_org_name} (ID: {current_org_id})"
-                    )
-
-                    # Check if the provided orgID matches the current organization
-                    if (
-                        orgID != current_org_id
-                        and orgID.lower() != current_org_name.lower()
-                    ):
-                        logger.warning(
-                            f"Org mismatch: provided '{orgID}' vs current '{current_org_id}'"
-                        )
-                        return {
-                            "status": "error",
-                            "message": f"Organization '{orgID}' does not match your current organization '{current_org_name}' (ID: {current_org_id})",
-                            "error_code": "ORGANIZATION_MISMATCH",
-                            "error_details": {
-                                "provided_org_id": orgID,
-                                "current_org_id": current_org_id,
-                                "current_org_name": current_org_name,
-                            },
-                        }
-
-                    # Update the settings with the organization ID
-                    if hasattr(settings, "org_id"):
-                        settings.org_id = current_org_id
-                    else:
-                        setattr(settings, "org_id", current_org_id)
-
-                    logger.info(f"Settings updated with org_id: {current_org_id}")
-
-                    return {
-                        "status": "success",
-                        "message": f"Successfully selected organization: {current_org_name} (ID: {current_org_id})",
-                        "data": {
-                            "result": {
-                                "orgID": current_org_id,
-                                "name": current_org_name,
-                            },
-                            "operation": "organization_set",
-                        },
-                        "metadata": {
-                            "user_id": user_id,
-                            "timestamp": datetime.now(timezone.utc).isoformat(),
-                            "validation_method": "current_org_api",
-                        },
-                    }
-                else:
-                    # Last resort: set the provided orgID directly
-                    logger.debug(
-                        "Cannot validate organization, setting provided orgID directly"
-                    )
-                    if hasattr(settings, "org_id"):
-                        settings.org_id = orgID
-                    else:
-                        setattr(settings, "org_id", orgID)
-
-                    logger.info(f"Settings updated with org_id: {orgID}")
-
-                    return {
-                        "status": "warning",
-                        "message": f"Successfully set organization ID: {orgID}",
-                        "warning_details": "Could not validate organization, set directly",
-                        "data": {
-                            "result": {"orgID": orgID, "name": "Unknown"},
-                            "operation": "organization_set_unvalidated",
-                        },
-                        "metadata": {
-                            "user_id": user_id,
-                            "timestamp": datetime.now(timezone.utc).isoformat(),
-                            "validation_method": "direct_set",
-                        },
-                    }
-
-            except Exception as fallback_error:
-                logger.warning(f"Fallback approach also failed: {fallback_error}")
-                # Final fallback: just set the orgID
-                if hasattr(settings, "org_id"):
-                    settings.org_id = orgID
-                else:
-                    setattr(settings, "org_id", orgID)
-
-                logger.info(f"Settings updated with org_id: {orgID}")
-
-                return {
-                    "status": "warning",
-                    "message": f"Successfully set organization ID: {orgID}",
-                    "warning_details": "All validation methods failed, set organization ID directly",
-                    "data": {
-                        "result": {"orgID": orgID, "name": "Unknown"},
-                        "operation": "organization_force_set",
-                        "errors": {
-                            "graphql_error": str(graphql_error),
-                            "fallback_error": str(fallback_error),
-                        },
-                    },
-                    "metadata": {
-                        "user_id": user_id,
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                        "validation_method": "force_set",
-                    },
-                }
-
-    except Exception as e:
-        logger.error(f"Error in set_organization: {str(e)}")
-        return {
-            "status": "error",
-            "message": f"Failed to set organization: {str(e)}",
-            "error_code": "ORGANIZATION_SET_FAILED",
-            "error_details": {
-                "provided_org_id": orgID,
-                "exception_type": type(e).__name__,
-            },
         }
 
 
@@ -2320,7 +2156,6 @@ tools_definition = [
     {"func": list_job_executions, "internal": True},
     {"func": get_notebook_path, "internal": True},
     {"func": get_organizations},
-    {"func": set_organization},
     # These tools are under development and not yet available for public use
     {"func": prepare_database_migration, "internal": True},
     {"func": complete_database_migration, "internal": True},
