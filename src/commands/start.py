@@ -2,6 +2,7 @@ import os
 from mcp.server.fastmcp import FastMCP
 from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions
 
+from src.api.prompts.register import register_prompts
 from src.auth.callback import make_auth_callback_handler
 from src.api.tools import register_tools
 from src.auth.provider import SingleStoreOAuthProvider
@@ -65,6 +66,7 @@ def start_command(transport: str, host: str):
 
     register_tools(mcp)
     register_resources(mcp)
+    register_prompts(mcp)
 
     if settings.is_remote:
         # Register the callback handler with the captured oauth_provider
