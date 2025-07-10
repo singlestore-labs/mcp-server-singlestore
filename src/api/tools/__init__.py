@@ -5,7 +5,7 @@ from .tools import (
     list_of_regions,
     workspaces_info,
     run_sql,
-    get_organizations,
+    choose_organization,
     organization_info,
     list_virtual_workspaces,
 )
@@ -19,7 +19,7 @@ __all__ = [
     "list_of_regions",
     "workspaces_info",
     "run_sql",
-    "get_organizations",
+    "choose_organization",
     "organization_info",
     "list_virtual_workspaces",
 ]

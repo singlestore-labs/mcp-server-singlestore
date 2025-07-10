@@ -1747,7 +1747,7 @@ def get_notebook_path(notebook_name: str, location: str = "personal") -> str:
     }
 
 
-async def get_organizations(ctx: Context) -> dict:
+async def choose_organization(ctx: Context) -> dict:
     """
     List all available SingleStore organizations your account has access to.
 
@@ -1773,10 +1773,10 @@ async def get_organizations(ctx: Context) -> dict:
     user_id = config.get_user_id()
     # Track tool call event
     settings.analytics_manager.track_event(
-        user_id, "tool_calling", {"name": "get_organizations"}
+        user_id, "tool_calling", {"name": "choose_organization"}
     )
 
-    logger.debug("get_organizations called")
+    logger.debug("choose_organization called")
     logger.debug(f"Is remote: {settings.is_remote}")
 
     try:
@@ -1802,17 +1802,15 @@ async def get_organizations(ctx: Context) -> dict:
             class OrganizationChoice(BaseModel):
                 """Schema for collecting organization selection."""
 
-                organization: str = Field(
-                    description="Select the organization name or ID to use",
-                    choices=[
-                        f"{org['name']} (ID: {org['orgID']})" for org in organizations
-                    ],
+                organizationID: str = Field(
+                    description="Select the organization ID to use",
+                    choices=[org["orgID"] for org in organizations],
                 )
 
             # For multiple organizations, use elicitation to let the user choose
             # Format the organization list for display
             org_list = "\n".join(
-                [f"- {org['name']} (ID: {org['orgID']})" for org in organizations]
+                [f"- ID: {org['orgID']} ({org['name']})" for org in organizations]
             )
 
             try:
@@ -1823,9 +1821,9 @@ async def get_organizations(ctx: Context) -> dict:
 
                 if result.action == "accept" and result.data:
                     # Parse the selection to get the org ID
-                    selected = result.data.organization
+                    selected = result.data.organizationID
                     # Extract orgID from the selection string
-                    org_id = selected.split("ID: ")[-1].rstrip(")")
+                    org_id = selected
                     # Find the matching organization
                     selected_org = next(
                         org for org in organizations if org["orgID"] == org_id
@@ -2155,7 +2153,7 @@ tools_definition = [
     {"func": get_job_details, "internal": True},
     {"func": list_job_executions, "internal": True},
     {"func": get_notebook_path, "internal": True},
-    {"func": get_organizations},
+    {"func": choose_organization},
     # These tools are under development and not yet available for public use
     {"func": prepare_database_migration, "internal": True},
     {"func": complete_database_migration, "internal": True},

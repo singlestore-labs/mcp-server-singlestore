@@ -56,7 +56,7 @@ def register_tools(mcp: FastMCP, **filter_flags) -> None:
     )
 
     # List of tools to exclude when using API key authentication
-    api_key_excluded_tools = ["get_organizations"]
+    api_key_excluded_tools = ["choose_organization"]
 
     for tool in filtered_tools:
         func = tool.func
