@@ -35,7 +35,7 @@ SAMPLE_NOTEBOOK_PATH = os.path.join(
 )
 
 
-def __execute_sql_unified(
+async def __execute_sql_unified(
     ctx: Context,
     target: WorkspaceTarget,
     sql_query: str,
@@ -69,7 +69,7 @@ def __execute_sql_unified(
     )
 
     workspace_type = "shared/virtual" if target.is_shared else "dedicated"
-    ctx.report_progress(
+    await ctx.info(
         f"Executing SQL query on {workspace_type} workspace '{target.name}' with database '{database_name}': {sql_query}"
         "This query may take some time depending on the complexity and size of the data."
     )
@@ -556,7 +556,7 @@ def __complete_database_migration(
         }
 
 
-def get_user_id(ctx: Context) -> str:
+def get_user_id(ctx: Context) -> Dict[str, Any]:
     """
     Retrieve the current user's unique identifier.
 
@@ -583,7 +583,7 @@ def get_user_id(ctx: Context) -> str:
     return {
         "status": "success",
         "message": "Retrieved user ID successfully",
-        "data": {"user_id": retrieved_user_id},
+        "data": {"result": retrieved_user_id},
         "metadata": {
             "execution_time_ms": round(execution_time, 2),
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -591,7 +591,7 @@ def get_user_id(ctx: Context) -> str:
     }
 
 
-def prepare_database_migration(
+async def prepare_database_migration(
     ctx: Context,
     migration_sql: str,
     workspace_id: str,
@@ -675,7 +675,7 @@ def prepare_database_migration(
     - Isolated: Changes don't impact production performance
     - Exact replica: Contains all production data and structure
     """
-    ctx.info(
+    await ctx.info(
         "Preparing database migration with the following parameters: "
         f"workspace_id={workspace_id}, database={database}, description={description}"
         "This operation can take some time depending on the size of the database."
@@ -743,7 +743,7 @@ def complete_database_migration(
     )
 
 
-def run_sql(
+async def run_sql(
     ctx: Context, sql_query: str, id: str, database: Optional[str] = None
 ) -> Dict[str, Any]:
     """
@@ -767,7 +767,7 @@ def run_sql(
     # Validate workspace ID format
     validated_id = validate_workspace_id(id)
 
-    ctx.info(
+    await ctx.info(
         f"Running SQL query on workspace ID '{validated_id}' with database '{database}': {sql_query}"
     )
 
@@ -786,7 +786,7 @@ def run_sql(
 
     # Execute the SQL query
     start_time = time.time()
-    result = __execute_sql_unified(
+    result = await __execute_sql_unified(
         ctx=ctx,
         target=target,
         sql_query=sql_query,
@@ -794,6 +794,13 @@ def run_sql(
         password=password,
         database=database_name,
     )
+
+    results_data = result.get("data", [])
+
+    logger.debug(
+        f"result: {results_data}, type: {type(results_data)}, id: {id}, database_name: {database_name}"
+    )
+
     execution_time_ms = int((time.time() - start_time) * 1000)
 
     # Track analytics
@@ -809,19 +816,16 @@ def run_sql(
 
     # Build standardized response
     workspace_type = "shared" if target.is_shared else "dedicated"
-    row_count = (
-        len(result.get("results", [])) if isinstance(result.get("results"), list) else 0
-    )
+    row_count = len(results_data)
 
     return {
         "status": "success",
         "message": f"Query executed successfully. {row_count} rows returned.",
         "data": {
-            "results": result.get("results", []),
+            "result": results_data,
             "row_count": row_count,
             "workspace_id": id,
             "workspace_name": target.name,
-            "workspace_type": workspace_type,
             "database": database_name,
             "status": result.get("status", "Success"),
         },
@@ -1208,7 +1212,7 @@ def __get_notebook_path_by_name(notebook_name: str, location: str = "personal") 
     return notebook_path
 
 
-def workspace_groups_info() -> List[Dict[str, Any]]:
+def workspace_groups_info() -> Dict[str, Any]:
     """
     List all workspace groups accessible to the user in SingleStore.
 
@@ -1263,7 +1267,9 @@ def workspace_groups_info() -> List[Dict[str, Any]]:
     return {
         "status": "success",
         "message": f"Retrieved {len(groups)} workspace groups",
-        "data": {"workspace_groups": groups},
+        "data": {
+            "result": groups,
+        },
         "metadata": {
             "execution_time_ms": round(execution_time, 2),
             "count": len(groups),
@@ -1273,7 +1279,7 @@ def workspace_groups_info() -> List[Dict[str, Any]]:
     }
 
 
-def workspaces_info(workspace_group_id: str) -> List[Dict[str, Any]]:
+def workspaces_info(workspace_group_id: str) -> Dict[str, Any]:
     """
     List all workspaces within a specified workspace group in SingleStore.
 
@@ -1342,7 +1348,7 @@ def workspaces_info(workspace_group_id: str) -> List[Dict[str, Any]]:
     return {
         "status": "success",
         "message": f"Retrieved {len(workspaces)} workspaces from group {workspace_group_id}",
-        "data": {"workspaces": workspaces},
+        "data": {"result": workspaces},
         "metadata": {
             "execution_time_ms": round(execution_time, 2),
             "workspace_group_id": workspace_group_id,
@@ -1375,7 +1381,7 @@ def organization_info() -> Dict[str, Any]:
     return {
         "status": "success",
         "message": f"Retrieved organization information for '{org_data.get('name', 'Unknown')}'",
-        "data": {"organization": org_data},
+        "data": {"result": org_data},
         "metadata": {
             "execution_time_ms": round(execution_time, 2),
             "org_id": org_data.get("orgID"),
@@ -1384,7 +1390,7 @@ def organization_info() -> Dict[str, Any]:
     }
 
 
-def list_of_regions() -> List[Dict[str, Any]]:
+def list_of_regions() -> Dict[str, Any]:
     """
     List all available deployment regions where SingleStore workspaces can be deployed for the user.
 
@@ -1415,7 +1421,7 @@ def list_of_regions() -> List[Dict[str, Any]]:
     return {
         "status": "success",
         "message": f"Retrieved {len(regions_data)} available deployment regions",
-        "data": {"regions": regions_data},
+        "data": {"result": regions_data},
         "metadata": {
             "execution_time_ms": round(execution_time, 2),
             "count": len(regions_data),
@@ -1425,7 +1431,7 @@ def list_of_regions() -> List[Dict[str, Any]]:
     }
 
 
-def list_virtual_workspaces() -> List[Dict[str, Any]]:
+def list_virtual_workspaces() -> Dict[str, Any]:
     """
     List all starter (virtual) workspaces available to the user in SingleStore.
 
@@ -1448,7 +1454,7 @@ def list_virtual_workspaces() -> List[Dict[str, Any]]:
     return {
         "status": "success",
         "message": f"Retrieved {len(workspaces)} virtual workspaces",
-        "data": {"workspaces": workspaces, "count": len(workspaces)},
+        "data": {"result": workspaces, "count": len(workspaces)},
         "metadata": {
             "total_count": len(workspaces),
             "active_count": sum(1 for w in workspaces if w.get("state") == "ACTIVE"),
@@ -1492,7 +1498,9 @@ def organization_billing_usage(
     return {
         "status": "success",
         "message": f"Retrieved billing usage from {start_time} to {end_time} (aggregated by {aggregate_type})",
-        "data": usage_data,
+        "data": {
+            "result": usage_data,
+        },
         "metadata": {
             "execution_time_ms": round(execution_time, 2),
             "time_range": {"start": start_time, "end": end_time},
@@ -1542,7 +1550,7 @@ def list_notebook_samples() -> List[Dict[str, Any]]:
     return {
         "status": "success",
         "message": f"Retrieved {len(notebooks_data)} sample notebooks",
-        "data": {"notebooks": notebooks_data},
+        "data": {"result": notebooks_data},
         "metadata": {
             "execution_time_ms": round(execution_time, 2),
             "count": len(notebooks_data),
@@ -1597,7 +1605,9 @@ def list_shared_files() -> Dict[str, Any]:
     return {
         "status": "success",
         "message": f"Retrieved {len(files_data.get('content', []))} files from shared space",
-        "data": files_data,
+        "data": {
+            "result": files_data,
+        },
         "metadata": {
             "execution_time_ms": round(execution_time, 2),
             "file_count": len(files_data.get("content", [])),
@@ -1639,7 +1649,7 @@ def get_job_details(job_id: str) -> Dict[str, Any]:
     return {
         "status": "success",
         "message": f"Retrieved details for job '{job_data.get('name', job_id)}'",
-        "data": {"job": job_data},
+        "data": {"result": job_data},
         "metadata": {
             "execution_time_ms": round(execution_time, 2),
             "job_id": job_id,
@@ -1692,7 +1702,9 @@ def list_job_executions(job_id: str, start: int = 1, end: int = 10) -> Dict[str,
     return {
         "status": "success",
         "message": f"Retrieved {len(executions)} executions for job {job_id} (range {start}-{end})",
-        "data": executions_data,
+        "data": {
+            "result": executions_data,
+        },
         "metadata": {
             "execution_time_ms": round(execution_time, 2),
             "job_id": job_id,
@@ -1725,7 +1737,7 @@ def get_notebook_path(notebook_name: str, location: str = "personal") -> str:
     return {
         "status": "success",
         "message": f"Found notebook path for '{notebook_name}' in {location} space",
-        "data": {"notebook_path": notebook_path},
+        "data": {"result": notebook_path},
         "metadata": {
             "execution_time_ms": round(execution_time, 2),
             "notebook_name": notebook_name,
@@ -1803,7 +1815,7 @@ Once you select an organization, all subsequent API calls will use that organiza
             "status": "success",
             "message": message,
             "data": {
-                "organizations": organizations,
+                "result": organizations,
                 "count": len(organizations),
                 "instructions": "Use set_organization tool to select an organization",
             },
@@ -1893,7 +1905,7 @@ def set_organization(orgID: str, ctx: Context) -> dict:
                 "status": "success",
                 "message": f"Successfully selected organization: {selected_org['name']} (ID: {selected_org['orgID']})",
                 "data": {
-                    "organization": {
+                    "result": {
                         "orgID": selected_org["orgID"],
                         "name": selected_org["name"],
                     },
@@ -1954,7 +1966,7 @@ def set_organization(orgID: str, ctx: Context) -> dict:
                         "status": "success",
                         "message": f"Successfully selected organization: {current_org_name} (ID: {current_org_id})",
                         "data": {
-                            "organization": {
+                            "result": {
                                 "orgID": current_org_id,
                                 "name": current_org_name,
                             },
@@ -1983,7 +1995,7 @@ def set_organization(orgID: str, ctx: Context) -> dict:
                         "message": f"Successfully set organization ID: {orgID}",
                         "warning_details": "Could not validate organization, set directly",
                         "data": {
-                            "organization": {"orgID": orgID, "name": "Unknown"},
+                            "result": {"orgID": orgID, "name": "Unknown"},
                             "operation": "organization_set_unvalidated",
                         },
                         "metadata": {
@@ -2008,7 +2020,7 @@ def set_organization(orgID: str, ctx: Context) -> dict:
                     "message": f"Successfully set organization ID: {orgID}",
                     "warning_details": "All validation methods failed, set organization ID directly",
                     "data": {
-                        "organization": {"orgID": orgID, "name": "Unknown"},
+                        "result": {"orgID": orgID, "name": "Unknown"},
                         "operation": "organization_force_set",
                         "errors": {
                             "graphql_error": str(graphql_error),
@@ -2094,7 +2106,7 @@ def __get_workspace_by_id(workspace_id: str) -> WorkspaceTarget:
     return WorkspaceTarget(target, is_shared)
 
 
-def create_starter_workspace(
+async def create_starter_workspace(
     ctx: Context, name: str, database_name: str
 ) -> Dict[str, Any]:
     """
@@ -2125,7 +2137,9 @@ def create_starter_workspace(
     endpoint = result["endpoint"]
     ```
     """
-    ctx.info(f"Creating starter workspace '{name}' with database '{database_name}'")
+    await ctx.info(
+        f"Creating starter workspace '{name}' with database '{database_name}'"
+    )
 
     settings = config.get_settings()
     user_id = config.get_user_id()
@@ -2154,7 +2168,7 @@ def create_starter_workspace(
             "POST", "sharedtier/virtualWorkspaces", data=payload
         )
 
-        ctx.info(
+        await ctx.info(
             f"Starter workspace '{name}' created successfully with ID: {starter_workspace_data.get('virtualWorkspaceID')}"
         )
 
@@ -2180,7 +2194,7 @@ def create_starter_workspace(
         }
 
 
-def terminate_virtual_workspace(
+async def terminate_virtual_workspace(
     ctx: Context,
     workspace_id: str,
 ) -> Dict[str, Any]:
@@ -2225,7 +2239,7 @@ def terminate_virtual_workspace(
     # Validate workspace ID format
     validated_workspace_id = validate_workspace_id(workspace_id)
 
-    ctx.info(f"Terminating virtual workspace with ID: {validated_workspace_id}")
+    await ctx.info(f"Terminating virtual workspace with ID: {validated_workspace_id}")
 
     settings = config.get_settings()
     user_id = config.get_user_id()
@@ -2248,7 +2262,7 @@ def terminate_virtual_workspace(
                 "GET", f"sharedtier/virtualWorkspaces/{validated_workspace_id}"
             )
             workspace_name = starter_workspace_data.get("name")
-            ctx.info(
+            await ctx.info(
                 f"Found virtual workspace '{workspace_name}' (ID: {validated_workspace_id})"
             )
         except Exception as e:
@@ -2266,7 +2280,7 @@ def terminate_virtual_workspace(
         termination_time = datetime.now().isoformat()
 
         success_message = f"Virtual workspace '{workspace_name or validated_workspace_id}' terminated successfully"
-        ctx.info(success_message)
+        await ctx.info(success_message)
 
         return {
             "status": "success",
