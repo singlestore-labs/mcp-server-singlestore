@@ -2040,60 +2040,47 @@ async def terminate_virtual_workspace(
     workspace_id: str,
 ) -> Dict[str, Any]:
     """
-    Terminate a virtual (starter) workspace using the SingleStore SDK.
+    Permanently delete a virtual workspace in SingleStore with safety confirmations.
 
-    This tool provides a safe and reliable way to terminate virtual workspaces,
-    with proper error handling and confirmation of the termination status.
+    ⚠️  WARNING: This action CANNOT be undone. All workspace data will be permanently lost.
+    Make sure to backup important data before proceeding.
 
-    ⚠️  WARNING: This action is permanent and cannot be undone. All data in the
-    workspace will be lost. Make sure to backup any important data before terminating.
+    Safety Features:
+    - Requires explicit user confirmation
+    - Validates workspace existence
+    - Provides warning messages
+    - Includes error handling
 
     Args:
-        workspace_id: Unique identifier of the virtual workspace to terminate
+        ctx: Context for user interaction and logging
+        workspace_id: Workspace identifier (format: "ws-" followed by alphanumeric chars)
 
     Returns:
-        Dictionary with termination status and details including:
-        - status: "success" or "error"
-        - message: Human-readable description of the result
-        - workspace_id: ID of the terminated workspace
-        - workspace_name: Name of the terminated workspace (if available)
-        - termination_time: Timestamp when termination was initiated
+        {
+            "status": "success" | "error" | "cancelled",
+            "message": str,  # Human-readable result
+            "workspace_id": str,
+            "workspace_name": str,  # If available
+            "termination_time": str,  # ISO 8601 (if successful)
+            "error": str  # If status="error"
+        }
 
-    Benefits over direct API calls:
-    - Automatic retry logic and error handling
-    - Proper validation of workspace existence
-    - Detailed error messages and status reporting
-    - Built-in authentication handling
-
-    Example Usage:
+    Example:
     ```python
-    result = terminate_virtual_workspace(
-        ctx=ctx,
-        workspace_id="ws-abc123def456"
-    )
+    result = await terminate_virtual_workspace(ctx, "ws-abc123")
     if result["status"] == "success":
-        print(f"Workspace {result['workspace_name']} terminated successfully")
-    else:
-        print(f"Failed to terminate workspace: {result['message']}")
+        print(f"Workspace {result['workspace_name']} terminated")
     ```
+
+    Related:
+    - list_virtual_workspaces()
+    - create_starter_workspace()
     """
     # Validate workspace ID format
     validated_workspace_id = validate_workspace_id(workspace_id)
 
-    await ctx.info(f"Terminating virtual workspace with ID: {validated_workspace_id}")
-
     settings = config.get_settings()
     user_id = config.get_user_id()
-
-    # Track analytics event
-    settings.analytics_manager.track_event(
-        user_id,
-        "tool_calling",
-        {
-            "name": "terminate_virtual_workspace",
-            "workspace_id": validated_workspace_id,
-        },
-    )
 
     try:
         # First, try to get the workspace details before termination
@@ -2112,6 +2099,43 @@ async def terminate_virtual_workspace(
             raise ValueError(
                 f"Virtual workspace '{validated_workspace_id}' does not exist or has already been terminated."
             )
+
+        class TerminationConfirmation(BaseModel):
+            """Schema for collecting organization selection."""
+
+            confirm: bool = Field(
+                description="Confirm that you want to permanently terminate this virtual workspace",
+                default=False,
+            )
+
+        result = await ctx.elicit(
+            message=f"⚠️ **WARNING**: You are about to terminate the virtual workspace '{workspace_name or validated_workspace_id}'.\n\n"
+            "This action is permanent and cannot be undone. All data in the workspace will be lost.\n\n"
+            "Do you want to proceed with the termination?",
+            schema=TerminationConfirmation,
+        )
+
+        if not (result.action == "accept" and result.data and result.data.confirm):
+            return {
+                "status": "cancelled",
+                "message": "Workspace termination was cancelled by the user",
+                "workspace_id": validated_workspace_id,
+                "workspace_name": workspace_name,
+            }
+
+        # Track analytics event
+        settings.analytics_manager.track_event(
+            user_id,
+            "tool_calling",
+            {
+                "name": "terminate_virtual_workspace",
+                "workspace_id": validated_workspace_id,
+            },
+        )
+
+        await ctx.info(
+            f"Proceeding with termination of virtual workspace: {validated_workspace_id}"
+        )
 
         # Terminate the virtual workspace
         build_request(
@@ -2252,7 +2276,7 @@ tools_definition = [
     {"func": complete_database_migration, "internal": True},
     # This tool is under development and not yet available for public use
     {"func": create_starter_workspace, "internal": True},
-    {"func": terminate_virtual_workspace, "internal": True},
+    {"func": terminate_virtual_workspace},
 ]
 
 # Export the tools
