@@ -2083,33 +2083,24 @@ async def terminate_virtual_workspace(
     user_id = config.get_user_id()
 
     try:
-        # First, try to get the workspace details before termination
-        workspace_name = None
-        try:
-            starter_workspace_data = build_request(
-                "GET", f"sharedtier/virtualWorkspaces/{validated_workspace_id}"
-            )
-            workspace_name = starter_workspace_data.get("name")
-            await ctx.info(
-                f"Found virtual workspace '{workspace_name}' (ID: {validated_workspace_id})"
-            )
-        except Exception as e:
-            # If we can't get the workspace, it might not exist or already be terminated
-            ctx.warning(f"Could not retrieve workspace details: {str(e)}")
-            raise ValueError(
-                f"Virtual workspace '{validated_workspace_id}' does not exist or has already been terminated."
-            )
+        starter_workspace_data = build_request(
+            "GET", f"sharedtier/virtualWorkspaces/{validated_workspace_id}"
+        )
+        workspace_name = starter_workspace_data.get("name")
+        await ctx.info(
+            f"Found virtual workspace '{workspace_name}' (ID: {validated_workspace_id})"
+        )
 
         class TerminationConfirmation(BaseModel):
             """Schema for collecting organization selection."""
 
             confirm: bool = Field(
-                description="Confirm that you want to permanently terminate this virtual workspace",
+                description="Do you really want to terminate this virtual workspace?",
                 default=False,
             )
 
         result = await ctx.elicit(
-            message=f"⚠️ **WARNING**: You are about to terminate the virtual workspace '{workspace_name or validated_workspace_id}'.\n\n"
+            message=f"⚠️ **WARNING**: You are about to terminate the virtual workspace '{workspace_name}'.\n\n"
             "This action is permanent and cannot be undone. All data in the workspace will be lost.\n\n"
             "Do you want to proceed with the termination?",
             schema=TerminationConfirmation,
@@ -2142,9 +2133,9 @@ async def terminate_virtual_workspace(
             "DELETE", f"sharedtier/virtualWorkspaces/{validated_workspace_id}"
         )
 
-        termination_time = datetime.now().isoformat()
-
-        success_message = f"Virtual workspace '{workspace_name or validated_workspace_id}' terminated successfully"
+        success_message = (
+            f"Virtual workspace '{workspace_name}' terminated successfully"
+        )
         await ctx.info(success_message)
 
         return {
@@ -2152,7 +2143,7 @@ async def terminate_virtual_workspace(
             "message": success_message,
             "workspace_id": validated_workspace_id,
             "workspace_name": workspace_name,
-            "termination_time": termination_time,
+            "termination_time": datetime.now().isoformat(),
         }
 
     except Exception as e:
