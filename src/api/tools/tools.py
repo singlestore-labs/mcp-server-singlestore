@@ -2145,12 +2145,12 @@ async def terminate_virtual_workspace(
             """Schema for collecting organization selection."""
 
             confirm: bool = Field(
-                description="Confirm that you want to permanently terminate this virtual workspace",
+                description="Do you really want to terminate this virtual workspace?",
                 default=False,
             )
 
         result = await ctx.elicit(
-            message=f"⚠️ **WARNING**: You are about to terminate the virtual workspace '{workspace_name or validated_workspace_id}'.\n\n"
+            message=f"⚠️ **WARNING**: You are about to terminate the virtual workspace '{workspace_name}'.\n\n"
             "This action is permanent and cannot be undone. All data in the workspace will be lost.\n\n"
             "Do you want to proceed with the termination?",
             schema=TerminationConfirmation,
