@@ -216,7 +216,7 @@ def build_request(
         if org_id is not None:
             params["organizationID"] = org_id
 
-        if params and type == "GET":  # Only add query params for GET requests
+        if params:
             url += "?"
             for key, value in params.items():
                 url += f"{key}={value}&"
@@ -260,10 +260,7 @@ def build_request(
     if request.status_code != 200:
         raise HTTPException(request.status_code, request.text)
 
-    try:
-        return request.json()
-    except ValueError:
-        raise ValueError(f"Invalid JSON response: {request.text}")
+    return request.json()
 
 
 def __find_workspace_group(workspace_group_identifier: str):
