@@ -2046,7 +2046,7 @@ async def terminate_virtual_workspace(
     Make sure to backup important data before proceeding.
 
     Safety Features:
-    - Requires explicit user confirmation
+    - Requires explicit user confirmation (if elicitation is supported)
     - Validates workspace existence
     - Provides warning messages
     - Includes error handling
@@ -2099,20 +2099,33 @@ async def terminate_virtual_workspace(
                 default=False,
             )
 
-        result = await ctx.elicit(
+        # Check if elicitation is supported
+        elicit_result, error = await try_elicitation(
+            ctx=ctx,
             message=f"⚠️ **WARNING**: You are about to terminate the virtual workspace '{workspace_name}'.\n\n"
             "This action is permanent and cannot be undone. All data in the workspace will be lost.\n\n"
             "Do you want to proceed with the termination?",
             schema=TerminationConfirmation,
         )
 
-        if not (result.action == "accept" and result.data and result.data.confirm):
-            return {
-                "status": "cancelled",
-                "message": "Workspace termination was cancelled by the user",
-                "workspace_id": validated_workspace_id,
-                "workspace_name": workspace_name,
-            }
+        # Skip confirmation if elicitation is not supported
+        if error == ElicitationError.NOT_SUPPORTED:
+            await ctx.info(
+                "Proceeding with termination without confirmation since interactive confirmation is not supported."
+            )
+        else:
+            # Only check confirmation if elicitation was supported
+            if not (
+                elicit_result.status == "success"
+                and elicit_result.data
+                and elicit_result.data.confirm
+            ):
+                return {
+                    "status": "cancelled",
+                    "message": "Workspace termination was cancelled by the user",
+                    "workspace_id": validated_workspace_id,
+                    "workspace_name": workspace_name,
+                }
 
         # Track analytics event
         settings.analytics_manager.track_event(
