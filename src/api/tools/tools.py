@@ -2156,13 +2156,24 @@ async def terminate_virtual_workspace(
             schema=TerminationConfirmation,
         )
 
-        if not (result.action == "accept" and result.data and result.data.confirm):
-            return {
-                "status": "cancelled",
-                "message": "Workspace termination was cancelled by the user",
-                "workspace_id": validated_workspace_id,
-                "workspace_name": workspace_name,
-            }
+        # Skip confirmation if elicitation is not supported
+        if error == ElicitationError.NOT_SUPPORTED:
+            await ctx.info(
+                "Proceeding with termination without confirmation since interactive confirmation is not supported."
+            )
+        else:
+            # Only check confirmation if elicitation was supported
+            if not (
+                elicit_result.status == "success"
+                and elicit_result.data
+                and elicit_result.data.confirm
+            ):
+                return {
+                    "status": "cancelled",
+                    "message": "Workspace termination was cancelled by the user",
+                    "workspace_id": validated_workspace_id,
+                    "workspace_name": workspace_name,
+                }
 
         # Track analytics event
         settings.analytics_manager.track_event(
