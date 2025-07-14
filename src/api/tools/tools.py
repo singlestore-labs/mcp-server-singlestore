@@ -22,9 +22,9 @@ from src.api.common import (
     get_org_id,
     query_graphql_organizations,
 )
-from src.api.tools.types import Tool
-from src.api.tools.types import WorkspaceTarget
+from src.api.tools.types import Tool, WorkspaceTarget
 from src.utils.uuid_validation import validate_workspace_id, validate_uuid_string
+from src.utils.elicitation import try_elicitation, ElicitationError
 from src.logger import get_logger
 
 # Set up logger for this module
@@ -712,7 +712,7 @@ def complete_database_migration(
 
     Use Cases:
     1. Apply Migration: Set apply_to_production=True to execute the migration on the production database
-    2. Discard Migration: Set apply_to_production=False to cleanup without applying changes
+    2. Discard Migration: Set apply_to_production=False to cleanup without applying
 
     Important Notes:
     - This tool must be called after 'prepare_database_migration' to properly cleanup the branch database
@@ -1798,7 +1798,7 @@ async def choose_organization(ctx: Context) -> dict:
         if len(organizations) == 1:
             selected_org = organizations[0]
         else:
-
+            # For multiple organizations, use elicitation to let the user choose
             class OrganizationChoice(BaseModel):
                 """Schema for collecting organization selection."""
 
@@ -1807,56 +1807,54 @@ async def choose_organization(ctx: Context) -> dict:
                     choices=[org["orgID"] for org in organizations],
                 )
 
-            # For multiple organizations, use elicitation to let the user choose
             # Format the organization list for display
             org_list = "\n".join(
                 [f"- ID: {org['orgID']} ({org['name']})" for org in organizations]
             )
 
-            try:
-                result = await ctx.elicit(
-                    message=f"""📋 **Available SingleStore Organizations:**\n\n{org_list}\n\nPlease select an organization to use:""",
-                    schema=OrganizationChoice,
-                )
+            elicit_result, error = await try_elicitation(
+                ctx=ctx,
+                message=f"""**Available SingleStore Organizations:**\n\n{org_list}\n\nPlease select the organization ID you want to use.""",
+                schema=OrganizationChoice,
+            )
 
-                if result.action == "accept" and result.data:
-                    # Parse the selection to get the org ID
-                    selected = result.data.organizationID
-                    # Extract orgID from the selection string
-                    org_id = selected
-                    # Find the matching organization
-                    selected_org = next(
-                        org for org in organizations if org["orgID"] == org_id
-                    )
-                else:
-                    return {
-                        "status": "cancelled",
-                        "message": "Organization selection was cancelled",
-                        "data": {
-                            "organizations": organizations,
-                            "count": len(organizations),
-                        },
-                    }
-
-            except Exception as elicit_error:
-                logger.error(
-                    f"Error during organization elicitation: {str(elicit_error)}"
+            if error == ElicitationError.NOT_SUPPORTED:
+                # Client doesn't support elicitation, return list and wait for next prompt
+                await ctx.info(
+                    "This client doesn't support interactive organization selection."
+                    " Please wait for the next prompt to provide the organization ID and call set_organization tool."
                 )
                 return {
-                    "status": "error",
-                    "message": f"Failed to process organization selection: {str(elicit_error)}",
-                    "error_code": "ELICITATION_FAILED",
-                    "error_details": {"exception_type": type(elicit_error).__name__},
+                    "status": "pending_selection",
+                    "message": "Please provide the organization ID in your next request",
+                    "data": {
+                        "organizations": organizations,
+                        "count": len(organizations),
+                    },
+                }
+
+            if elicit_result.status == "success" and elicit_result.data:
+                # Find the matching organization from the selection
+                selected_org_id = elicit_result.data.organizationID
+                if selected_org_id:
+                    for org in organizations:
+                        if org["orgID"] == selected_org_id:
+                            selected_org = org
+                            break
+            elif elicit_result.status == "cancelled":
+                return {
+                    "status": "cancelled",
+                    "message": "Organization selection was cancelled",
+                    "data": {
+                        "organizations": organizations,
+                        "count": len(organizations),
+                    },
                 }
 
         # Set the selected organization in settings
         if selected_org:
-            if hasattr(settings, "org_id"):
-                settings.org_id = selected_org["orgID"]
-            else:
-                setattr(settings, "org_id", selected_org["orgID"])
+            settings.org_id = selected_org["orgID"]
 
-            # Return consistent response regardless of selection method
             return {
                 "status": "success",
                 "message": f"Successfully selected organization: {selected_org['name']} (ID: {selected_org['orgID']})",
@@ -1868,6 +1866,15 @@ async def choose_organization(ctx: Context) -> dict:
                     "total_organizations": len(organizations),
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                     "user_id": user_id,
+                },
+            }
+        else:
+            return {
+                "status": "error",
+                "message": "No organization was selected",
+                "data": {
+                    "organizations": organizations,
+                    "count": len(organizations),
                 },
             }
 
@@ -2136,6 +2143,91 @@ async def terminate_virtual_workspace(
         }
 
 
+async def set_organization(ctx: Context, organization_id: str) -> dict:
+    """
+    Set the current organization after retrieving the list from choose_organization.
+    This tool should only be used when the client doesn't support elicitation.
+
+    Args:
+        organization_id: The ID of the organization to select, as obtained from the
+                       choose_organization tool's response.
+
+    Returns:
+        Dictionary with selected organization details
+
+    Important:
+    - This tool should only be called after choose_organization returns a 'pending_selection' status
+    - The organization_id must be one of the IDs returned by choose_organization
+
+    Example flow:
+    1. Call choose_organization first
+    2. If it returns 'pending_selection', get the organization ID from the list
+    3. Call set_organization with the chosen ID
+    """
+    settings = config.get_settings()
+    user_id = config.get_user_id()
+    # Track tool call event
+    settings.analytics_manager.track_event(
+        user_id,
+        "tool_calling",
+        {"name": "set_organization", "organization_id": organization_id},
+    )
+
+    logger.debug(f"Setting organization ID: {organization_id}")
+
+    try:
+        # Get the list of organizations to validate the selection
+        organizations = query_graphql_organizations()
+
+        # Find the selected organization
+        selected_org = next(
+            (org for org in organizations if org["orgID"] == organization_id), None
+        )
+
+        if not selected_org:
+            available_orgs = ", ".join(org["orgID"] for org in organizations)
+            return {
+                "status": "error",
+                "message": f"Organization ID '{organization_id}' not found. Available IDs: {available_orgs}",
+                "error_code": "INVALID_ORGANIZATION",
+                "error_details": {
+                    "provided_id": organization_id,
+                    "available_ids": [org["orgID"] for org in organizations],
+                },
+            }
+
+        # Set the selected organization in settings
+        if hasattr(settings, "org_id"):
+            settings.org_id = selected_org["orgID"]
+        else:
+            setattr(settings, "org_id", selected_org["orgID"])
+
+        await ctx.info(
+            f"Organization set to: {selected_org['name']} (ID: {selected_org['orgID']})"
+        )
+
+        return {
+            "status": "success",
+            "message": f"Successfully set organization to: {selected_org['name']} (ID: {selected_org['orgID']})",
+            "data": {
+                "organization": selected_org,
+            },
+            "metadata": {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "user_id": user_id,
+            },
+        }
+
+    except Exception as e:
+        logger.error(f"Error setting organization: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Failed to set organization: {str(e)}",
+            "error_code": "ORGANIZATION_SET_FAILED",
+            "error_details": {"exception_type": type(e).__name__},
+        }
+
+
 tools_definition = [
     {"func": get_user_id},
     {"func": workspace_groups_info},
@@ -2154,6 +2246,7 @@ tools_definition = [
     {"func": list_job_executions, "internal": True},
     {"func": get_notebook_path, "internal": True},
     {"func": choose_organization},
+    {"func": set_organization},
     # These tools are under development and not yet available for public use
     {"func": prepare_database_migration, "internal": True},
     {"func": complete_database_migration, "internal": True},
