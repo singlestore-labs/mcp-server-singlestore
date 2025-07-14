@@ -2,7 +2,7 @@ from src.api.prompts.types import Prompt
 from mcp.server.fastmcp.prompts.base import AssistantMessage, UserMessage
 
 
-def onboarding_prompt() -> list:
+def onboarding_helios_user() -> list:
     """
     Guide new users through SingleStore setup process:
     1. Account setup and organization selection
@@ -67,11 +67,40 @@ Which area would you like to explore first?"""
     ]
 
 
+def help() -> list:
+    """
+    Provides an overview of the SingleStore MCP server capabilities,
+    available tools, resources, and prompts.
+    """
+    return [
+        AssistantMessage(
+            "Welcome to the SingleStore Model Context Protocol (MCP) Server! 👋\nDo not call any tools! The user only wnat's to list them, not perform any action"
+        ),
+        AssistantMessage(
+            "Let me show you what tools , resources, and prompts are available to you."
+        ),
+        AssistantMessage(
+            "Organize the response in the following format:\n"
+            "- **Tools**: List of available tools with brief descriptions\n"
+            "- **Resources**: Links to documentation, tutorials, and guides\n"
+            "- **Prompts**: List of available prompts with their titles and descriptions"
+        ),
+        UserMessage("List all the MCP tools, resources, and prompts available to me."),
+        AssistantMessage(
+            "Need help with something specific? Just ask and I'll guide you through it!"
+        ),
+    ]
+
+
 prompts_definitions = [
     {
-        "title": "New User Onboarding",
-        "func": onboarding_prompt,
-    }
+        "title": "Helios User Onboarding",
+        "func": onboarding_helios_user,
+    },
+    {
+        "title": "Help",
+        "func": help,
+    },
 ]
 
 # Export the prompts using create_from_dict for consistency

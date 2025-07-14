@@ -6,6 +6,8 @@
 
 With MCP, you can use Claude Desktop, Cursor, or any compatible MCP client to interact with SingleStore using natural language, making it easier to perform complex operations effortlessly.
 
+💡 **Pro Tip**: Not sure what the MCP server can do? Just type `/help` in your chat! The MCP server exposes its capabilities through tools that the LLM understands, so you can get a complete overview of available features or ask specific questions like "How do I work with SingleStore workspaces?" The LLM will guide you through the available features and help you accomplish your tasks.
+
 ## Requirements
 
 - Python >= v3.11.0
