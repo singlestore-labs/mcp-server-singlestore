@@ -21,7 +21,7 @@ def onboarding_helios_user() -> list:
             "Let's create a starter workspace if I don't have one yet. Then, populate the database with sample data.",
         ),
         AssistantMessage(
-            "Step 3: Load sample data into your new database. Try running this SQL in your virtual workspace:"
+            "Step 3: First, let's create a table to store our sample customer data:"
         ),
         AssistantMessage(
             """\
@@ -31,13 +31,15 @@ CREATE TABLE IF NOT EXISTS sample_customers (
     email VARCHAR(100),
     country VARCHAR(50),
     PRIMARY KEY (id)
-);
-
+);"""
+        ),
+        AssistantMessage("Great! Now let's add some sample data to our table:"),
+        AssistantMessage(
+            """\
 INSERT INTO sample_customers VALUES
     (1, 'John Doe', 'john@example.com', 'USA'),
     (2, 'Jane Smith', 'jane@example.com', 'Canada'),
-    (3, 'Alice Johnson', 'alice@example.com', 'UK');
-"""
+    (3, 'Alice Johnson', 'alice@example.com', 'UK');"""
         ),
         AssistantMessage("Step 4: Try your first query!"),
         UserMessage("Let's run a simple select query to see our data."),
