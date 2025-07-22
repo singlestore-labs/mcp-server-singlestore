@@ -35,6 +35,79 @@ SAMPLE_NOTEBOOK_PATH = os.path.join(
 )
 
 
+class DatabaseCredentials(BaseModel):
+    """Schema for database authentication credentials when using API key."""
+
+    username: str = Field(..., description="Database username for authentication")
+    password: str = Field(..., description="Database password for authentication")
+
+
+async def _get_database_credentials(
+    ctx: Context, target: WorkspaceTarget
+) -> tuple[str, str]:
+    """
+    Get database credentials based on the authentication method.
+
+    Args:
+        ctx: The MCP context
+        target: The workspace target
+
+    Returns:
+        Tuple of (username, password)
+
+    Raises:
+        Exception: If credentials cannot be obtained
+    """
+    settings = config.get_settings()
+
+    # Check if we're using API key authentication
+    is_using_api_key = (
+        not settings.is_remote
+        and isinstance(settings, config.LocalSettings)
+        and settings.api_key is not None
+    )
+
+    if is_using_api_key:
+        # For API key authentication, we need database credentials
+        # Dedicated workspaces: need to request database credentials from user
+        elicitation_message = (
+            f"API key authentication detected. To connect to the dedicated workspace '{target.name}', "
+            f"please provide your database username and password for this workspace."
+        )
+
+        try:
+            elicitation_result, error = await try_elicitation(
+                ctx=ctx, message=elicitation_message, schema=DatabaseCredentials
+            )
+
+            if error == ElicitationError.NOT_SUPPORTED:
+                # Fallback: raise exception with clear message
+                raise Exception(
+                    "Database credentials required for API key authentication on dedicated workspaces. "
+                    f"Please provide your database username and password for workspace '{target.name}'. "
+                    "You can obtain these credentials from your SingleStore portal. "
+                    "Note: This is different from your SingleStore account credentials - these are "
+                    "database-specific credentials for connecting to the workspace."
+                )
+            elif elicitation_result.status == "success" and elicitation_result.data:
+                return (
+                    elicitation_result.data.username,
+                    elicitation_result.data.password,
+                )
+            else:
+                raise Exception(
+                    "Database credentials are required but were not provided. Please ask the user to provide the database credentials"
+                )
+        except Exception as e:
+            if "Database credentials required" in str(e):
+                raise  # Re-raise our specific credential error
+            logger.error(f"Error during credential elicitation: {e}")
+            raise Exception(f"Failed to obtain database credentials: {str(e)}")
+    else:
+        # JWT authentication: use user_id and access_token as before
+        return __get_user_id(), get_access_token()
+
+
 async def __execute_sql_unified(
     ctx: Context,
     target: WorkspaceTarget,
@@ -781,8 +854,31 @@ async def run_sql(
     if target.is_shared and target.database_name and not database_name:
         database_name = target.database_name
 
-    username = __get_user_id()
-    password = get_access_token()
+    # Get database credentials based on authentication method
+    try:
+        username, password = await _get_database_credentials(ctx, target)
+    except Exception as e:
+        if "Database credentials required" in str(e):
+            # Handle the specific case where elicitation is not supported
+            return {
+                "status": "error",
+                "message": str(e),
+                "error_code": "CREDENTIALS_REQUIRED",
+                "workspace_id": validated_id,
+                "workspace_name": target.name,
+                "workspace_type": "shared" if target.is_shared else "dedicated",
+                "instruction": (
+                    "Please call this function again with the same parameters once you have "
+                    "the database credentials available, or ask the user to provide their "
+                    "database username and password for this workspace."
+                ),
+            }
+        else:
+            return {
+                "status": "error",
+                "message": f"Failed to obtain database credentials: {str(e)}",
+                "error_code": "AUTHENTICATION_ERROR",
+            }
 
     # Execute the SQL query
     start_time = time.time()
