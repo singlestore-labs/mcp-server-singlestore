@@ -96,15 +96,35 @@ git commit -m "release: bump version to $NEW_VERSION ($RELEASE_TYPE release)"
 git push origin "$CURRENT_BRANCH"
 
 echo ""
+# Create changelog file if it doesn't exist
+CHANGELOG_FILE="changelog/$NEW_VERSION.md"
+if [ ! -f "$CHANGELOG_FILE" ]; then
+    CURRENT_DATE=$(date +%Y-%m-%d)
+    echo "# [$NEW_VERSION] - $CURRENT_DATE
+
+## Added
+-
+-
+
+## Fixed
+-
+- " > "$CHANGELOG_FILE"
+
+    # Add changelog to git
+    git add "$CHANGELOG_FILE"
+    git commit --amend --no-edit
+fi
+
 echo -e "${GREEN}✅ Branch marked for release!${NC}"
 echo ""
 echo -e "${BLUE}Next steps:${NC}"
-echo "1. Push your branch: ${YELLOW}git push origin $CURRENT_BRANCH${NC}"
-echo "2. Create PR to main"
-echo "3. When PR is merged, automatic PyPI publication will be triggered"
-echo "4. Optionally create git tag manually: ${YELLOW}git tag v$NEW_VERSION && git push origin v$NEW_VERSION${NC}"
+echo "1. Update the changelog at: ${YELLOW}$CHANGELOG_FILE${NC}"
+echo "2. Push your branch: ${YELLOW}git push origin $CURRENT_BRANCH${NC}"
+echo "3. Create PR to main"
+echo "4. When PR is merged, automatic PyPI publication will be triggered"
+echo "5. Optionally create git tag manually: ${YELLOW}git tag v$NEW_VERSION && git push origin v$NEW_VERSION${NC}"
 echo ""
 echo -e "${BLUE}Release details:${NC}"
 echo "  🏷️  Release type: $RELEASE_TYPE"
 echo "  📦 New version: $NEW_VERSION"
-echo "  📝 Version file updated and committed"
+echo "  📝 Version file and changelog updated and committed"
