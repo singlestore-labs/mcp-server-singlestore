@@ -23,6 +23,10 @@ from src.api.common import (
     query_graphql_organizations,
 )
 from src.api.tools.types import Tool, WorkspaceTarget
+from src.auth.session_credentials_manager import (
+    get_session_credentials_manager,
+    invalidate_credentials,
+)
 from src.utils.uuid_validation import validate_workspace_id, validate_uuid_string
 from src.utils.elicitation import try_elicitation, ElicitationError
 from src.logger import get_logger
@@ -43,7 +47,7 @@ class DatabaseCredentials(BaseModel):
 
 
 async def _get_database_credentials(
-    ctx: Context, target: WorkspaceTarget
+    ctx: Context, target: WorkspaceTarget, database_name: str | None = None
 ) -> tuple[str, str]:
     """
     Get database credentials based on the authentication method.
@@ -51,6 +55,7 @@ async def _get_database_credentials(
     Args:
         ctx: The MCP context
         target: The workspace target
+        database_name: The database name to use for key generation
 
     Returns:
         Tuple of (username, password)
@@ -69,6 +74,19 @@ async def _get_database_credentials(
 
     if is_using_api_key:
         # For API key authentication, we need database credentials
+        # Generate database key using credentials manager
+        credentials_manager = get_session_credentials_manager()
+        database_key = credentials_manager.generate_database_key(
+            workspace_name=target.name, database_name=database_name
+        )
+
+        # Check if we have cached credentials for this database
+        if credentials_manager.has_credentials(database_key):
+            cached_creds = credentials_manager.get_credentials(database_key)
+            if cached_creds:
+                logger.debug(f"Using cached credentials for workspace: {target.name}")
+                return cached_creds
+
         # Dedicated workspaces: need to request database credentials from user
         elicitation_message = (
             f"API key authentication detected. To connect to the dedicated workspace '{target.name}', "
@@ -90,10 +108,19 @@ async def _get_database_credentials(
                     "database-specific credentials for connecting to the workspace."
                 )
             elif elicitation_result.status == "success" and elicitation_result.data:
-                return (
-                    elicitation_result.data.username,
-                    elicitation_result.data.password,
-                )
+                username = elicitation_result.data.username
+                password = elicitation_result.data.password
+
+                # Store credentials in session cache for future use
+                try:
+                    credentials_manager.store_credentials(
+                        database_key, username, password
+                    )
+                    logger.debug(f"Cached credentials for workspace: {target.name}")
+                except Exception as e:
+                    logger.warning(f"Failed to cache credentials: {e}")
+
+                return (username, password)
             else:
                 raise Exception(
                     "Database credentials are required but were not provided. Please ask the user to provide the database credentials"
@@ -133,39 +160,71 @@ async def __execute_sql_unified(
         host = endpoint
         port = None
 
-    s2_manager = S2Manager(
-        host=host,
-        port=port,
-        user=username,
-        password=password,
-        database=database_name,
+    # Generate database key for credential management
+    credentials_manager = get_session_credentials_manager()
+    database_key = credentials_manager.generate_database_key(
+        workspace_name=target.name, database_name=database_name
     )
 
-    workspace_type = "shared/virtual" if target.is_shared else "dedicated"
-    await ctx.info(
-        f"Executing SQL query on {workspace_type} workspace '{target.name}' with database '{database_name}': {sql_query}"
-        "This query may take some time depending on the complexity and size of the data."
-    )
-    s2_manager.execute(sql_query)
-    columns = (
-        [desc[0] for desc in s2_manager.cursor.description]
-        if s2_manager.cursor.description
-        else []
-    )
-    rows = s2_manager.fetchmany()
-    results = []
-    for row in rows:
-        result_dict = {}
-        for i, column in enumerate(columns):
-            result_dict[column] = row[i]
-        results.append(result_dict)
-    s2_manager.close()
-    return {
-        "data": results,
-        "row_count": len(rows),
-        "columns": columns,
-        "status": "Success",
-    }
+    try:
+        s2_manager = S2Manager(
+            host=host,
+            port=port,
+            user=username,
+            password=password,
+            database=database_name,
+        )
+
+        workspace_type = "shared/virtual" if target.is_shared else "dedicated"
+        await ctx.info(
+            f"Executing SQL query on {workspace_type} workspace '{target.name}' with database '{database_name}': {sql_query}"
+            "This query may take some time depending on the complexity and size of the data."
+        )
+        s2_manager.execute(sql_query)
+        columns = (
+            [desc[0] for desc in s2_manager.cursor.description]
+            if s2_manager.cursor.description
+            else []
+        )
+        rows = s2_manager.fetchmany()
+        results = []
+        for row in rows:
+            result_dict = {}
+            for i, column in enumerate(columns):
+                result_dict[column] = row[i]
+            results.append(result_dict)
+        s2_manager.close()
+        return {
+            "data": results,
+            "row_count": len(rows),
+            "columns": columns,
+            "status": "Success",
+        }
+    except Exception as e:
+        # Check if this is an authentication error
+        error_msg = str(e).lower()
+        is_auth_error = any(
+            auth_keyword in error_msg
+            for auth_keyword in [
+                "access denied",
+                "authentication failed",
+                "invalid credentials",
+                "login failed",
+                "permission denied",
+                "unauthorized",
+                "auth",
+            ]
+        )
+
+        if is_auth_error:
+            logger.warning(
+                f"Authentication failed for database {database_key}, invalidating cached credentials"
+            )
+            invalidate_credentials(database_key)
+            raise Exception(f"Authentication failed: {str(e)}")
+        else:
+            # Non-authentication error, re-raise as-is
+            raise
 
 
 def __get_virtual_workspace(virtual_workspace_id: str):
@@ -856,7 +915,7 @@ async def run_sql(
 
     # Get database credentials based on authentication method
     try:
-        username, password = await _get_database_credentials(ctx, target)
+        username, password = await _get_database_credentials(ctx, target, database_name)
     except Exception as e:
         if "Database credentials required" in str(e):
             # Handle the specific case where elicitation is not supported
@@ -882,14 +941,34 @@ async def run_sql(
 
     # Execute the SQL query
     start_time = time.time()
-    result = await __execute_sql_unified(
-        ctx=ctx,
-        target=target,
-        sql_query=sql_query,
-        username=username,
-        password=password,
-        database=database_name,
-    )
+    try:
+        result = await __execute_sql_unified(
+            ctx=ctx,
+            target=target,
+            sql_query=sql_query,
+            username=username,
+            password=password,
+            database=database_name,
+        )
+    except Exception as e:
+        # Check if this is an authentication error from __execute_sql_unified
+        if "Authentication failed:" in str(e):
+            # Authentication error already handled by __execute_sql_unified (credentials invalidated)
+            return {
+                "status": "error",
+                "message": str(e),
+                "error_code": "AUTHENTICATION_ERROR",
+                "workspace_id": validated_id,
+                "workspace_name": target.name,
+                "workspace_type": "shared" if target.is_shared else "dedicated",
+                "instruction": (
+                    "Authentication failed. Please provide valid database credentials "
+                    "for this workspace and try again."
+                ),
+            }
+        else:
+            # Non-authentication error, re-raise
+            raise
 
     results_data = result.get("data", [])
 
