@@ -129,12 +129,174 @@ def __create_file_in_shared_space(
     }
 
 
+def _validate_content_structure(content: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Validate the basic structure of the content dictionary.
+
+    Returns:
+        None if validation passes, error dict if validation fails
+    """
+    if not isinstance(content, dict):
+        return {
+            "status": "error",
+            "message": "Content must be a dictionary",
+            "error_code": "INVALID_CONTENT_TYPE",
+        }
+
+    if "cells" not in content:
+        return {
+            "status": "error",
+            "message": "Content must contain a 'cells' field",
+            "error_code": "MISSING_CELLS_FIELD",
+        }
+
+    if not isinstance(content["cells"], list):
+        return {
+            "status": "error",
+            "message": "Cells field must be an array",
+            "error_code": "INVALID_CELLS_TYPE",
+        }
+
+    return None
+
+
+def _convert_to_notebook_cells(cells: list) -> tuple[list, Optional[Dict[str, Any]]]:
+    """
+    Convert simplified cell format to full Jupyter notebook cell format.
+
+    Returns:
+        Tuple of (notebook_cells, error_dict). error_dict is None if successful.
+    """
+    notebook_cells = []
+
+    for i, cell in enumerate(cells):
+        if not isinstance(cell, dict):
+            return [], {
+                "status": "error",
+                "message": f"Cell {i} must be a dictionary",
+                "error_code": "INVALID_CELL_TYPE",
+            }
+
+        if "type" not in cell or "content" not in cell:
+            return [], {
+                "status": "error",
+                "message": f"Cell {i} must have 'type' and 'content' fields",
+                "error_code": "MISSING_CELL_FIELDS",
+            }
+
+        cell_type = cell["type"]
+        cell_content = cell["content"]
+
+        if cell_type not in ["markdown", "code"]:
+            return [], {
+                "status": "error",
+                "message": f"Cell {i} type must be 'markdown' or 'code', got '{cell_type}'",
+                "error_code": "INVALID_CELL_TYPE_VALUE",
+            }
+
+        # Create cell ID
+        cell_id = str(uuid.uuid4())[:8]
+
+        if cell_type == "markdown":
+            notebook_cell = {
+                "id": cell_id,
+                "cell_type": "markdown",
+                "metadata": {},
+                "source": [cell_content],
+            }
+        else:  # code cell
+            notebook_cell = {
+                "id": cell_id,
+                "cell_type": "code",
+                "metadata": {},
+                "source": [cell_content],
+                "outputs": [],
+                "execution_count": None,
+            }
+
+        notebook_cells.append(notebook_cell)
+
+    return notebook_cells, None
+
+
+def _create_notebook_structure(notebook_cells: list) -> Dict[str, Any]:
+    """
+    Create the full Jupyter notebook structure.
+
+    Returns:
+        Complete notebook dictionary ready for serialization
+    """
+    return {
+        "nbformat": 4,
+        "nbformat_minor": 5,
+        "metadata": {
+            "kernelspec": {
+                "display_name": "Python 3",
+                "language": "python",
+                "name": "python3",
+            },
+            "language_info": {
+                "name": "python",
+                "version": "3.8.0",
+                "mimetype": "text/x-python",
+                "codemirror_mode": {"name": "ipython", "version": 3},
+                "pygments_lexer": "ipython3",
+                "file_extension": ".py",
+            },
+        },
+        "cells": notebook_cells,
+    }
+
+
+def _validate_notebook_schema(
+    notebook_content: Dict[str, Any],
+) -> tuple[bool, Optional[Dict[str, Any]]]:
+    """
+    Validate notebook content against Jupyter notebook schema.
+
+    Returns:
+        Tuple of (schema_validated, error_dict). error_dict is None if successful or skipped.
+    """
+    try:
+        # Load schema from external file
+        schema = _get_notebook_schema()
+
+        # Validate notebook content against schema
+        jsonschema.validate(notebook_content, schema)
+        logger.info("Notebook content validated successfully against schema file")
+        return True, None
+
+    except FileNotFoundError as e:
+        logger.warning(f"Schema file not found: {str(e)}")
+        # Continue without validation if schema file is missing
+        return False, None
+    except json.JSONDecodeError as e:
+        logger.error(f"Invalid JSON in schema file: {str(e)}")
+        return False, {
+            "status": "error",
+            "message": f"Schema file contains invalid JSON: {str(e)}",
+            "error_code": "INVALID_SCHEMA_FILE",
+            "error_details": {"json_error": str(e)},
+        }
+    except jsonschema.ValidationError as e:
+        return False, {
+            "status": "error",
+            "message": f"Notebook content validation failed: {e.message}",
+            "error_code": "SCHEMA_VALIDATION_FAILED",
+            "error_details": {"validation_error": str(e)},
+        }
+    except Exception as e:
+        logger.warning(f"Schema validation failed: {str(e)}")
+        # Continue without validation if schema can't be loaded
+        return False, None
+
+
 def create_notebook_file(ctx: Context, content: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Call this tool to create a Jupyter notebook file.
+    Create a Jupyter notebook file in the correct singlestore format and saves it to a temporary location.
 
-    This tool validates the provided content and creates a properly formatted .ipynb file
-    in a temporary location. The content is converted from the simplified format
+    This tool validates the provided content against the Jupyter notebook schema and creates a properly
+    formatted .ipynb file in a temporary location. The content is converted from the simplified format
     to the full Jupyter notebook format.
 
     Args:
@@ -168,131 +330,22 @@ def create_notebook_file(ctx: Context, content: Dict[str, Any]) -> Dict[str, Any
 
     try:
         # Validate content structure
-        if not isinstance(content, dict):
-            return {
-                "status": "error",
-                "message": "Content must be a dictionary",
-                "error_code": "INVALID_CONTENT_TYPE",
-            }
-
-        if "cells" not in content:
-            return {
-                "status": "error",
-                "message": "Content must contain a 'cells' field",
-                "error_code": "MISSING_CELLS_FIELD",
-            }
-
-        if not isinstance(content["cells"], list):
-            return {
-                "status": "error",
-                "message": "Cells field must be an array",
-                "error_code": "INVALID_CELLS_TYPE",
-            }
+        content_error = _validate_content_structure(content)
+        if content_error:
+            return content_error
 
         # Convert simplified format to full Jupyter notebook format
-        notebook_cells = []
-        for i, cell in enumerate(content["cells"]):
-            if not isinstance(cell, dict):
-                return {
-                    "status": "error",
-                    "message": f"Cell {i} must be a dictionary",
-                    "error_code": "INVALID_CELL_TYPE",
-                }
-
-            if "type" not in cell or "content" not in cell:
-                return {
-                    "status": "error",
-                    "message": f"Cell {i} must have 'type' and 'content' fields",
-                    "error_code": "MISSING_CELL_FIELDS",
-                }
-
-            cell_type = cell["type"]
-            cell_content = cell["content"]
-
-            if cell_type not in ["markdown", "code"]:
-                return {
-                    "status": "error",
-                    "message": f"Cell {i} type must be 'markdown' or 'code', got '{cell_type}'",
-                    "error_code": "INVALID_CELL_TYPE_VALUE",
-                }
-
-            # Create cell ID
-            cell_id = str(uuid.uuid4())[:8]
-
-            if cell_type == "markdown":
-                notebook_cell = {
-                    "id": cell_id,
-                    "cell_type": "markdown",
-                    "metadata": {},
-                    "source": [cell_content],
-                }
-            else:  # code cell
-                notebook_cell = {
-                    "id": cell_id,
-                    "cell_type": "code",
-                    "metadata": {},
-                    "source": [cell_content],
-                    "outputs": [],
-                    "execution_count": None,
-                }
-
-            notebook_cells.append(notebook_cell)
+        notebook_cells, cells_error = _convert_to_notebook_cells(content["cells"])
+        if cells_error:
+            return cells_error
 
         # Create full notebook structure
-        notebook_content = {
-            "nbformat": 4,
-            "nbformat_minor": 5,
-            "metadata": {
-                "kernelspec": {
-                    "display_name": "Python 3",
-                    "language": "python",
-                    "name": "python3",
-                },
-                "language_info": {
-                    "name": "python",
-                    "version": "3.8.0",
-                    "mimetype": "text/x-python",
-                    "codemirror_mode": {"name": "ipython", "version": 3},
-                    "pygments_lexer": "ipython3",
-                    "file_extension": ".py",
-                },
-            },
-            "cells": notebook_cells,
-        }
+        notebook_content = _create_notebook_structure(notebook_cells)
 
-        # Load and validate against Jupyter notebook schema
-        try:
-            # Load schema from external file
-            schema = _get_notebook_schema()
-
-            # Validate notebook content against schema
-            jsonschema.validate(notebook_content, schema)
-            logger.info("Notebook content validated successfully against schema file")
-            schema_validated = True
-
-        except FileNotFoundError as e:
-            logger.warning(f"Schema file not found: {str(e)}")
-            # Continue without validation if schema file is missing
-            schema_validated = False
-        except json.JSONDecodeError as e:
-            logger.error(f"Invalid JSON in schema file: {str(e)}")
-            return {
-                "status": "error",
-                "message": f"Schema file contains invalid JSON: {str(e)}",
-                "error_code": "INVALID_SCHEMA_FILE",
-                "error_details": {"json_error": str(e)},
-            }
-        except jsonschema.ValidationError as e:
-            return {
-                "status": "error",
-                "message": f"Notebook content validation failed: {e.message}",
-                "error_code": "SCHEMA_VALIDATION_FAILED",
-                "error_details": {"validation_error": str(e)},
-            }
-        except Exception as e:
-            logger.warning(f"Schema validation failed: {str(e)}")
-            # Continue without validation if schema can't be loaded
-            schema_validated = False
+        # Validate against Jupyter notebook schema
+        schema_validated, schema_error = _validate_notebook_schema(notebook_content)
+        if schema_error:
+            return schema_error
 
         # Create temporary file
         temp_file = tempfile.NamedTemporaryFile(
