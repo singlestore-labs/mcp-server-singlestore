@@ -9,9 +9,9 @@ dependencies = [
  "nbformat>=5.10.4",
  "pydantic-settings>=2.9.1",
  "segment-analytics-python>=2.3.4",
- "singlestoredb>=1.14.2",
  "starlette>=0.46.2",
  "jsonschema>=4.0.0",
+ "singlestoredb>=1.15.0",
 ]
 
 [project.scripts]
