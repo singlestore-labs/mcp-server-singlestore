@@ -38,9 +38,7 @@ def _get_notebook_schema() -> dict:
         json.JSONDecodeError: If the schema file is not valid JSON
     """
     # Path to the schema file relative to this module
-    schema_file_path = os.path.join(
-        os.path.dirname(__file__), "..", "notebook-schema.json"
-    )
+    schema_file_path = os.path.join(os.path.dirname(__file__), "notebook-schema.json")
 
     try:
         with open(schema_file_path, "r") as f:
