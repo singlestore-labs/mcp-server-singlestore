@@ -17,7 +17,7 @@ from src.api.tools.user import get_user_id
 from src.api.tools.notebooks import (
     create_notebook_file,
     list_shared_files,
-    check_if_file_exists,
+    upload_notebook_file,
 )
 from src.api.tools.organization import (
     organization_info,
@@ -48,8 +48,8 @@ tools_definition = [
     {"func": run_sql},
     # Notebook tools
     {"func": create_notebook_file},
+    {"func": upload_notebook_file},
     {"func": list_shared_files, "internal": True},
-    {"func": check_if_file_exists, "internal": True},
 ]
 
 # Export the tools

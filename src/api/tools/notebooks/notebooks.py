@@ -6,17 +6,21 @@ import os
 import tempfile
 import time
 import uuid
+import singlestoredb as s2
+
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 import nbformat as nbf
 import nbformat.v4 as nbfv4
+from pydantic import BaseModel
 
 from mcp.server.fastmcp import Context
 
 from src.config import config
-from src.api.common import build_request, get_org_id
+from src.api.common import build_request, get_access_token, get_org_id
 from src.logger import get_logger
+from src.utils.elicitation import try_elicitation
 
 # Set up logger for this module
 logger = get_logger()
@@ -390,41 +394,36 @@ def create_notebook_file(ctx: Context, content: Dict[str, Any]) -> Dict[str, Any
         }
 
 
-def check_if_file_exists(file_name: str, access_token: str = None) -> Dict[str, Any]:
+def _check_if_file_exists(file_name: str, location: str = "shared") -> bool:
     """
-    Check if a file (notebook) exists in the user's shared space.
+    Check if a file exists in the user's shared or personal space.
 
     Args:
         file_name: Name of the file to check (with or without .ipynb extension)
+        location: Location to check ("shared" or "personal")
 
     Returns:
-        Standardized response with file existence status
+        Boolean indicating whether the file exists
     """
-    import singlestoredb as s2
-
     settings = config.get_settings()
-    user_id = config.get_user_id()
-    settings.analytics_manager.track_event(
-        user_id,
-        "tool_calling",
-        {"name": "check_if_file_exists", "file_name": file_name},
-    )
     org_id = get_org_id()
+    access_token = get_access_token()
+
     file_manager = s2.manage_files(
         access_token=access_token,
         base_url=settings.s2_api_base_url,
         organization_id=org_id,
     )
-    exists = file_manager.shared_space.exists(file_name)
 
-    # Return using the new standardized response builder
-    message = f"File {file_name} {'exists' if exists else 'does not exist'}"
-    return {
-        "status": "success",
-        "message": message,
-        "data": {"exists": exists, "file_name": file_name},
-        "metadata": {"checked_at": datetime.now().isoformat()},
-    }
+    if location == "shared":
+        return file_manager.shared_space.exists(file_name)
+    else:  # personal
+        try:
+            return file_manager.personal_space.exists(file_name)
+        except AttributeError:
+            # If personal space is not supported, return False
+            logger.warning("Personal space not supported by SDK")
+            return False
 
 
 def list_shared_files() -> Dict[str, Any]:
@@ -481,3 +480,230 @@ def list_shared_files() -> Dict[str, Any]:
             "timestamp": datetime.now(timezone.utc).isoformat(),
         },
     }
+
+
+class UploadLocation(BaseModel):
+    """Schema for upload location elicitation."""
+
+    location: str  # "shared" or "personal"
+
+
+class UploadName(BaseModel):
+    """Schema for upload name elicitation."""
+
+    name: str  # Name for the uploaded file
+
+
+async def upload_notebook_file(ctx: Context, path: str) -> Dict[str, Any]:
+    """
+    Upload a notebook file from a local path to SingleStore shared or personal space.
+
+    This tool validates the notebook schema before uploading and allows the user to choose
+    between shared or personal space through elicitation if not specified. The user will also
+    be prompted to provide a name for the uploaded file.
+
+    Args:
+        path: Local file system path to the notebook file (.ipynb)
+
+    Returns:
+        Dictionary with upload status and file information
+
+    Example:
+        path = "/path/to/my_notebook.ipynb"
+        # User will be prompted for upload location and filename
+    """
+    settings = config.get_settings()
+    user_id = config.get_user_id()
+    settings.analytics_manager.track_event(
+        user_id,
+        "tool_calling",
+        {"name": "upload_notebook_file", "path": path},
+    )
+
+    start_time = time.time()
+
+    try:
+        # Validate local file exists and is a notebook
+        if not os.path.exists(path):
+            return {
+                "status": "error",
+                "message": f"Local file not found: {path}",
+                "error_code": "FILE_NOT_FOUND",
+            }
+
+        if not path.endswith(".ipynb"):
+            return {
+                "status": "error",
+                "message": "File must be a Jupyter notebook (.ipynb)",
+                "error_code": "INVALID_FILE_TYPE",
+            }
+
+        # Read and validate notebook content
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                notebook_content = json.load(f)
+        except json.JSONDecodeError as e:
+            return {
+                "status": "error",
+                "message": f"Invalid JSON in notebook file: {str(e)}",
+                "error_code": "INVALID_JSON",
+                "error_details": {"json_error": str(e)},
+            }
+
+        # Validate notebook schema
+        schema_validated, schema_error = _validate_notebook_schema(notebook_content)
+        if schema_error:
+            return schema_error
+
+        # Elicit upload name from user
+        upload_name = None
+        original_filename = os.path.basename(path)
+
+        elicitation_result, elicitation_error = await try_elicitation(
+            ctx,
+            f"What would you like to name the uploaded file? (Original filename: {original_filename})",
+            UploadName,
+        )
+
+        if elicitation_result.status == "success":
+            upload_name = elicitation_result.data.name
+        elif elicitation_result.status == "cancelled":
+            return {
+                "status": "cancelled",
+                "message": "Upload cancelled by user",
+            }
+        else:
+            # Fallback to original filename if elicitation not supported
+            upload_name = original_filename
+            logger.info("Elicitation not supported, using original filename")
+
+        # Handle upload location
+        final_location = None
+
+        if not final_location:
+            # Try to elicit upload location from user
+            elicitation_result, elicitation_error = await try_elicitation(
+                ctx,
+                "Where would you like to upload the notebook? Choose 'shared' for shared space or 'personal' for personal space.",
+                UploadLocation,
+            )
+
+            if elicitation_result.status == "success":
+                if elicitation_result.data.location in ["shared", "personal"]:
+                    final_location = elicitation_result.data.location
+                else:
+                    return {
+                        "status": "error",
+                        "message": "Invalid upload location. Must be 'shared' or 'personal'",
+                        "error_code": "INVALID_UPLOAD_LOCATION",
+                    }
+            elif elicitation_result.status == "cancelled":
+                return {
+                    "status": "cancelled",
+                    "message": "Upload cancelled by user",
+                }
+            else:
+                # Fallback to shared if elicitation not supported
+                final_location = "shared"
+                logger.info("Elicitation not supported, defaulting to shared space")
+
+        # Validate location
+        if final_location not in ["shared", "personal"]:
+            return {
+                "status": "error",
+                "message": "Invalid upload location. Must be 'shared' or 'personal'",
+                "error_code": "INVALID_UPLOAD_LOCATION",
+            }
+
+        # Derive remote path from elicited upload_name
+        if upload_name:
+            # Ensure the upload name has .ipynb extension
+            if not upload_name.endswith(".ipynb"):
+                remote_path = f"{upload_name}.ipynb"
+            else:
+                remote_path = upload_name
+        else:
+            # Use just the filename from the local path (fallback)
+            remote_path = os.path.basename(path)
+
+        # Check if file already exists and throw error if it does
+        file_exists = _check_if_file_exists(remote_path, final_location)
+
+        if file_exists:
+            return {
+                "status": "error",
+                "message": f"File '{remote_path}' already exists in {final_location} space. Please choose a different name or delete the existing file first.",
+                "error_code": "FILE_ALREADY_EXISTS",
+                "error_details": {
+                    "existing_file": remote_path,
+                    "location": final_location,
+                },
+            }
+
+        access_token = get_access_token()
+
+        org_id = get_org_id()
+        file_manager = s2.manage_files(
+            access_token=access_token,
+            base_url=settings.s2_api_base_url,
+            organization_id=org_id,
+        )
+
+        try:
+            if final_location == "shared":
+                file_info = file_manager.shared_space.upload_file(path, remote_path)
+            else:  # personal
+                # Try to use user_space if available, otherwise fallback to API call
+                try:
+                    file_info = file_manager.personal_space.upload_file(
+                        path, remote_path
+                    )
+                except AttributeError:
+                    # If user_space doesn't exist, try alternative approach
+                    # This might need to be implemented based on actual API documentation
+                    return {
+                        "status": "error",
+                        "message": "Personal space upload not yet supported by the SDK",
+                        "error_code": "PERSONAL_SPACE_NOT_SUPPORTED",
+                    }
+
+            execution_time = (time.time() - start_time) * 1000
+
+            return {
+                "status": "success",
+                "message": f"Notebook uploaded successfully to {final_location} space",
+                "data": {
+                    "local_path": path,
+                    "remote_path": file_info.path,
+                    "upload_name": upload_name,
+                    "upload_location": final_location,
+                    "file_type": file_info.type,
+                    "file_format": file_info.format,
+                    "schema_validated": schema_validated,
+                },
+                "metadata": {
+                    "execution_time_ms": round(execution_time, 2),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "file_size": os.path.getsize(path),
+                },
+            }
+
+        except Exception as upload_error:
+            return {
+                "status": "error",
+                "message": f"Failed to upload notebook: {str(upload_error)}",
+                "error_code": "UPLOAD_FAILED",
+                "error_details": {
+                    "upload_location": final_location,
+                    "exception_type": type(upload_error).__name__,
+                },
+            }
+
+    except Exception as e:
+        logger.error(f"Error uploading notebook file: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Failed to upload notebook file: {str(e)}",
+            "error_code": "NOTEBOOK_UPLOAD_FAILED",
+            "error_details": {"exception_type": type(e).__name__},
+        }
