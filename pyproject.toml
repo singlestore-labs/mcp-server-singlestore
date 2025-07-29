@@ -11,6 +11,7 @@ dependencies = [
  "segment-analytics-python>=2.3.4",
  "singlestoredb>=1.14.2",
  "starlette>=0.46.2",
+ "jsonschema>=4.0.0",
 ]
 
 [project.scripts]
