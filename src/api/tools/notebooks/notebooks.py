@@ -494,30 +494,43 @@ class UploadName(BaseModel):
     name: str  # Name for the uploaded file
 
 
-async def upload_notebook_file(ctx: Context, path: str) -> Dict[str, Any]:
+async def upload_notebook_file(
+    ctx: Context,
+    path: str,
+    upload_name: Optional[str] = None,
+    upload_location: Optional[str] = None,
+) -> Dict[str, Any]:
     """
     Upload a notebook file from a local path to SingleStore shared or personal space.
 
-    This tool validates the notebook schema before uploading and allows the user to choose
-    between shared or personal space through elicitation if not specified. The user will also
-    be prompted to provide a name for the uploaded file.
+    This tool validates the notebook schema before uploading. If upload_name or upload_location
+    are not provided, the user will be prompted through elicitation.
 
     Args:
         path: Local file system path to the notebook file (.ipynb)
+        upload_name: Optional. Name of the file after upload (with or without .ipynb extension).
+                    If not provided, user will be prompted.
+        upload_location: Optional. Either "shared" or "personal". If not provided, user will be prompted.
 
     Returns:
         Dictionary with upload status and file information
 
     Example:
         path = "/path/to/my_notebook.ipynb"
-        # User will be prompted for upload location and filename
+        upload_name = "analysis_notebook"  # Optional
+        upload_location = "shared"  # Optional
     """
     settings = config.get_settings()
     user_id = config.get_user_id()
     settings.analytics_manager.track_event(
         user_id,
         "tool_calling",
-        {"name": "upload_notebook_file", "path": path},
+        {
+            "name": "upload_notebook_file",
+            "path": path,
+            "upload_name": upload_name,
+            "upload_location": upload_location,
+        },
     )
 
     start_time = time.time()
@@ -555,32 +568,32 @@ async def upload_notebook_file(ctx: Context, path: str) -> Dict[str, Any]:
         if schema_error:
             return schema_error
 
-        # Elicit upload name from user
-        upload_name = None
-        original_filename = os.path.basename(path)
+        # Elicit upload name from user if not provided
+        if upload_name is None:
+            original_filename = os.path.basename(path)
 
-        elicitation_result, elicitation_error = await try_elicitation(
-            ctx,
-            f"What would you like to name the uploaded file? (Original filename: {original_filename})",
-            UploadName,
-        )
+            elicitation_result, elicitation_error = await try_elicitation(
+                ctx,
+                f"What would you like to name the uploaded file? (Original filename: {original_filename})",
+                UploadName,
+            )
 
-        if elicitation_result.status == "success":
-            upload_name = elicitation_result.data.name
-        elif elicitation_result.status == "cancelled":
-            return {
-                "status": "cancelled",
-                "message": "Upload cancelled by user",
-            }
-        else:
-            # Fallback to original filename if elicitation not supported
-            upload_name = original_filename
-            logger.info("Elicitation not supported, using original filename")
+            if elicitation_result.status == "success":
+                upload_name = elicitation_result.data.name
+            elif elicitation_result.status == "cancelled":
+                return {
+                    "status": "cancelled",
+                    "message": "Upload cancelled by user",
+                }
+            else:
+                # Fallback to original filename if elicitation not supported
+                upload_name = original_filename
+                logger.info(
+                    "Elicitation not supported, using original filename"
+                )  # Handle upload location - elicit only if not provided
+        final_location = upload_location
 
-        # Handle upload location
-        final_location = None
-
-        if not final_location:
+        if final_location is None:
             # Try to elicit upload location from user
             elicitation_result, elicitation_error = await try_elicitation(
                 ctx,
