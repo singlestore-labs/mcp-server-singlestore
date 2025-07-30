@@ -108,7 +108,8 @@ if [ ! -f "$CHANGELOG_FILE" ]; then
 
 ## Fixed
 -
-- " > "$CHANGELOG_FILE"
+-
+" > "$CHANGELOG_FILE"
 
     # Add changelog to git
     git add "$CHANGELOG_FILE"

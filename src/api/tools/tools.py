@@ -10,7 +10,7 @@ from src.api.tools.starter_workspaces import (
     create_starter_workspace,
     terminate_virtual_workspace,
 )
-from src.api.tools.regions import list_regions
+from src.api.tools.regions import list_regions, list_sharedtier_regions
 from src.api.tools.database import run_sql
 from src.api.tools.user import get_user_id
 from src.api.tools.notebooks import (
@@ -33,9 +33,10 @@ tools_definition = [
     {"func": workspace_groups_info},
     {"func": workspaces_info},
     {"func": list_virtual_workspaces},
-    {"func": create_starter_workspace, "internal": True},
+    {"func": create_starter_workspace},
     {"func": terminate_virtual_workspace},
     {"func": list_regions},
+    {"func": list_sharedtier_regions},
     {"func": run_sql},
     {"func": create_notebook_file},
     {"func": upload_notebook_file},
