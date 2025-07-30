@@ -2,6 +2,9 @@
 
 import time
 from datetime import datetime, timezone
+from typing import Any, Dict
+
+from mcp.server.fastmcp import Context
 
 from src.api.common import build_request
 from src.logger import get_logger
@@ -49,3 +52,52 @@ def list_regions() -> dict:
             "timestamp": datetime.now(timezone.utc).isoformat(),
         },
     }
+
+
+async def list_sharedtier_regions(ctx: Context) -> Dict[str, Any]:
+    """
+    List all regions where shared tier workspaces can be created.
+
+    This tool provides information about available regions for creating starter workspaces,
+    including region names and cloud providers.
+
+    Args:
+        ctx: Context for user interaction and logging
+
+    Returns:
+        Dictionary with region information including:
+        - regionName: Name of the region (e.g., "us-west-2", "europe-west1")
+        - provider: Cloud provider (AWS, GCP, or Azure)
+        - name: Human-readable region name (e.g., Europe West 2 (London), US West 2 (Oregon))
+
+    Example Usage:
+    ```python
+    result = await list_shared_tier_regions(ctx)
+    regions = result["data"]["result"]
+    ```
+    """
+    await ctx.info("Listing available shared tier regions...")
+
+    try:
+        regions_data = build_request("GET", "regions/sharedtier")
+
+        return {
+            "status": "success",
+            "message": f"Retrieved {len(regions_data)} shared tier regions",
+            "data": {"result": regions_data},
+            "metadata": {
+                "execution_time_ms": 100,  # Placeholder for actual execution time
+                "count": len(regions_data),
+                "timestamp": datetime.now().isoformat(),
+            },
+        }
+
+    except Exception as e:
+        error_msg = f"Failed to list shared tier regions: {str(e)}"
+        ctx.error(error_msg)
+
+        return {
+            "status": "error",
+            "message": error_msg,
+            "error": str(e),
+        }

@@ -49,7 +49,7 @@ def list_virtual_workspaces() -> Dict[str, Any]:
 
 
 async def create_starter_workspace(
-    ctx: Context, name: str, database_name: str
+    ctx: Context, name: str, database_name: str, provider: str, region_name: str
 ) -> Dict[str, Any]:
     """
     Create a new starter workspace using the SingleStore SDK.
@@ -60,6 +60,8 @@ async def create_starter_workspace(
     Args:
         name: Unique name for the new starter workspace
         database_name: Name of the database to create in the starter workspace
+        provider: Cloud provider for the workspace (e.g., "AWS", "GCP", "Azure")
+        region_name: Region where the workspace should be deployed (e.g., "us-west-2", "europe-west1")
 
     Returns:
         Dictionary with starter workspace creation details including:
@@ -102,8 +104,8 @@ async def create_starter_workspace(
         payload = {
             "name": name,
             "databaseName": database_name,
-            # TODO: Dinamically set region_id if needed
-            "workspaceGroup": {"cellID": "3482219c-a389-4079-b18b-d50662524e8a"},
+            "provider": provider,  # e.g., "AWS", "GCP", "Azure"
+            "regionName": region_name,  # e.g., "us-west-2", "europe-west1"
         }
 
         starter_workspace_data = build_request(
