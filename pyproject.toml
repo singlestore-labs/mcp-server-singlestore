@@ -100,3 +100,6 @@ addopts = [
     "--strict-markers",
     "--strict-config"
 ]
+markers = [
+    "integration: mark a test as an integration test"
+]

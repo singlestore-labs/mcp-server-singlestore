@@ -5,7 +5,6 @@ import json
 from starlette.exceptions import HTTPException
 
 from src.api.types import MCPConcept, AVAILABLE_FLAGS
-import src.config.config as config
 from src.config.config import get_session_request, get_settings
 from src.logger import get_logger
 
@@ -382,7 +381,7 @@ def get_access_token() -> str:
         )
     else:
         # Check for API key first, then fall back to JWT token
-        if isinstance(settings, config.LocalSettings) and settings.api_key:
+        if settings.api_key:
             access_token = settings.api_key
             logger.debug("Using API key for authentication")
         else:
