@@ -303,43 +303,6 @@ async def terminate_virtual_workspace(
             f"Proceeding with termination of virtual workspace: {validated_workspace_id}"
         )
 
-        class TerminationConfirmation(BaseModel):
-            """Schema for collecting organization selection."""
-
-            confirm: bool = Field(
-                description="Confirm that you want to permanently terminate this virtual workspace",
-                default=False,
-            )
-
-        result = await ctx.elicit(
-            message=f"⚠️ **WARNING**: You are about to terminate the virtual workspace '{workspace_name or validated_workspace_id}'.\n\n"
-            "This action is permanent and cannot be undone. All data in the workspace will be lost.\n\n"
-            "Do you want to proceed with the termination?",
-            schema=TerminationConfirmation,
-        )
-
-        if not (result.action == "accept" and result.data and result.data.confirm):
-            return {
-                "status": "cancelled",
-                "message": "Workspace termination was cancelled by the user",
-                "workspace_id": validated_workspace_id,
-                "workspace_name": workspace_name,
-            }
-
-        # Track analytics event
-        settings.analytics_manager.track_event(
-            user_id,
-            "tool_calling",
-            {
-                "name": "terminate_virtual_workspace",
-                "workspace_id": validated_workspace_id,
-            },
-        )
-
-        await ctx.info(
-            f"Proceeding with termination of virtual workspace: {validated_workspace_id}"
-        )
-
         # Terminate the virtual workspace
         build_request(
             "DELETE", f"sharedtier/virtualWorkspaces/{validated_workspace_id}"
