@@ -7,41 +7,39 @@ from typing import Dict, Any
 from mcp.server.fastmcp import Context
 
 from src.config import config
-from src.api.common import __get_user_id
+from src.api.common import fetch_user
 from src.logger import get_logger
 
 # Set up logger for this module
 logger = get_logger()
 
 
-def get_user_id(ctx: Context) -> Dict[str, Any]:
+def get_user_info(ctx: Context) -> Dict[str, Any]:
     """
-    Retrieve the current user's unique identifier.
+    Retrieve all information about the current user.
 
     Returns:
-        str: UUID format identifier for the current user
-
-    Required for:
-    - Constructing paths or references to personal resources
+        dict: User information including userID, email, firstName, lastName.
 
     Performance Tip:
-    Cache the returned ID when making multiple API calls.
+    Cache the returned info when making multiple API calls.
     """
     start_time = time.time()
     settings = config.get_settings()
     user_id = config.get_user_id()
     # Track tool call event
     settings.analytics_manager.track_event(
-        user_id, "tool_calling", {"name": "get_user_id"}
+        user_id, "tool_calling", {"name": "get_user_info"}
     )
 
-    retrieved_user_id = __get_user_id()
+    # Simulate retrieving user info (replace with actual API call if available)
+    user_info = fetch_user()
     execution_time = (time.time() - start_time) * 1000
 
     return {
         "status": "success",
-        "message": "Retrieved user ID successfully",
-        "data": {"result": retrieved_user_id},
+        "message": "Retrieved user information successfully",
+        "data": {"result": user_info},
         "metadata": {
             "execution_time_ms": round(execution_time, 2),
             "timestamp": datetime.now(timezone.utc).isoformat(),

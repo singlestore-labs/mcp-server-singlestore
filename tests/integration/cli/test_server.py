@@ -108,46 +108,58 @@ class TestStartCommand:
         mock_get_auth_token,
     ):
         """Test start command with stdio transport and successful authentication."""
-        # Setup mocks
         mock_get_auth_token.return_value = "mock_oauth_token"
         mock_settings = MagicMock()
         mock_settings.is_remote = False
         mock_init_settings.return_value = mock_settings
 
-        # Mock FastMCP
         with patch("src.commands.start.FastMCP") as mock_fastmcp:
             mock_mcp_instance = MagicMock()
             mock_fastmcp.return_value = mock_mcp_instance
+            with patch.object(mock_mcp_instance, "run"):
+                from os import environ
+                from unittest.mock import patch as patch_dict
 
-            runner = CliRunner()
-            # Use invoke with input to simulate user interaction if needed
-            runner.invoke(cli, ["start", "--transport", TRANSPORT_STDIO])
-
-            # Verify authentication was attempted
-            mock_get_auth_token.assert_called_once()
+                with patch_dict.dict(environ, {"MCP_API_KEY": ""}, clear=True):
+                    runner = CliRunner()
+                    runner.invoke(cli, ["start", "--transport", TRANSPORT_STDIO])
+                    mock_get_auth_token.assert_called_once()
 
     @patch("src.commands.start.get_authentication_token")
     def test_start_command_stdio_auth_failure(self, mock_get_auth_token):
         """Test start command with stdio transport and failed authentication."""
-        # Setup mock to return None (auth failure)
         mock_get_auth_token.return_value = None
+        with patch("src.commands.start.FastMCP") as mock_fastmcp:
+            mock_mcp_instance = MagicMock()
+            mock_fastmcp.return_value = mock_mcp_instance
+            with patch.object(mock_mcp_instance, "run"):
+                from os import environ
+                from unittest.mock import patch as patch_dict
 
-        runner = CliRunner()
-        runner.invoke(cli, ["start", "--transport", TRANSPORT_STDIO])
-
-        # Verify authentication was attempted
-        mock_get_auth_token.assert_called_once()
+                with patch_dict.dict(environ, {"MCP_API_KEY": ""}, clear=True):
+                    runner = CliRunner()
+                    runner.invoke(cli, ["start", "--transport", TRANSPORT_STDIO])
+                    mock_get_auth_token.assert_called_once()
 
     def test_start_command_default_transport(self):
         """Test start command with default transport."""
-        runner = CliRunner()
+        with patch("src.commands.start.FastMCP") as mock_fastmcp:
+            mock_mcp_instance = MagicMock()
+            mock_fastmcp.return_value = mock_mcp_instance
+            with patch.object(mock_mcp_instance, "run"):
+                from os import environ
+                from unittest.mock import patch as patch_dict
 
-        with patch("src.commands.start.get_authentication_token") as mock_auth:
-            mock_auth.return_value = None  # Simulate auth failure for quick exit
-            runner.invoke(cli, ["start"])
-
-            # Should attempt to use default transport (stdio)
-            mock_auth.assert_called_once()
+                with patch_dict.dict(environ, {"MCP_API_KEY": ""}, clear=True):
+                    runner = CliRunner()
+                    with patch(
+                        "src.commands.start.get_authentication_token"
+                    ) as mock_auth:
+                        mock_auth.return_value = (
+                            None  # Simulate auth failure for quick exit
+                        )
+                        runner.invoke(cli, ["start"])
+                        mock_auth.assert_called_once()
 
     def test_start_command_invalid_transport(self):
         """Test start command with invalid transport."""

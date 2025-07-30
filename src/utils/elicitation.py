@@ -65,12 +65,23 @@ async def try_elicitation(
                 ),
                 None,
             )
-        return (
-            ElicitationResult(
-                status="cancelled", message="Elicitation was cancelled by the user"
-            ),
-            None,
-        )
+        elif result.action == "cancel":
+            return (
+                ElicitationResult(
+                    status="cancelled", message="Elicitation was cancelled by the user"
+                ),
+                None,
+            )
+        else:
+            return (
+                ElicitationResult(
+                    status="error",
+                    message="Client doesn't support elicitation",
+                    error_code="ELICITATION_NOT_SUPPORTED",
+                    error_details={"error_message": "Elicitation action not supported"},
+                ),
+                ElicitationError.NOT_SUPPORTED,
+            )
     except Exception as e:
         # Elicitation not supported by the client
         if type(e).__name__ == "McpError" and str(e) == "Method not found":

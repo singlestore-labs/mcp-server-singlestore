@@ -132,7 +132,7 @@ The server implements the following tools:
     - `password`: Password for the user
     - `workspace_group`: Object containing `name` (optional) and `cellID` (mandatory)
   - Returns details of the created workspace and user
-- **execute_sql_on_virtual_workspace**: Execute SQL operations on a virtual workspace
+- **execute_sql_on_virtual_workspace**: Execute SQL operations on a starter workspace
   - Arguments: `virtual_workspace_id`, `username`, `password`, `sql_query`
   - Returns the results of the SQL query in a structured format including data, row count, columns, and status
 - **list_notebook_samples**: List all notebook samples available in SingleStore Spaces

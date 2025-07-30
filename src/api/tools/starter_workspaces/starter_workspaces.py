@@ -17,7 +17,7 @@ from src.logger import get_logger
 logger = get_logger()
 
 
-def list_virtual_workspaces() -> Dict[str, Any]:
+def list_starter_workspaces() -> Dict[str, Any]:
     """
     List all starter (virtual) workspaces available to the user in SingleStore.
 
@@ -31,7 +31,7 @@ def list_virtual_workspaces() -> Dict[str, Any]:
     - state: Current status of the workspace
 
     Use this tool to:
-    1. Get virtual workspace IDs for other operations
+    1. Get starter workspace IDs for other operations
     2. Check starter workspace availability and status
     3. Obtain connection details for database access
     """
@@ -39,7 +39,7 @@ def list_virtual_workspaces() -> Dict[str, Any]:
 
     return {
         "status": "success",
-        "message": f"Retrieved {len(workspaces)} virtual workspaces",
+        "message": f"Retrieved {len(workspaces)} starter workspaces",
         "data": {"result": workspaces, "count": len(workspaces)},
         "metadata": {
             "total_count": len(workspaces),
@@ -197,12 +197,12 @@ async def create_starter_workspace(
         }
 
 
-async def terminate_virtual_workspace(
+async def terminate_starter_workspace(
     ctx: Context,
     workspace_id: str,
 ) -> Dict[str, Any]:
     """
-    Permanently delete a virtual workspace in SingleStore with safety confirmations.
+    Permanently delete a starter workspace in SingleStore with safety confirmations.
 
     ⚠️  WARNING: This action CANNOT be undone. All workspace data will be permanently lost.
     Make sure to backup important data before proceeding.
@@ -229,13 +229,13 @@ async def terminate_virtual_workspace(
 
     Example:
     ```python
-    result = await terminate_virtual_workspace(ctx, "ws-abc123")
+    result = await terminate_starter_workspace(ctx, "ws-abc123")
     if result["status"] == "success":
         print(f"Workspace {result['workspace_name']} terminated")
     ```
 
     Related:
-    - list_virtual_workspaces()
+    - list_starter_workspaces()
     - create_starter_workspace()
     """
     # Validate workspace ID format
@@ -250,21 +250,21 @@ async def terminate_virtual_workspace(
         )
         workspace_name = starter_workspace_data.get("name")
         await ctx.info(
-            f"Found virtual workspace '{workspace_name}' (ID: {validated_workspace_id})"
+            f"Found starter workspace '{workspace_name}' (ID: {validated_workspace_id})"
         )
 
         class TerminationConfirmation(BaseModel):
             """Schema for collecting organization selection."""
 
             confirm: bool = Field(
-                description="Do you really want to terminate this virtual workspace?",
+                description="Do you really want to terminate this starter workspace?",
                 default=False,
             )
 
         # Check if elicitation is supported
         elicit_result, error = await try_elicitation(
             ctx=ctx,
-            message=f"⚠️ **WARNING**: You are about to terminate the virtual workspace '{workspace_name}'.\n\n"
+            message=f"⚠️ **WARNING**: You are about to terminate the starter workspace '{workspace_name}'.\n\n"
             "This action is permanent and cannot be undone. All data in the workspace will be lost.\n\n"
             "Do you want to proceed with the termination?",
             schema=TerminationConfirmation,
@@ -294,59 +294,22 @@ async def terminate_virtual_workspace(
             user_id,
             "tool_calling",
             {
-                "name": "terminate_virtual_workspace",
+                "name": "terminate_starter_workspace",
                 "workspace_id": validated_workspace_id,
             },
         )
 
         await ctx.info(
-            f"Proceeding with termination of virtual workspace: {validated_workspace_id}"
+            f"Proceeding with termination of starter workspace: {validated_workspace_id}"
         )
 
-        class TerminationConfirmation(BaseModel):
-            """Schema for collecting organization selection."""
-
-            confirm: bool = Field(
-                description="Confirm that you want to permanently terminate this virtual workspace",
-                default=False,
-            )
-
-        result = await ctx.elicit(
-            message=f"⚠️ **WARNING**: You are about to terminate the virtual workspace '{workspace_name or validated_workspace_id}'.\n\n"
-            "This action is permanent and cannot be undone. All data in the workspace will be lost.\n\n"
-            "Do you want to proceed with the termination?",
-            schema=TerminationConfirmation,
-        )
-
-        if not (result.action == "accept" and result.data and result.data.confirm):
-            return {
-                "status": "cancelled",
-                "message": "Workspace termination was cancelled by the user",
-                "workspace_id": validated_workspace_id,
-                "workspace_name": workspace_name,
-            }
-
-        # Track analytics event
-        settings.analytics_manager.track_event(
-            user_id,
-            "tool_calling",
-            {
-                "name": "terminate_virtual_workspace",
-                "workspace_id": validated_workspace_id,
-            },
-        )
-
-        await ctx.info(
-            f"Proceeding with termination of virtual workspace: {validated_workspace_id}"
-        )
-
-        # Terminate the virtual workspace
+        # Terminate the starter workspace
         build_request(
             "DELETE", f"sharedtier/virtualWorkspaces/{validated_workspace_id}"
         )
 
         success_message = (
-            f"Virtual workspace '{workspace_name}' terminated successfully"
+            f"Starter workspace '{workspace_name}' terminated successfully"
         )
         await ctx.info(success_message)
 
@@ -359,7 +322,7 @@ async def terminate_virtual_workspace(
         }
 
     except Exception as e:
-        error_msg = f"Failed to terminate virtual workspace '{validated_workspace_id}': {str(e)}"
+        error_msg = f"Failed to terminate starter workspace '{validated_workspace_id}': {str(e)}"
         ctx.error(error_msg)
 
         return {

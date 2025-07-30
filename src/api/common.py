@@ -1,4 +1,4 @@
-from typing import List
+from typing import Any, Dict, List
 import requests
 import json
 
@@ -311,7 +311,7 @@ def __get_workspace_endpoint(
     return workspace["endpoint"]
 
 
-def __get_user_id() -> str:
+def fetch_user() -> Dict[str, Any]:
     """
     Get the current user's ID from the management API.
 
@@ -326,9 +326,7 @@ def __get_user_id() -> str:
     # Since we can't directly get the current user ID, we'll use the first user
     # In a real implementation, we might need additional logic to identify the current user
     if users and isinstance(users, list) and len(users) > 0:
-        user_id = users[0].get("userID")
-        if user_id:
-            return user_id
+        return users[0]
 
     raise ValueError("Could not retrieve user ID from the API")
 
