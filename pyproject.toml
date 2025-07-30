@@ -101,5 +101,6 @@ addopts = [
     "--strict-config"
 ]
 markers = [
-    "integration: mark a test as an integration test"
+    "integration: mark a test as an integration test",
+    "asyncio: mark a test as asyncio coroutine"
 ]
