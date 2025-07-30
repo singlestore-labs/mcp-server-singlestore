@@ -12,6 +12,8 @@ dependencies = [
  "starlette>=0.46.2",
  "jsonschema>=4.0.0",
  "singlestoredb>=1.15.0",
+ "pre-commit>=4.2.0",
+ "pytest-asyncio>=1.1.0",
 ]
 
 [project.scripts]
@@ -97,8 +99,9 @@ python_functions = ["test_*"]
 addopts = [
     "-v",
     "--strict-markers",
-    "--strict-config",
-    "--cov=src",
-    "--cov-report=term-missing",
-    "--cov-report=xml",
+    "--strict-config"
+]
+markers = [
+    "integration: mark a test as an integration test",
+    "asyncio: mark a test as asyncio coroutine"
 ]
