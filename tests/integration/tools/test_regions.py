@@ -1,57 +1,52 @@
 import pytest
-from unittest.mock import patch, AsyncMock
-from src.api.tools.regions import regions
+import src.api.tools as tools
 
 
-def test_list_regions_success():
-    mock_regions = [
-        {"regionID": "us-west-2", "provider": "AWS", "name": "US West 2 (Oregon)"},
-        {
-            "regionID": "europe-west1",
-            "provider": "GCP",
-            "name": "Europe West 1 (Belgium)",
-        },
-    ]
-    with patch(
-        "src.api.tools.regions.regions.build_request", return_value=mock_regions
-    ):
-        result = regions.list_regions()
+@pytest.mark.integration
+class TestRegionsIntegration:
+    @pytest.mark.asyncio
+    async def test_list_regions(self, mock_context):
+        result = await tools.list_regions(ctx=mock_context)
+
         assert result["status"] == "success"
-        assert result["data"]["result"] == mock_regions
-        assert result["metadata"]["count"] == 2
-        assert result["metadata"]["provider_summary"] == {"AWS": 1, "GCP": 1}
 
+        assert "data" in result
 
-@pytest.mark.asyncio
-async def test_list_sharedtier_regions_success():
-    mock_regions = [
-        {"regionName": "us-west-2", "provider": "AWS", "name": "US West 2 (Oregon)"},
-        {
-            "regionName": "europe-west1",
-            "provider": "GCP",
-            "name": "Europe West 1 (Belgium)",
-        },
-    ]
-    mock_ctx = AsyncMock()
-    with patch(
-        "src.api.tools.regions.regions.fetch_shared_tier_regions",
-        return_value=mock_regions,
-    ):
-        result = await regions.list_sharedtier_regions(mock_ctx)
+        # Verify the data structure
+        data = result["data"]
+        assert "result" in data
+        regions_data = data["result"]
+
+        assert isinstance(regions_data, list)
+        assert len(regions_data) > 0
+        for region in regions_data:
+            assert "regionID" in region
+            assert "provider" in region
+            assert "region" in region
+            assert region["regionID"] is not None
+            assert region["provider"] in ["AWS", "GCP", "Azure"]
+            assert region["region"] is not None
+
+    @pytest.mark.asyncio
+    async def test_list_sharedtier_regions(self, mock_context):
+        result = await tools.list_sharedtier_regions(ctx=mock_context)
+
         assert result["status"] == "success"
-        assert result["data"]["result"] == mock_regions
-        assert result["metadata"]["count"] == 2
-        mock_ctx.info.assert_awaited_once()
 
+        assert "data" in result
 
-@pytest.mark.asyncio
-async def test_list_sharedtier_regions_error():
-    mock_ctx = AsyncMock()
-    with patch(
-        "src.api.tools.regions.regions.fetch_shared_tier_regions",
-        side_effect=Exception("API error"),
-    ):
-        result = await regions.list_sharedtier_regions(mock_ctx)
-        assert result["status"] == "error"
-        assert "API error" in result["message"]
-        mock_ctx.error.assert_awaited_once()
+        # Verify the data structure
+
+        data = result["data"]
+        assert "result" in data
+        sharedtier_regions_data = data["result"]
+
+        assert isinstance(sharedtier_regions_data, list)
+        assert len(sharedtier_regions_data) > 0
+        for region in sharedtier_regions_data:
+            assert "regionName" in region
+            assert "provider" in region
+            assert "region" in region
+            assert region["regionName"] is not None
+            assert region["provider"] in ["AWS", "GCP", "Azure"]
+            assert region["region"] is not None

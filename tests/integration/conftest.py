@@ -7,7 +7,7 @@ from src.config.config import LocalSettings, _settings_ctx, _user_id_ctx
 from src.analytics.manager import AnalyticsManager
 
 
-@pytest.fixture
+@pytest.fixture(scope="module", autouse=True)
 def mock_context():
     """Create a mock Context object for testing async tools."""
     context = AsyncMock()
@@ -68,7 +68,9 @@ def mock_user_id():
 
 
 @pytest.fixture(scope="module", autouse=True)
-def setup_integration_test_environment(request, api_key_settings, mock_user_id):
+def setup_integration_test_environment(
+    request, api_key_settings, mock_user_id, mock_context
+):
     if "integration" in request.keywords:
         _settings_ctx.set(api_key_settings)
         _user_id_ctx.set(mock_user_id)

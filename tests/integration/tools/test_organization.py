@@ -1,7 +1,5 @@
-"""Integration tests for organization tools."""
-
 import pytest
-from src.api.tools.organization.organization import organization_info
+import src.api.tools as tools
 
 
 @pytest.mark.integration
@@ -17,7 +15,9 @@ class TestOrganizationInfoIntegration:
         """
 
         # Call the organization_info function
-        result = organization_info()
+        result = tools.organization_info()
+
+        assert result["status"] == "success"
 
         assert "data" in result
 
@@ -31,4 +31,3 @@ class TestOrganizationInfoIntegration:
         assert "name" in org_data
         assert org_data["orgID"] is not None
         assert org_data["name"] is not None
-        print(f"Organization ID: {org_data['orgID']}, Name: {org_data['name']}")
