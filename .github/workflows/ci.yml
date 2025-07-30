@@ -127,3 +127,59 @@ jobs:
           file: ./coverage.xml
           fail_ci_if_error: false
           verbose: true
+
+  unit-test:
+    name: Unit Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Install dependencies
+        run: |
+          uv sync --dev
+
+      - name: Run unit tests
+        run: |
+          uv run pytest tests/unit
+
+  integration-test:
+    name: Integration Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Install dependencies
+        run: |
+          uv sync --dev
+
+      - name: Run integration tests
+        run: |
+          uv run pytest tests/integration
