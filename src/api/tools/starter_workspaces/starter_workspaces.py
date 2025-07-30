@@ -1,13 +1,14 @@
 """Starter workspaces tools for SingleStore MCP server."""
 
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from pydantic import BaseModel, Field
 
 from mcp.server.fastmcp import Context
 
 from src.config import config
 from src.api.common import build_request
+from src.api.tools.regions.utils import fetch_shared_tier_regions
 from src.utils.uuid_validation import validate_workspace_id
 from src.utils.elicitation import try_elicitation, ElicitationError
 from src.logger import get_logger
@@ -49,7 +50,11 @@ def list_virtual_workspaces() -> Dict[str, Any]:
 
 
 async def create_starter_workspace(
-    ctx: Context, name: str, database_name: str, provider: str, region_name: str
+    ctx: Context,
+    name: str,
+    database_name: str,
+    provider: Optional[str] = None,
+    region_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Create a new starter workspace using the SingleStore SDK.
@@ -100,6 +105,60 @@ async def create_starter_workspace(
     )
 
     try:
+        # If provider or region_name are not provided, fetch available regions and ask user to pick
+        if provider is None or region_name is None:
+            await ctx.info("Fetching available shared tier regions...")
+            regions_data = fetch_shared_tier_regions()
+
+            # Group regions by provider
+            provider_regions = {}
+            for region in regions_data:
+                prov = region.get("provider")
+                if prov not in provider_regions:
+                    provider_regions[prov] = []
+                provider_regions[prov].append(region.get("regionName"))
+
+            # Create region selection schema
+            class RegionSelection(BaseModel):
+                provider: str = Field(
+                    description=f"Choose a cloud provider from: {', '.join(provider_regions.keys())}"
+                )
+                region_name: str = Field(
+                    description="Choose a region name from the available regions for the selected provider"
+                )
+
+            # Format region information for user
+            region_info = "\n".join(
+                [
+                    f"**{prov}**: {', '.join([r for r in regions])}"
+                    for prov, regions in provider_regions.items()
+                ]
+            )
+
+            elicit_result, error = await try_elicitation(
+                ctx=ctx,
+                message=f"Please select a provider and region for your starter workspace:\n\n{region_info}",
+                schema=RegionSelection,
+            )
+
+            if error == ElicitationError.NOT_SUPPORTED:
+                # Use first available region if elicitation not supported
+                first_region = regions_data[0]
+                provider = first_region.get("provider")
+                region_name = first_region.get("regionName")
+                await ctx.info(f"Using default region: {provider} - {region_name}")
+            elif elicit_result.status == "success" and elicit_result.data:
+                provider = elicit_result.data.provider
+                region_name = elicit_result.data.region_name
+                await ctx.info(f"Selected region: {provider} - {region_name}")
+            else:
+                return {
+                    "status": "cancelled",
+                    "message": "Workspace creation cancelled - no region selected",
+                    "workspace_name": name,
+                    "database_name": database_name,
+                }
+
         # Create the starter workspace using the API
         payload = {
             "name": name,
@@ -127,7 +186,7 @@ async def create_starter_workspace(
 
     except Exception as e:
         error_msg = f"Failed to create starter workspace '{name}': {str(e)}"
-        ctx.error(error_msg)
+        await ctx.error(error_msg)
 
         return {
             "status": "error",

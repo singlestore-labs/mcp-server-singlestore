@@ -7,6 +7,7 @@ from typing import Any, Dict
 from mcp.server.fastmcp import Context
 
 from src.api.common import build_request
+from src.api.tools.regions.utils import fetch_shared_tier_regions
 from src.logger import get_logger
 
 # Set up logger for this module
@@ -79,7 +80,7 @@ async def list_sharedtier_regions(ctx: Context) -> Dict[str, Any]:
     await ctx.info("Listing available shared tier regions...")
 
     try:
-        regions_data = build_request("GET", "regions/sharedtier")
+        regions_data = fetch_shared_tier_regions()
 
         return {
             "status": "success",
@@ -93,8 +94,8 @@ async def list_sharedtier_regions(ctx: Context) -> Dict[str, Any]:
         }
 
     except Exception as e:
-        error_msg = f"Failed to list shared tier regions: {str(e)}"
-        ctx.error(error_msg)
+        error_msg = str(e)
+        await ctx.error(error_msg)
 
         return {
             "status": "error",

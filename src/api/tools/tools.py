@@ -33,7 +33,7 @@ tools_definition = [
     {"func": workspace_groups_info},
     {"func": workspaces_info},
     {"func": list_virtual_workspaces},
-    {"func": create_starter_workspace, "internal": True},
+    {"func": create_starter_workspace},
     {"func": terminate_virtual_workspace},
     {"func": list_regions},
     {"func": list_sharedtier_regions},
