@@ -332,7 +332,7 @@ class SingleStoreOAuthProvider(OAuthAuthorizationServerProvider):
                 # If client information is not found, use a default name
                 client_name = "Unknown Client"
 
-            user_id = self.__get_user_id(token)
+            user_id = self.get_user_id(token)
             settings.analytics_manager.identify(
                 user_id=user_id,
                 traits={
@@ -375,7 +375,7 @@ class SingleStoreOAuthProvider(OAuthAuthorizationServerProvider):
             cur.execute("DELETE FROM oauth_tokens WHERE token=%s", (token,))
             conn.commit()
 
-    def __get_user_id(self, token: str) -> str | None:
+    def get_user_id(self, token: str) -> str | None:
         """Extract user ID from the token if available."""
         settings = get_settings()
 

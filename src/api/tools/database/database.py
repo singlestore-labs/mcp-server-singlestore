@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from mcp.server.fastmcp import Context
 
 from src.config import config
-from src.api.common import __get_user_id, get_access_token
+from src.api.common import fetch_user, get_access_token
 from src.api.tools.s2_manager import S2Manager
 from src.api.tools.types import WorkspaceTarget
 from src.auth.session_credentials_manager import (
@@ -116,7 +116,8 @@ async def _get_database_credentials(
             raise Exception(f"Failed to obtain database credentials: {str(e)}")
     else:
         # JWT authentication: use user_id and access_token as before
-        return __get_user_id(), get_access_token()
+        user = fetch_user()
+        return user.get("userID"), get_access_token()
 
 
 async def __execute_sql_unified(

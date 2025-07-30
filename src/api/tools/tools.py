@@ -12,7 +12,7 @@ from src.api.tools.starter_workspaces import (
 )
 from src.api.tools.regions import list_regions, list_sharedtier_regions
 from src.api.tools.database import run_sql
-from src.api.tools.user import get_user_id
+from src.api.tools.user import get_user_info
 from src.api.tools.notebooks import (
     create_notebook_file,
     list_shared_files,
@@ -26,7 +26,7 @@ from src.api.tools.organization import (
 
 # Define the tools with their metadata
 tools_definition = [
-    {"func": get_user_id},
+    {"func": get_user_info},
     {"func": organization_info},
     {"func": choose_organization},
     {"func": set_organization},
