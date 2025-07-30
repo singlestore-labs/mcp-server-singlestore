@@ -97,8 +97,5 @@ python_functions = ["test_*"]
 addopts = [
     "-v",
     "--strict-markers",
-    "--strict-config",
-    "--cov=src",
-    "--cov-report=term-missing",
-    "--cov-report=xml",
+    "--strict-config"
 ]
