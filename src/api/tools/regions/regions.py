@@ -14,7 +14,7 @@ from src.logger import get_logger
 logger = get_logger()
 
 
-def list_regions() -> dict:
+async def list_regions(ctx: Context) -> Dict[str, Any]:
     """
     List all available deployment regions where SingleStore workspaces can be deployed by the user.
 
@@ -31,14 +31,21 @@ def list_regions() -> dict:
        - Available cloud providers
     2. Plan multi-region deployments
     """
-    start_time = time.time()
-    regions_data = build_request("GET", "regions")
+    await ctx.info("Listing available deployment regions...")
 
-    # Group regions by provider
-    provider_counts = {}
-    for region in regions_data:
-        provider = region.get("provider", "Unknown")
-        provider_counts[provider] = provider_counts.get(provider, 0) + 1
+    start_time = time.time()
+
+    try:
+        regions_data = build_request("GET", "regions")
+    except Exception as e:
+        error_msg = f"Failed to list regions: {str(e)}"
+        await ctx.error(error_msg)
+        logger.error(error_msg)
+        return {
+            "status": "error",
+            "message": error_msg,
+            "error": str(e),
+        }
 
     execution_time = (time.time() - start_time) * 1000
 
@@ -49,7 +56,6 @@ def list_regions() -> dict:
         "metadata": {
             "execution_time_ms": round(execution_time, 2),
             "count": len(regions_data),
-            "provider_summary": provider_counts,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         },
     }
@@ -79,19 +85,10 @@ async def list_sharedtier_regions(ctx: Context) -> Dict[str, Any]:
     """
     await ctx.info("Listing available shared tier regions...")
 
+    start_time = time.time()
+
     try:
         regions_data = fetch_shared_tier_regions()
-
-        return {
-            "status": "success",
-            "message": f"Retrieved {len(regions_data)} shared tier regions",
-            "data": {"result": regions_data},
-            "metadata": {
-                "execution_time_ms": 100,  # Placeholder for actual execution time
-                "count": len(regions_data),
-                "timestamp": datetime.now().isoformat(),
-            },
-        }
 
     except Exception as e:
         error_msg = str(e)
@@ -102,3 +99,16 @@ async def list_sharedtier_regions(ctx: Context) -> Dict[str, Any]:
             "message": error_msg,
             "error": str(e),
         }
+
+    execution_time = (time.time() - start_time) * 1000
+
+    return {
+        "status": "success",
+        "message": f"Retrieved {len(regions_data)} shared tier regions",
+        "data": {"result": regions_data},
+        "metadata": {
+            "execution_time_ms": round(execution_time, 2),
+            "count": len(regions_data),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    }
