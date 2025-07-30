@@ -17,7 +17,7 @@ def mock_context():
     return context
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="module", autouse=True)
 def api_key_settings():
     """Create LocalSettings configured for API key authentication."""
     api_key = os.getenv("MCP_API_KEY")
@@ -61,26 +61,21 @@ def mock_api_key_settings():
     return settings
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="module", autouse=True)
 def mock_user_id():
     """Mock user ID for testing."""
     return "test-user-12345"
 
 
 @pytest.fixture(scope="module", autouse=True)
-def setup_integration_test_environment(
-    request, api_key_settings, mock_user_id, mock_context
-):
-    if "integration" in request.keywords:
-        _settings_ctx.set(api_key_settings)
-        _user_id_ctx.set(mock_user_id)
-        try:
-            yield
-        finally:
-            _settings_ctx.set(None)
-            _user_id_ctx.set(None)
-    else:
+def setup_integration_test_environment(request, api_key_settings, mock_user_id):
+    _settings_ctx.set(api_key_settings)
+    _user_id_ctx.set(mock_user_id)
+    try:
         yield
+    finally:
+        _settings_ctx.set(None)
+        _user_id_ctx.set(None)
 
 
 @pytest.fixture

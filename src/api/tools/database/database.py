@@ -129,12 +129,12 @@ async def __execute_sql_unified(
     database: str | None = None,
 ) -> dict:
     """
-    Execute SQL operations on a connected workspace or virtual workspace.
+    Execute SQL operations on a connected workspace or starter workspace.
     Returns results and column names in a dictionary format.
     """
 
     if target.endpoint is None:
-        raise ValueError("Workspace or virtual workspace does not have an endpoint. ")
+        raise ValueError("Workspace or starter workspace does not have an endpoint. ")
     endpoint = target.endpoint
     database_name = database
 
@@ -214,13 +214,13 @@ async def __execute_sql_unified(
 
 def __get_workspace_by_id(workspace_id: str) -> WorkspaceTarget:
     """
-    Get a workspace or virtual workspace by ID.
+    Get a workspace or starter workspace by ID.
 
     Args:
         workspace_id: The workspace ID to look up
 
     Returns:
-        WorkspaceTarget object with is_shared flag indicating if it's a virtual workspace
+        WorkspaceTarget object with is_shared flag indicating if it's a starter workspace
 
     Raises:
         ValueError: If workspace cannot be found
@@ -245,9 +245,9 @@ def __get_workspace_by_id(workspace_id: str) -> WorkspaceTarget:
         is_shared = False  # Dedicated workspace
     except Exception as e:
         if "404" in str(e):
-            # Try as virtual workspace
+            # Try as starter workspace
             try:
-                virtual_workspace_data = build_request(
+                starter_workspace_data = build_request(
                     "GET", f"sharedtier/virtualWorkspaces/{workspace_id}"
                 )
 
@@ -259,8 +259,8 @@ def __get_workspace_by_id(workspace_id: str) -> WorkspaceTarget:
                         self.endpoint = data.get("endpoint")
                         self.database_name = data.get("databaseName", "")
 
-                target = SimpleVirtualWorkspace(virtual_workspace_data)
-                is_shared = True  # Shared/virtual workspace
+                target = SimpleVirtualWorkspace(starter_workspace_data)
+                is_shared = True  # Shared/starter workspace
             except Exception:
                 raise ValueError(f"Cannot find workspace {workspace_id}")
         else:
@@ -282,11 +282,11 @@ async def run_sql(
     - Query results with column names and typed values
     - Row count and metadata
     - Execution status
-    - Workspace type ("shared" for virtual workspaces, "dedicated" for regular workspaces)
+    - Workspace type ("shared" for starter workspaces, "dedicated" for regular workspaces)
     - Workspace name
 
     Args:
-        id: Workspace or virtual workspace ID
+        id: Workspace or starter workspace ID
         sql_query: The SQL query to execute
         database: (optional) Database name to use
 
@@ -302,11 +302,11 @@ async def run_sql(
 
     settings = config.get_settings()
 
-    # Target can either be a workspace or a virtual workspace
+    # Target can either be a workspace or a starter workspace
     target = __get_workspace_by_id(validated_id)
     database_name = database
 
-    # For virtual workspaces, use their database name if not specified
+    # For starter workspaces, use their database name if not specified
     if target.is_shared and target.database_name and not database_name:
         database_name = target.database_name
 
@@ -381,7 +381,7 @@ async def run_sql(
         "tool_calling",
         {
             "name": "run_sql",
-            "virtual_workspace_id": id,
+            "starter_workspace_id": id,
             "workspace_type": "shared" if target.is_shared else "dedicated",
         },
     )

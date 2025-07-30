@@ -6,9 +6,9 @@ from src.api.tools.types import Tool
 from src.api.tools.workspaces import workspaces_info
 from src.api.tools.workspace_groups import workspace_groups_info
 from src.api.tools.starter_workspaces import (
-    list_virtual_workspaces,
+    list_starter_workspaces,
     create_starter_workspace,
-    terminate_virtual_workspace,
+    terminate_starter_workspace,
 )
 from src.api.tools.regions import list_regions, list_sharedtier_regions
 from src.api.tools.database import run_sql
@@ -32,9 +32,9 @@ tools_definition = [
     {"func": set_organization},
     {"func": workspace_groups_info},
     {"func": workspaces_info},
-    {"func": list_virtual_workspaces},
+    {"func": list_starter_workspaces},
     {"func": create_starter_workspace},
-    {"func": terminate_virtual_workspace},
+    {"func": terminate_starter_workspace},
     {"func": list_regions},
     {"func": list_sharedtier_regions},
     {"func": run_sql},

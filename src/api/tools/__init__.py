@@ -8,8 +8,8 @@ from .workspaces import workspaces_info
 from .database import run_sql
 from .organization import choose_organization, organization_info
 from .starter_workspaces import (
-    list_virtual_workspaces,
-    terminate_virtual_workspace,
+    list_starter_workspaces,
+    terminate_starter_workspace,
     create_starter_workspace,
 )
 
@@ -18,7 +18,7 @@ from .registery import register_tools
 __all__ = [
     "tools",
     "register_tools",
-    "terminate_virtual_workspace",
+    "terminate_starter_workspace",
     "get_user_info",
     "list_regions",
     "list_sharedtier_regions",
@@ -26,6 +26,6 @@ __all__ = [
     "run_sql",
     "choose_organization",
     "organization_info",
-    "list_virtual_workspaces",
+    "list_starter_workspaces",
     "create_starter_workspace",
 ]

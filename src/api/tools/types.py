@@ -34,7 +34,7 @@ class WorkspaceTarget:
 
     @property
     def database_name(self) -> str:
-        """Get the database name (for virtual workspaces)."""
+        """Get the database name (for starter workspaces)."""
         if hasattr(self.workspace, "database_name"):
             return self.workspace.database_name
         return None

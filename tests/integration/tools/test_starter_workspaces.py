@@ -41,14 +41,14 @@ class TestStarterWorkspacesIntegration:
         assert created_workspace_id is not None
 
         # List starter workspaces after creation
-        workspaces_after_create = tools.list_virtual_workspaces()["data"]["result"]
+        workspaces_after_create = tools.list_starter_workspaces()["data"]["result"]
         workspace_ids_after_create = set(
             w["virtualWorkspaceID"] for w in workspaces_after_create
         )
         assert created_workspace_id in workspace_ids_after_create
 
         # Terminate the newly created workspace
-        terminate_result = await tools.terminate_virtual_workspace(
+        terminate_result = await tools.terminate_starter_workspace(
             ctx=mock_context,
             workspace_id=created_workspace_id,
         )
@@ -56,7 +56,7 @@ class TestStarterWorkspacesIntegration:
         assert terminate_result["workspace_id"] == created_workspace_id
 
         # List starter workspaces after termination
-        workspaces_after_terminate = tools.list_virtual_workspaces()["data"]["result"]
+        workspaces_after_terminate = tools.list_starter_workspaces()["data"]["result"]
         workspace_ids_after_terminate = set(
             w["virtualWorkspaceID"] for w in workspaces_after_terminate
         )

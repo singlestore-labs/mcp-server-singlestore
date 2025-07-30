@@ -87,9 +87,9 @@ class TestToolsIntegration:
         with pytest.raises(ValueError, match="Invalid UUID format"):
             validate_uuid_string("invalid-group-id", strict=True)
 
-    def test_terminate_virtual_workspace_validates_id(self):
-        """Test that terminate_virtual_workspace validates workspace ID."""
-        # Instead of testing the entire terminate_virtual_workspace function which has
+    def test_terminate_starter_workspace_validates_id(self):
+        """Test that terminate_starter_workspace validates workspace ID."""
+        # Instead of testing the entire terminate_starter_workspace function which has
         # complex dependencies, we test that the validation logic works correctly
         # by directly testing the validate_workspace_id function that it uses
 
@@ -102,7 +102,7 @@ class TestToolsIntegration:
         result = validate_workspace_id(valid_uuid)
         assert result == valid_uuid
 
-        # Test workspace IDs with prefixes (ws- for virtual workspaces)
+        # Test workspace IDs with prefixes (ws- for starter workspaces)
         workspace_id_with_prefix = f"ws-{uuid4()}"
         result = validate_workspace_id(workspace_id_with_prefix)
         assert result == workspace_id_with_prefix
