@@ -105,3 +105,5 @@ markers = [
     "integration: mark a test as an integration test",
     "asyncio: mark a test as asyncio coroutine"
 ]
+
+asyncio_default_fixture_loop_scope = "function"
