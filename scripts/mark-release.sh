@@ -93,29 +93,33 @@ echo "__version__ = \"$NEW_VERSION\"" > src/version.py
 git add src/version.py
 git commit -m "release: bump version to $NEW_VERSION ($RELEASE_TYPE release)"
 
-git push origin "$CURRENT_BRANCH"
-
-echo ""
 # Create changelog file if it doesn't exist
 CHANGELOG_FILE="changelog/$NEW_VERSION.md"
 if [ ! -f "$CHANGELOG_FILE" ]; then
-    CURRENT_DATE=$(date +%Y-%m-%d)
-    echo "# [$NEW_VERSION] - $CURRENT_DATE
+    echo ""
+    echo -e "${BLUE}Creating changelog file...${NC}"
 
-## Added
--
--
+    # Use the create-changelog script with pre-selected choice
+    export CHANGELOG_CHOICE=""
+    case $RELEASE_TYPE in
+        "patch") CHANGELOG_CHOICE="1" ;;
+        "minor") CHANGELOG_CHOICE="2" ;;
+        "major") CHANGELOG_CHOICE="3" ;;
+    esac
 
-## Fixed
--
--
-" > "$CHANGELOG_FILE"
+    # Run create-changelog script non-interactively
+    echo "$CHANGELOG_CHOICE" | ./scripts/create-changelog.sh > /dev/null 2>&1
 
-    # Add changelog to git
+    # Add changelog to git and amend the version commit
     git add "$CHANGELOG_FILE"
     git commit --amend --no-edit
+
+    echo -e "${GREEN}✅ Changelog file created: $CHANGELOG_FILE${NC}"
 fi
 
+git push origin "$CURRENT_BRANCH"
+
+echo ""
 echo -e "${GREEN}✅ Branch marked for release!${NC}"
 echo ""
 echo -e "${BLUE}Next steps:${NC}"
