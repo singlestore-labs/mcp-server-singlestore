@@ -27,7 +27,7 @@ def get_singlestore_drizzle_guide() -> dict:
                 "uri": "docs://singlestore/drizzle-integration",
                 "metadata": {
                     "content_length": len(content),
-                    "file_path": str(docs_path),
+                    "filePath": str(docs_path),
                 },
             }
     except FileNotFoundError:
@@ -36,8 +36,8 @@ def get_singlestore_drizzle_guide() -> dict:
             "message": "SingleStore Drizzle integration guide not found",
             "content": "SingleStore Drizzle integration guide not found.",
             "uri": "docs://singlestore/drizzle-integration",
-            "error_code": "FileNotFound",
-            "error_details": {"file_path": str(docs_path)},
+            "errorCode": "FileNotFound",
+            "errorDetails": {"filePath": str(docs_path)},
         }
 
 

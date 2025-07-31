@@ -6,8 +6,9 @@ from pydantic import BaseModel, Field
 
 from mcp.server.fastmcp import Context
 
+import src.api.tools.organization.utils as utils
 from src.config import config
-from src.api.common import build_request, query_graphql_organizations
+from src.api.common import query_graphql_organizations
 from src.utils.elicitation import try_elicitation, ElicitationError
 from src.logger import get_logger
 
@@ -30,16 +31,18 @@ def organization_info() -> dict:
         user_id, "tool_calling", {"name": "organization_info"}
     )
 
-    org_data = build_request("GET", "organizations/current")
+    org = utils.fetch_organization()
     execution_time = (time.time() - start_time) * 1000
 
     return {
         "status": "success",
-        "message": f"Retrieved organization information for '{org_data.get('name', 'Unknown')}'",
-        "data": {"result": org_data},
+        "message": f"Retrieved organization information for '{org.name}'",
+        "data": {
+            "orgID": org.id,
+            "name": org.name,
+        },
         "metadata": {
             "execution_time_ms": round(execution_time, 2),
-            "org_id": org_data.get("orgID"),
             "timestamp": datetime.now(timezone.utc).isoformat(),
         },
     }
@@ -181,8 +184,8 @@ async def choose_organization(ctx: Context) -> dict:
         return {
             "status": "error",
             "message": f"Failed to retrieve organizations: {str(e)}",
-            "error_code": "ORGANIZATION_QUERY_FAILED",
-            "error_details": {"exception_type": type(e).__name__},
+            "errorCode": "ORGANIZATION_QUERY_FAILED",
+            "errorDetails": {"exception_type": type(e).__name__},
         }
 
 
@@ -232,8 +235,8 @@ async def set_organization(ctx: Context, organization_id: str) -> dict:
             return {
                 "status": "error",
                 "message": f"Organization ID '{organization_id}' not found. Available IDs: {available_orgs}",
-                "error_code": "INVALID_ORGANIZATION",
-                "error_details": {
+                "errorCode": "INVALID_ORGANIZATION",
+                "errorDetails": {
                     "provided_id": organization_id,
                     "available_ids": [org["orgID"] for org in organizations],
                 },
@@ -266,6 +269,6 @@ async def set_organization(ctx: Context, organization_id: str) -> dict:
         return {
             "status": "error",
             "message": f"Failed to set organization: {str(e)}",
-            "error_code": "ORGANIZATION_SET_FAILED",
-            "error_details": {"exception_type": type(e).__name__},
+            "errorCode": "ORGANIZATION_SET_FAILED",
+            "errorDetails": {"exception_type": type(e).__name__},
         }

@@ -1,5 +1,3 @@
-"""Notebook tools for SingleStore MCP server."""
-
 import json
 import os
 import tempfile
@@ -15,7 +13,7 @@ from mcp.server.fastmcp import Context
 
 from src.api.tools.notebooks import utils
 from src.config import config
-from src.api.common import build_request, get_access_token, get_org_id
+from src.api.common import get_access_token, get_org_id
 from src.logger import get_logger
 from src.utils.elicitation import try_elicitation
 
@@ -102,15 +100,15 @@ async def create_notebook_file(ctx: Context, content: Dict[str, Any]) -> Dict[st
             "status": "success",
             "message": "Notebook file created successfully at temporary location",
             "data": {
-                "temp_file_path": temp_file_path,
-                "cell_count": len(notebook_cells),
-                "schema_validated": schema_validated,
-                "notebook_format": {"nbformat": 4, "nbformat_minor": 5},
+                "tempFilePath": temp_file_path,
+                "cellCount": len(notebook_cells),
+                "schemaValidated": schema_validated,
+                "notebookFormat": {"nbformat": 4, "nbformat_minor": 5},
             },
             "metadata": {
-                "execution_time_ms": round(execution_time, 2),
+                "executionTimeMs": round(execution_time, 2),
                 "timestamp": datetime.now(timezone.utc).isoformat(),
-                "temp_file_size": os.path.getsize(temp_file_path),
+                "tempFileSize": os.path.getsize(temp_file_path),
             },
         }
 
@@ -119,65 +117,9 @@ async def create_notebook_file(ctx: Context, content: Dict[str, Any]) -> Dict[st
         return {
             "status": "error",
             "message": f"Failed to create notebook file: {str(e)}",
-            "error_code": "NOTEBOOK_CREATION_FAILED",
-            "error_details": {"exception_type": type(e).__name__},
+            "errorCode": "NOTEBOOK_CREATION_FAILED",
+            "errorDetails": {"exception_type": type(e).__name__},
         }
-
-
-async def list_shared_files() -> Dict[str, Any]:
-    """
-    List all files and notebooks in your shared SingleStore space.
-
-    Returns file object meta data for each file:
-    - name: Name of the file (e.g., 'analysis.ipynb')
-    - path: Full path in shared space (e.g., 'folder/analysis.ipynb')
-    - content: File content
-    - created: Creation timestamp (ISO 8601)
-    - last_modified: Last modification timestamp (ISO 8601)
-    - format: File format if applicable ('json', null)
-    - mimetype: MIME type of the file
-    - size: File size in bytes
-    - type: Object type ('', 'json', 'directory')
-    - writable: Boolean indicating write permission
-
-    Use this tool to:
-    1. List workspace contents and structure
-    2. Verify file existence before operations
-    3. Check file timestamps and sizes
-    4. Determine file permissions
-    """
-    start_time = time.time()
-    files_data = build_request("GET", "files/fs/shared")
-
-    # Calculate file statistics
-    total_size = sum(f.get("size", 0) for f in files_data.get("content", []))
-    file_types = {}
-    mime_types = {}
-
-    for file_info in files_data.get("content", []):
-        file_type = file_info.get("type", "unknown")
-        file_types[file_type] = file_types.get(file_type, 0) + 1
-
-        mime_type = file_info.get("mimetype", "unknown")
-        mime_types[mime_type] = mime_types.get(mime_type, 0) + 1
-
-    execution_time = (time.time() - start_time) * 1000
-
-    return {
-        "status": "success",
-        "message": f"Retrieved {len(files_data.get('content', []))} files from shared space",
-        "data": {
-            "result": files_data,
-        },
-        "metadata": {
-            "execution_time_ms": round(execution_time, 2),
-            "file_count": len(files_data.get("content", [])),
-            "total_size_bytes": total_size,
-            "file_type_summary": file_types,
-            "mime_type_summary": mime_types,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        },
-    }
 
 
 class UploadLocation(BaseModel):
@@ -228,14 +170,14 @@ async def upload_notebook_file(
             return {
                 "status": "error",
                 "message": f"Local file not found: {local_path}",
-                "error_code": "FILE_NOT_FOUND",
+                "errorCode": "FILE_NOT_FOUND",
             }
 
         if not local_path.endswith(".ipynb"):
             return {
                 "status": "error",
                 "message": "File must be a Jupyter notebook (.ipynb)",
-                "error_code": "INVALID_FILE_TYPE",
+                "errorCode": "INVALID_FILE_TYPE",
             }
     except Exception as e:
         error_msg = f"Failed to validate local file '{local_path}': {str(e)}"
@@ -245,7 +187,7 @@ async def upload_notebook_file(
             "status": "error",
             "message": error_msg,
             "error": str(e),
-            "file_path": local_path,
+            "filePath": local_path,
         }
 
     # Read notebook content and normalize to valid format
@@ -256,8 +198,8 @@ async def upload_notebook_file(
         return {
             "status": "error",
             "message": f"Invalid JSON in notebook file: {str(e)}",
-            "error_code": "INVALID_JSON",
-            "error_details": {"json_error": str(e)},
+            "errorCode": "INVALID_JSON",
+            "errorDetails": {"json_error": str(e)},
         }
 
     # Transform to valid notebook format before validation and upload
@@ -308,7 +250,7 @@ async def upload_notebook_file(
                 return {
                     "status": "error",
                     "message": "Invalid upload location. Must be 'shared' or 'personal'",
-                    "error_code": "INVALID_UPLOAD_LOCATION",
+                    "errorCode": "INVALID_UPLOAD_LOCATION",
                 }
         elif elicitation_result.status == "cancelled":
             return {
@@ -325,7 +267,7 @@ async def upload_notebook_file(
         return {
             "status": "error",
             "message": "Invalid upload location. Must be 'shared' or 'personal'",
-            "error_code": "INVALID_UPLOAD_LOCATION",
+            "errorCode": "INVALID_UPLOAD_LOCATION",
         }
 
     # Derive remote path from elicited upload_name
@@ -346,9 +288,9 @@ async def upload_notebook_file(
         return {
             "status": "error",
             "message": f"File '{remote_path}' already exists in {final_location} space. Please choose a different name or delete the existing file first.",
-            "error_code": "FILE_ALREADY_EXISTS",
-            "error_details": {
-                "existing_file": remote_path,
+            "errorCode": "FILE_ALREADY_EXISTS",
+            "errorDetails": {
+                "existingFile": remote_path,
                 "location": final_location,
             },
         }
@@ -372,9 +314,9 @@ async def upload_notebook_file(
         return {
             "status": "error",
             "message": "Invalid upload location. Must be 'shared' or 'personal'",
-            "error_code": "INVALID_UPLOAD_LOCATION",
-            "error_details": {
-                "upload_location": final_location,
+            "errorCode": "INVALID_UPLOAD_LOCATION",
+            "errorDetails": {
+                "uploadLocation": final_location,
             },
         }
 
@@ -388,11 +330,11 @@ async def upload_notebook_file(
         return {
             "status": "error",
             "message": f"Failed to upload notebook: {str(upload_error)}",
-            "error_code": "UPLOAD_FAILED",
-            "error_details": {
+            "errorCode": "UPLOAD_FAILED",
+            "errorDetails": {
                 "filename": upload_name,
-                "upload_location": final_location,
-                "exception_type": type(upload_error).__name__,
+                "uploadLocation": final_location,
+                "exceptionType": type(upload_error).__name__,
             },
         }
 
@@ -414,17 +356,100 @@ async def upload_notebook_file(
         "status": "success",
         "message": f"Notebook uploaded successfully to {final_location} space",
         "data": {
-            "local_path": local_path,
-            "remote_path": file_info.path,
-            "upload_name": upload_name,
-            "upload_location": final_location,
-            "file_type": file_info.type,
-            "file_format": file_info.format,
-            "schema_validated": schema_validated,
+            "localPath": local_path,
+            "remotePath": file_info.path,
+            "uploadName": upload_name,
+            "uploadLocation": final_location,
+            "fileType": file_info.type,
+            "fileFormat": file_info.format,
+            "schemaValidated": schema_validated,
         },
         "metadata": {
-            "execution_time_ms": round(execution_time, 2),
+            "executionTimeMs": round(execution_time, 2),
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "file_size": os.path.getsize(local_path),
+            "fileSize": os.path.getsize(local_path),
         },
     }
+
+
+async def create_job_from_notebook(
+    ctx: Context,
+    name: str,
+    notebook_path: str,
+    mode: str = "Once",
+    execution_interval_in_minutes: Optional[int] = None,
+) -> dict:
+    """
+    Create a scheduled job to run a notebook (uploaded to shared space).
+
+    Args:
+        ctx: Context object
+        name: Name of the job
+        notebook_path: Remote path to the shared notebook file
+        mode: Job mode (options: "Once", "Recurring")
+        execution_interval_in_minutes: Optional interval in minutes for recurring jobs
+
+    Returns:
+        Dict with job creation result
+    """
+
+    logger.info("Creating job from notebook")
+
+    settings = config.get_settings()
+    start_time = time.time()
+    user_id = config.get_user_id()
+    try:
+        workspace_manager = s2.manage_workspaces(
+            access_token=get_access_token(),
+            base_url=settings.s2_api_base_url,
+            organization_id=get_org_id(),
+        )
+        org = workspace_manager.organization
+        jobs_manager = org.jobs
+
+        job_obj = jobs_manager.schedule(
+            notebook_path=notebook_path,
+            name=name,
+            mode=s2.management.job.Mode(mode),
+            create_snapshot=True,
+            execution_interval_in_minutes=execution_interval_in_minutes,
+        )
+
+        settings.analytics_manager.track_event(
+            user_id,
+            "tool_calling",
+            {
+                "name": "create_job_from_notebook",
+                "job_name": name,
+                "notebook_path": notebook_path,
+            },
+        )
+        execution_time = (time.time() - start_time) * 1000
+        return {
+            "status": "success",
+            "message": f"Job '{name}' created successfully.",
+            "data": {
+                "jobID": job_obj.job_id,
+                "name": job_obj.name,
+                "description": job_obj.description,
+                "completedExecutionsCount": job_obj.completed_executions_count,
+                "schedule": {
+                    "mode": job_obj.schedule.mode.value,
+                    "executionIntervalInMinutes": job_obj.schedule.execution_interval_in_minutes,
+                },
+                "createdAt": job_obj.created_at,
+                "terminatedAt": job_obj.terminated_at,
+            },
+            "metadata": {
+                "executionTimeMs": round(execution_time, 2),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+        }
+    except Exception as e:
+        logger.error(f"Error creating job: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Failed to create job: {str(e)}",
+            "errorCode": "JOB_CREATION_FAILED",
+            "errorDetails": {"exception_type": type(e).__name__},
+        }

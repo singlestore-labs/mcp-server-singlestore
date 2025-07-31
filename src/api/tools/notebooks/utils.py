@@ -135,21 +135,21 @@ def validate_content_structure(content: Dict[str, Any]) -> Optional[Dict[str, An
         return {
             "status": "error",
             "message": "Content must be a dictionary",
-            "error_code": "INVALID_CONTENT_TYPE",
+            "errorCode": "INVALID_CONTENT_TYPE",
         }
 
     if "cells" not in content:
         return {
             "status": "error",
             "message": "Content must contain a 'cells' field",
-            "error_code": "MISSING_CELLS_FIELD",
+            "errorCode": "MISSING_CELLS_FIELD",
         }
 
     if not isinstance(content["cells"], list):
         return {
             "status": "error",
             "message": "Cells field must be an array",
-            "error_code": "INVALID_CELLS_TYPE",
+            "errorCode": "INVALID_CELLS_TYPE",
         }
 
     return None
@@ -169,14 +169,14 @@ def convert_to_notebook_cells(cells: list) -> tuple[list, Optional[Dict[str, Any
             return [], {
                 "status": "error",
                 "message": f"Cell {i} must be a dictionary",
-                "error_code": "INVALID_CELL_TYPE",
+                "errorCode": "INVALID_CELL_TYPE",
             }
 
         if "type" not in cell or "content" not in cell:
             return [], {
                 "status": "error",
                 "message": f"Cell {i} must have 'type' and 'content' fields",
-                "error_code": "MISSING_CELL_FIELDS",
+                "errorCode": "MISSING_CELL_FIELDS",
             }
 
         cell_type = cell["type"]
@@ -186,7 +186,7 @@ def convert_to_notebook_cells(cells: list) -> tuple[list, Optional[Dict[str, Any
             return [], {
                 "status": "error",
                 "message": f"Cell {i} type must be 'markdown' or 'code', got '{cell_type}'",
-                "error_code": "INVALID_CELL_TYPE_VALUE",
+                "errorCode": "INVALID_CELL_TYPE_VALUE",
             }
 
         # Create cell ID
@@ -270,15 +270,15 @@ def validate_notebook_schema(
         return False, {
             "status": "error",
             "message": f"Schema file contains invalid JSON: {str(e)}\nPlease call create_notebook_file tool to create a jupyter notebook in the correct format",
-            "error_code": "INVALID_SCHEMA_FILE",
-            "error_details": {"json_error": str(e)},
+            "errorCode": "INVALID_SCHEMA_FILE",
+            "errorDetails": {"json_error": str(e)},
         }
     except jsonschema.ValidationError as e:
         return False, {
             "status": "error",
             "message": f"Notebook content validation failed: {e.message}",
-            "error_code": "SCHEMA_VALIDATION_FAILED",
-            "error_details": {"validation_error": str(e)},
+            "errorCode": "SCHEMA_VALIDATION_FAILED",
+            "errorDetails": {"validation_error": str(e)},
         }
     except Exception as e:
         logger.warning(f"Schema validation failed: {str(e)}")
