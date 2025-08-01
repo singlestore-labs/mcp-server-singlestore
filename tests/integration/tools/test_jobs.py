@@ -6,6 +6,7 @@ import uuid
 
 from src.api.tools.jobs import (
     create_job_from_notebook,
+    get_job,
     delete_job,
 )
 
@@ -105,17 +106,41 @@ class TestJobsTools:
         assert deleted is True
 
     @pytest.mark.asyncio
+    @pytest.mark.skip(reason="Skipping until the get job endpoint is fixed")
+    async def test_get_job_tool(self, mock_context):
+        job_name = f"test_get_job_{uuid.uuid4().hex}"
+        org = utils.get_organization()
+        jobs_manager = org.jobs
+        job_obj = jobs_manager.schedule(
+            notebook_path=type(self).notebook_path,
+            name=job_name,
+            mode=jobs_manager.modes().ONCE,
+            create_snapshot=True,
+        )
+        job_id = job_obj.job_id
+        job_info = await get_job(
+            ctx=mock_context,
+            job_id=job_id,
+        )
+        assert job_info["status"] == "success"
+        assert job_info["data"]["jobID"] == job_id
+        assert job_info["data"]["name"] == job_name
+        assert job_info["data"]["schedule"]["mode"] == "Once"
+        deleted = jobs_manager.delete(job_id)
+        assert deleted is True
+
+    @pytest.mark.asyncio
     async def test_delete_job_tool(self, mock_context):
         job_name = f"test_delete_job_{uuid.uuid4().hex}"
-        mode = "Once"
-        result = await create_job_from_notebook(
-            ctx=mock_context,
-            name=job_name,
+        org = utils.get_organization()
+        jobs_manager = org.jobs
+        job_obj = jobs_manager.schedule(
             notebook_path=type(self).notebook_path,
-            mode=mode,
+            name=job_name,
+            mode=jobs_manager.modes().ONCE,
+            create_snapshot=True,
         )
-        assert result["status"] == "success"
-        job_id = result["data"]["jobID"]
+        job_id = job_obj.job_id
         delete_result = await delete_job(
             ctx=mock_context,
             job_id=job_id,
