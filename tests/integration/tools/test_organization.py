@@ -22,9 +22,9 @@ class TestOrganizationInfoIntegration:
         assert "data" in result
 
         # Verify the data structure
-        data = result["data"]
-        assert "result" in data
-        org_data = data["result"]
+        org_data = result["data"]
+
+        assert isinstance(org_data, dict)
 
         # Organization data should contain orgID and name
         assert "orgID" in org_data

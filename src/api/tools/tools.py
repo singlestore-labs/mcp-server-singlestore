@@ -15,9 +15,9 @@ from src.api.tools.database import run_sql
 from src.api.tools.user import get_user_info
 from src.api.tools.notebooks import (
     create_notebook_file,
-    list_shared_files,
     upload_notebook_file,
 )
+from src.api.tools.jobs import create_job_from_notebook, delete_job
 from src.api.tools.organization import (
     organization_info,
     choose_organization,
@@ -40,7 +40,8 @@ tools_definition = [
     {"func": run_sql},
     {"func": create_notebook_file},
     {"func": upload_notebook_file},
-    {"func": list_shared_files, "internal": True},
+    {"func": create_job_from_notebook},
+    {"func": delete_job},
 ]
 
 # Export the tools

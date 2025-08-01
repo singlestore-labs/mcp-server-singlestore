@@ -24,8 +24,8 @@ class ElicitationResult:
     status: Literal["success", "error", "cancelled"]
     message: str
     data: Optional[Dict[str, Any]] = None
-    error_code: Optional[str] = None
-    error_details: Optional[Dict[str, Any]] = None
+    errorCode: Optional[str] = None
+    errorDetails: Optional[Dict[str, Any]] = None
 
 
 async def try_elicitation(
@@ -47,8 +47,8 @@ async def try_elicitation(
            - status: 'success', 'error', or 'cancelled'
            - message: Description of what happened
            - data: The elicited data if successful
-           - error_code: Error code if there was an error
-           - error_details: Additional error details
+           - errorCode: Error code if there was an error
+           - errorDetails: Additional error details
         2. ElicitationError: The type of error if one occurred, None if successful
 
     Raises:
@@ -77,8 +77,8 @@ async def try_elicitation(
                 ElicitationResult(
                     status="error",
                     message="Client doesn't support elicitation",
-                    error_code="ELICITATION_NOT_SUPPORTED",
-                    error_details={"error_message": "Elicitation action not supported"},
+                    errorCode="ELICITATION_NOT_SUPPORTED",
+                    errorDetails={"error_message": "Elicitation action not supported"},
                 ),
                 ElicitationError.NOT_SUPPORTED,
             )
@@ -89,8 +89,8 @@ async def try_elicitation(
                 ElicitationResult(
                     status="error",
                     message="Client doesn't support elicitation",
-                    error_code="ELICITATION_NOT_SUPPORTED",
-                    error_details={"error_message": str(e)},
+                    errorCode="ELICITATION_NOT_SUPPORTED",
+                    errorDetails={"error_message": str(e)},
                 ),
                 ElicitationError.NOT_SUPPORTED,
             )

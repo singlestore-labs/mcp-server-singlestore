@@ -319,7 +319,7 @@ async def run_sql(
             return {
                 "status": "error",
                 "message": str(e),
-                "error_code": "CREDENTIALS_REQUIRED",
+                "errorCode": "CREDENTIALS_REQUIRED",
                 "workspace_id": validated_id,
                 "workspace_name": target.name,
                 "workspace_type": "shared" if target.is_shared else "dedicated",
@@ -333,7 +333,7 @@ async def run_sql(
             return {
                 "status": "error",
                 "message": f"Failed to obtain database credentials: {str(e)}",
-                "error_code": "AUTHENTICATION_ERROR",
+                "errorCode": "AUTHENTICATION_ERROR",
             }
 
     # Execute the SQL query
@@ -354,7 +354,7 @@ async def run_sql(
             return {
                 "status": "error",
                 "message": str(e),
-                "error_code": "AUTHENTICATION_ERROR",
+                "errorCode": "AUTHENTICATION_ERROR",
                 "workspace_id": validated_id,
                 "workspace_name": target.name,
                 "workspace_type": "shared" if target.is_shared else "dedicated",

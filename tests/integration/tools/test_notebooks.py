@@ -1,6 +1,12 @@
 import pytest
 import os
-from src.api.tools.notebooks.notebooks import create_notebook_file, upload_notebook_file
+
+from src.api.tools.notebooks.notebooks import (
+    create_notebook_file,
+    upload_notebook_file,
+)
+
+import tests.integration.tools.utils as utils
 
 
 def sample_notebook_content():
@@ -19,20 +25,17 @@ class TestNotebookTools:
         content = sample_notebook_content()
         result = await create_notebook_file(ctx=mock_context, content=content)
         assert result["status"] == "success"
-        temp_file_path = result["data"]["temp_file_path"]
+        temp_file_path = result["data"]["tempFilePath"]
         assert os.path.exists(temp_file_path)
         os.remove(temp_file_path)
 
     @pytest.mark.asyncio
     async def test_upload_notebook_file(self, mock_context):
-        import singlestoredb as s2
-        from src.config import config
-        from src.api.common import get_access_token, get_org_id
         import uuid
 
         content = sample_notebook_content()
         temp_result = await create_notebook_file(ctx=mock_context, content=content)
-        temp_file_path = temp_result["data"]["temp_file_path"]
+        temp_file_path = temp_result["data"]["tempFilePath"]
         upload_name = f"test_upload_notebook_{uuid.uuid4().hex}"
 
         # Upload to shared space
@@ -56,13 +59,6 @@ class TestNotebookTools:
         os.remove(temp_file_path)
 
         # Use s2 package to delete the uploaded notebooks
-        settings = config.get_settings()
-        access_token = get_access_token()
-        org_id = get_org_id()
-        file_manager = s2.manage_files(
-            access_token=access_token,
-            base_url=settings.s2_api_base_url,
-            organization_id=org_id,
-        )
+        file_manager = utils.get_file_manager()
         file_manager.shared_space.remove(f"{upload_name}.ipynb")
         file_manager.personal_space.remove(f"{upload_name}.ipynb")

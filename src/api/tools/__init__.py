@@ -12,6 +12,15 @@ from .starter_workspaces import (
     terminate_starter_workspace,
     create_starter_workspace,
 )
+from .notebooks import (
+    create_notebook_file,
+    upload_notebook_file,
+)
+
+from .jobs import (
+    create_job_from_notebook,
+    delete_job,
+)
 
 from .registery import register_tools
 
@@ -28,4 +37,8 @@ __all__ = [
     "organization_info",
     "list_starter_workspaces",
     "create_starter_workspace",
+    "create_notebook_file",
+    "upload_notebook_file",
+    "create_job_from_notebook",
+    "delete_job",
 ]
