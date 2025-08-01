@@ -17,7 +17,7 @@ from src.api.tools.notebooks import (
     create_notebook_file,
     upload_notebook_file,
 )
-from src.api.tools.jobs import create_job_from_notebook, delete_job
+from src.api.tools.jobs import create_job_from_notebook, delete_job, get_job
 from src.api.tools.organization import (
     organization_info,
     choose_organization,
@@ -41,6 +41,7 @@ tools_definition = [
     {"func": create_notebook_file},
     {"func": upload_notebook_file},
     {"func": create_job_from_notebook},
+    {"func": get_job},
     {"func": delete_job},
 ]
 

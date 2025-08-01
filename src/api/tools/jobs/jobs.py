@@ -91,6 +91,71 @@ async def create_job_from_notebook(
         }
 
 
+async def get_job(
+    ctx: Context,
+    job_id: str,
+) -> dict:
+    """
+    Retrieve details of a scheduled job by its ID.
+
+    Args:
+        ctx: Context object
+        job_id: ID of the job to retrieve
+
+    Returns:
+        Dict with job details or error info
+    """
+    settings = config.get_settings()
+    start_time = time.time()
+    user_id = config.get_user_id()
+    try:
+        jobs_manager = utils.get_org_jobs_manager()
+        job_obj = jobs_manager.get(job_id)
+        if not job_obj:
+            return {
+                "status": "error",
+                "message": f"Job with ID '{job_id}' not found.",
+                "errorCode": "JOB_NOT_FOUND",
+            }
+        settings.analytics_manager.track_event(
+            user_id,
+            "tool_calling",
+            {
+                "name": "get_job",
+                "job_id": job_id,
+            },
+        )
+        execution_time = (time.time() - start_time) * 1000
+        return {
+            "status": "success",
+            "message": f"Job '{job_obj.name}' retrieved successfully.",
+            "data": {
+                "jobID": job_obj.job_id,
+                "name": job_obj.name,
+                "description": job_obj.description,
+                "completedExecutionsCount": job_obj.completed_executions_count,
+                "schedule": {
+                    "mode": job_obj.schedule.mode.value,
+                    "executionIntervalInMinutes": job_obj.schedule.execution_interval_in_minutes,
+                },
+                "createdAt": job_obj.created_at,
+                "terminatedAt": job_obj.terminated_at,
+            },
+            "metadata": {
+                "executionTimeMs": round(execution_time, 2),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+        }
+    except Exception as e:
+        logger.error(f"Error retrieving job: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Failed to retrieve job: {str(e)}",
+            "errorCode": "JOB_GET_FAILED",
+            "errorDetails": {"exception_type": type(e).__name__},
+        }
+
+
 async def delete_job(
     ctx: Context,
     job_id: str,
