@@ -3,8 +3,8 @@
 import time
 from datetime import datetime, timezone
 
+import singlestoredb as s2
 from src.config import config
-from src.api.common import build_request
 from src.logger import get_logger
 
 # Set up logger for this module
@@ -16,14 +16,14 @@ def workspace_groups_info() -> dict:
     List all workspace groups accessible to the user in SingleStore.
 
     Returns detailed information for each group:
-    - name: Display name of the workspace group
-    - deploymentType: Type of deployment (e.g., 'PRODUCTION')
-    - state: Current status (e.g., 'ACTIVE', 'PAUSED')
     - workspaceGroupID: Unique identifier for the group
-    - firewallRanges: Array of allowed IP ranges for access control
+    - name: Display name of the workspace group
+    - region: Region information (name, provider)
+    - firewallRanges: List of allowed IP ranges for the group
+    - allowAllTraffic: Whether all traffic is allowed to the group
     - createdAt: Timestamp of group creation
-    - regionID: Identifier for deployment region
-    - updateWindow: Maintenance window configuration
+    - terminatedAt: Timestamp when the group was terminated (if applicable)
+
 
     Use this tool to:
     1. Get workspace group IDs for other operations
@@ -40,39 +40,37 @@ def workspace_groups_info() -> dict:
         user_id, "tool_calling", {"name": "workspace_groups_info"}
     )
 
-    groups_data = build_request("GET", "workspaceGroups")
+    # Use workspace manager to get workspace groups
+    workspace_manager = s2.manage_workspaces()
+    workspace_groups = workspace_manager.workspace_groups
+
     groups = [
         {
-            "name": group["name"],
-            "deploymentType": group["deploymentType"],
-            "state": group["state"],
-            "workspaceGroupID": group["workspaceGroupID"],
-            "firewallRanges": group.get("firewallRanges", []),
-            "createdAt": group["createdAt"],
-            "regionID": group["regionID"],
-            "updateWindow": group["updateWindow"],
+            "workspaceGroupID": group.id,
+            "name": group.name,
+            "region": {
+                "regionName": group.region.name,
+                "provider": group.region.provider,
+            },
+            "firewallRanges": group.firewall_ranges,
+            "allowAllTraffic": group.allow_all_traffic,
+            "createdAt": group.created_at.isoformat() if group.created_at else None,
+            "terminatedAt": (
+                group.terminated_at.isoformat() if group.terminated_at else None
+            ),
         }
-        for group in groups_data
+        for group in workspace_groups
     ]
-
-    # Calculate states summary
-    state_counts = {}
-    for group in groups:
-        state = group["state"]
-        state_counts[state] = state_counts.get(state, 0) + 1
 
     execution_time = (time.time() - start_time) * 1000
 
     return {
         "status": "success",
         "message": f"Retrieved {len(groups)} workspace groups",
-        "data": {
-            "result": groups,
-        },
+        "data": groups,
         "metadata": {
             "execution_time_ms": round(execution_time, 2),
             "count": len(groups),
-            "state_summary": state_counts,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         },
     }

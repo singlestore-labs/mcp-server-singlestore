@@ -1,10 +1,11 @@
 """Workspaces tools for SingleStore MCP server."""
 
 import time
+import singlestoredb as s2
+
 from datetime import datetime, timezone
 
 from src.config import config
-from src.api.common import build_request
 from src.utils.uuid_validation import validate_uuid_string
 from src.logger import get_logger
 
@@ -45,26 +46,50 @@ def workspaces_info(workspace_group_id: str) -> dict:
         {"name": "workspaces_info", "workspace_group_id": validated_group_id},
     )
 
-    workspaces_data = build_request(
-        "GET",
-        "workspaces",
-        {"workspaceGroupID": validated_group_id},
-    )
-
-    workspaces = [
-        {
-            "createdAt": workspace["createdAt"],
-            "deploymentType": workspace.get("deploymentType", ""),
-            "endpoint": workspace.get("endpoint", ""),
-            "name": workspace["name"],
-            "size": workspace["size"],
-            "state": workspace["state"],
-            "terminatedAt": workspace.get("terminatedAt", False),
-            "workspaceGroupID": workspace["workspaceGroupID"],
-            "workspaceID": workspace["workspaceID"],
+    # Use the SDK to get workspaces for the group
+    workspace_manager = s2.manage_workspaces()
+    try:
+        group = workspace_manager.get_workspace_group(validated_group_id)
+    except Exception as e:
+        logger.error(f"Failed to fetch workspaces for group {validated_group_id}: {e}")
+        return {
+            "status": "error",
+            "message": f"Failed to fetch workspaces for group {validated_group_id}: {str(e)}",
+            "errorCode": "WORKSPACES_FETCH_FAILED",
         }
-        for workspace in workspaces_data
-    ]
+
+    workspaces = []
+    for ws in group.workspaces:
+        wdict = {
+            "name": getattr(ws, "name", None),
+            "id": getattr(ws, "id", None),
+            "group_id": getattr(ws, "group_id", None),
+            "size": getattr(ws, "size", None),
+            "state": getattr(ws, "state", None),
+            "created_at": (
+                ws.created_at.isoformat() if getattr(ws, "created_at", None) else None
+            ),
+            "terminated_at": (
+                ws.terminated_at.isoformat()
+                if getattr(ws, "terminated_at", None)
+                else None
+            ),
+            "endpoint": getattr(ws, "endpoint", None),
+            "auto_suspend": getattr(ws, "auto_suspend", None),
+            "cache_config": getattr(ws, "cache_config", None),
+            "deployment_type": getattr(ws, "deployment_type", None),
+            "resume_attachments": getattr(ws, "resume_attachments", None),
+            "scaling_progress": getattr(ws, "scaling_progress", None),
+            "last_resumed_at": (
+                ws.last_resumed_at.isoformat()
+                if getattr(ws, "last_resumed_at", None)
+                else None
+            ),
+        }
+        # Add legacy fields for test compatibility
+        wdict["workspaceID"] = wdict["id"]
+        wdict["workspaceGroupID"] = wdict["group_id"]
+        workspaces.append(wdict)
 
     # Calculate state summary and sizes
     state_counts = {}
