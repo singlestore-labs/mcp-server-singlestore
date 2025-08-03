@@ -3,9 +3,10 @@
 import time
 from datetime import datetime, timezone
 
-import singlestoredb as s2
 from src.config import config
 from src.logger import get_logger
+
+import src.api.tools.workspaces.utils as utils
 
 # Set up logger for this module
 logger = get_logger()
@@ -41,7 +42,7 @@ def workspace_groups_info() -> dict:
     )
 
     # Use workspace manager to get workspace groups
-    workspace_manager = s2.manage_workspaces()
+    workspace_manager = utils.get_workspace_manager()
     workspace_groups = workspace_manager.workspace_groups
 
     groups = [

@@ -3,8 +3,7 @@
 from src.api.tools.types import Tool
 
 # Import tools from organized directories
-from src.api.tools.workspaces import workspaces_info
-from src.api.tools.workspace_groups import workspace_groups_info
+from src.api.tools.workspaces import workspaces_info, workspace_groups_info
 from src.api.tools.starter_workspaces import (
     list_starter_workspaces,
     create_starter_workspace,

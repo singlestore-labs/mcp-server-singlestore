@@ -1,13 +1,13 @@
 """Workspaces tools for SingleStore MCP server."""
 
 import time
-import singlestoredb as s2
 
 from datetime import datetime, timezone
 
 from src.config import config
 from src.utils.uuid_validation import validate_uuid_string
 from src.logger import get_logger
+import src.api.tools.workspaces.utils as utils
 
 # Set up logger for this module
 logger = get_logger()
@@ -47,7 +47,7 @@ def workspaces_info(workspace_group_id: str) -> dict:
     )
 
     # Use the SDK to get workspaces for the group
-    workspace_manager = s2.manage_workspaces()
+    workspace_manager = utils.get_workspace_manager()
     try:
         group = workspace_manager.get_workspace_group(validated_group_id)
     except Exception as e:
@@ -61,11 +61,22 @@ def workspaces_info(workspace_group_id: str) -> dict:
     workspaces = []
     for ws in group.workspaces:
         wdict = {
-            "name": getattr(ws, "name", None),
-            "id": getattr(ws, "id", None),
-            "group_id": getattr(ws, "group_id", None),
-            "size": getattr(ws, "size", None),
-            "state": getattr(ws, "state", None),
+            "workspaceID": ws.id,
+            "name": ws.name,
+            "workspaceGroupID": getattr(ws, "group_id", None),
+            "size": ws.size,
+            "state": ws.state,
+            "endpoint": ws.endpoint,
+            "auto_suspend": ws.auto_suspend,
+            "cache_config": ws.cache_config,
+            "deployment_type": ws.deployment_type,
+            "resume_attachments": ws.resume_attachments,
+            "scaling_progress": ws.scaling_progress,
+            "last_resumed_at": (
+                ws.last_resumed_at.isoformat()
+                if getattr(ws, "last_resumed_at", None)
+                else None
+            ),
             "created_at": (
                 ws.created_at.isoformat() if getattr(ws, "created_at", None) else None
             ),
@@ -74,45 +85,18 @@ def workspaces_info(workspace_group_id: str) -> dict:
                 if getattr(ws, "terminated_at", None)
                 else None
             ),
-            "endpoint": getattr(ws, "endpoint", None),
-            "auto_suspend": getattr(ws, "auto_suspend", None),
-            "cache_config": getattr(ws, "cache_config", None),
-            "deployment_type": getattr(ws, "deployment_type", None),
-            "resume_attachments": getattr(ws, "resume_attachments", None),
-            "scaling_progress": getattr(ws, "scaling_progress", None),
-            "last_resumed_at": (
-                ws.last_resumed_at.isoformat()
-                if getattr(ws, "last_resumed_at", None)
-                else None
-            ),
         }
-        # Add legacy fields for test compatibility
-        wdict["workspaceID"] = wdict["id"]
-        wdict["workspaceGroupID"] = wdict["group_id"]
         workspaces.append(wdict)
-
-    # Calculate state summary and sizes
-    state_counts = {}
-    size_counts = {}
-    for workspace in workspaces:
-        state = workspace["state"]
-        state_counts[state] = state_counts.get(state, 0) + 1
-
-        size = workspace["size"]
-        size_counts[size] = size_counts.get(size, 0) + 1
 
     execution_time = (time.time() - start_time) * 1000
 
     return {
         "status": "success",
         "message": f"Retrieved {len(workspaces)} workspaces from group {workspace_group_id}",
-        "data": {"result": workspaces},
+        "data": workspaces,
         "metadata": {
             "execution_time_ms": round(execution_time, 2),
-            "workspace_group_id": workspace_group_id,
             "count": len(workspaces),
-            "state_summary": state_counts,
-            "size_summary": size_counts,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         },
     }

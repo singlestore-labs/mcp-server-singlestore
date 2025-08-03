@@ -4,9 +4,8 @@ import secrets
 import re
 
 
-import tests.integration.tools.utils as utils
-from src.api.tools.workspace_groups.workspace_groups import workspace_groups_info
-from src.api.tools.workspaces.workspaces import workspaces_info
+import src.api.tools.workspaces.utils as workspace_utils
+from src.api.tools.workspaces import workspace_groups_info, workspaces_info
 
 
 def clean_name(s):
@@ -25,7 +24,7 @@ class TestWorkspaceGroupAndWorkspaceIntegration:
     @classmethod
     def setup_class(cls):
         # Setup: create workspace group and workspace
-        cls.manager = utils.get_workspace_manager()
+        cls.manager = workspace_utils.get_workspace_manager()
         us_regions = [x for x in cls.manager.regions if "US" in x.name]
         cls.password = secrets.token_urlsafe(20) + "-x&$"
         name = clean_name(secrets.token_urlsafe(20)[:20])
@@ -57,7 +56,7 @@ class TestWorkspaceGroupAndWorkspaceIntegration:
         resp = workspace_groups_info()
         assert resp["status"] == "success"
 
-        wsg = resp["data"]["result"]
+        wsg = resp["data"]
 
         group_ids = [g["workspaceGroupID"] for g in wsg]
         group_names = [g["name"] for g in wsg]
@@ -69,7 +68,7 @@ class TestWorkspaceGroupAndWorkspaceIntegration:
         resp = workspaces_info(type(self).workspace_group.id)
         assert resp["status"] == "success"
 
-        ws = resp["data"]["result"]
+        ws = resp["data"]
 
         assert all(w["workspaceGroupID"] == type(self).workspace_group.id for w in ws)
 
