@@ -106,7 +106,6 @@ class TestJobsTools:
         assert deleted is True
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="Skipping until the get job endpoint is fixed")
     async def test_get_job_tool(self, mock_context):
         job_name = f"test_get_job_{uuid.uuid4().hex}"
         org = utils.get_organization()

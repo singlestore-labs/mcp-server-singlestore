@@ -45,7 +45,7 @@ tools_definition = [
     {"func": create_notebook_file},
     {"func": upload_notebook_file},
     {"func": create_job_from_notebook},
-    {"func": get_job, "internal": True},
+    {"func": get_job},
     {"func": delete_job},
 ]
 
