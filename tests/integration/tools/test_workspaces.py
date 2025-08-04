@@ -5,7 +5,11 @@ import re
 
 
 import src.api.tools.workspaces.utils as workspace_utils
-from src.api.tools.workspaces import workspace_groups_info, workspaces_info
+from src.api.tools.workspaces import (
+    workspace_groups_info,
+    workspaces_info,
+    resume_workspace,
+)
 
 
 def clean_name(s):
@@ -13,7 +17,7 @@ def clean_name(s):
 
 
 @pytest.mark.integration
-class TestWorkspaceGroupAndWorkspaceIntegration:
+class TestWorkspaceGroupAndWorkspaceTools:
     """Integration test for listing workspace groups and workspaces."""
 
     manager = None
@@ -77,3 +81,25 @@ class TestWorkspaceGroupAndWorkspaceIntegration:
 
         assert type(self).workspace.id in workspace_ids
         assert type(self).workspace.name in workspace_names
+
+    def test_resume_workspace(self):
+        # First suspend the workspace to have something to resume
+        type(self).workspace.suspend(wait_on_suspended=True)
+
+        # Verify workspace is suspended
+        type(self).workspace.refresh()
+        assert type(self).workspace.state == "SUSPENDED"
+
+        # Now test the resume_workspace function
+        resp = resume_workspace(type(self).workspace.id)
+        assert resp["status"] == "success"
+        assert "resumed successfully" in resp["message"]
+
+        # Verify the response data
+        assert resp["data"]["workspaceID"] == type(self).workspace.id
+        assert resp["data"]["name"] == type(self).workspace.name
+        assert resp["data"]["workspaceGroupID"] == type(self).workspace_group.id
+
+        # Verify workspace is now active
+        type(self).workspace.refresh()
+        assert type(self).workspace.state == "ACTIVE"

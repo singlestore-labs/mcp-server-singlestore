@@ -3,7 +3,11 @@
 from src.api.tools.types import Tool
 
 # Import tools from organized directories
-from src.api.tools.workspaces import workspaces_info, workspace_groups_info
+from src.api.tools.workspaces import (
+    workspaces_info,
+    resume_workspace,
+    workspace_groups_info,
+)
 from src.api.tools.starter_workspaces import (
     list_starter_workspaces,
     create_starter_workspace,
@@ -31,6 +35,7 @@ tools_definition = [
     {"func": set_organization},
     {"func": workspace_groups_info},
     {"func": workspaces_info},
+    {"func": resume_workspace},
     {"func": list_starter_workspaces},
     {"func": create_starter_workspace},
     {"func": terminate_starter_workspace},
