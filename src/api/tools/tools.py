@@ -21,6 +21,13 @@ from src.api.tools.notebooks import (
     upload_notebook_file,
 )
 from src.api.tools.jobs import create_job_from_notebook, delete_job, get_job
+from src.api.tools.cloud_functions import (
+    create_code_service,
+    list_code_services,
+    get_code_service,
+    update_code_service,
+    delete_code_service,
+)
 from src.api.tools.organization import (
     organization_info,
     choose_organization,
@@ -47,6 +54,11 @@ tools_definition = [
     {"func": create_job_from_notebook},
     {"func": get_job, "internal": True},
     {"func": delete_job},
+    {"func": create_code_service, "internal": True},
+    {"func": list_code_services, "internal": True},
+    {"func": get_code_service, "internal": True},
+    {"func": update_code_service, "internal": True},
+    {"func": delete_code_service, "internal": True},
 ]
 
 # Export the tools

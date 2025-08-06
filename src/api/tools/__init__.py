@@ -23,6 +23,14 @@ from .jobs import (
     delete_job,
 )
 
+from .cloud_functions import (
+    create_code_service,
+    get_code_service,
+    list_code_services,
+    update_code_service,
+    delete_code_service,
+)
+
 from .registery import register_tools
 
 __all__ = [
@@ -43,4 +51,9 @@ __all__ = [
     "create_job_from_notebook",
     "get_job",
     "delete_job",
+    "create_code_service",
+    "get_code_service",
+    "list_code_services",
+    "update_code_service",
+    "delete_code_service",
 ]
