@@ -1064,7 +1064,7 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=2.9.1" },
     { name = "pytest-asyncio", specifier = ">=1.1.0" },
     { name = "segment-analytics-python", specifier = ">=2.3.4" },
-    { name = "singlestoredb", specifier = ">=1.15.0" },
+    { name = "singlestoredb", specifier = ">=1.15.1" },
     { name = "starlette", specifier = ">=0.46.2" },
 ]
 
@@ -1080,7 +1080,7 @@ dev = [
 
 [[package]]
 name = "singlestoredb"
-version = "1.15.0"
+version = "1.15.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "build" },
@@ -1093,14 +1093,14 @@ dependencies = [
     { name = "typing-extensions", marker = "python_full_version < '3.11'" },
     { name = "wheel" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ef/34/f4e0453479f4f65d4d93418ceade369f2822532b59b57533ca65c2dfacda/singlestoredb-1.15.0.tar.gz", hash = "sha256:9eca4ee68942a55680694b0a9c42869df95982d3fe43fa573894e341aba6c698", size = 330920, upload-time = "2025-07-21T18:24:44.174Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/5d/ef/cd64f67cebad1728b64c3f68fbf202a75ec82251dea0b0052039f247c642/singlestoredb-1.15.1.tar.gz", hash = "sha256:f7e25eaf81cd5a7562e34d1c1dab541beb7b416b607435a79cf006a10efe0a0a", size = 357125, upload-time = "2025-08-07T21:02:58.758Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a6/3f/a31e1b54dc4c35b2ab9a7a6d15f0c1529ef02fdec49e6de961f31e543dab/singlestoredb-1.15.0-cp38-abi3-macosx_10_9_universal2.whl", hash = "sha256:30e9432febe831784cb363135cd1103ce0065a05c834901b021977bffb5f1a74", size = 420312, upload-time = "2025-07-21T18:24:36.663Z" },
-    { url = "https://files.pythonhosted.org/packages/05/da/07f4ffeb32ab28600a1fd74a422e5ffdd712d882de60cc8cd6b673b6b221/singlestoredb-1.15.0-cp38-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:6641ca8479c836fe80440cbfc2c082b41b2c176990504db86ed65a60368873cf", size = 458513, upload-time = "2025-07-21T18:24:38.283Z" },
-    { url = "https://files.pythonhosted.org/packages/f5/55/dc8355415f21f348d028af3039eef9ed3dcbaa0893345a6c843f9a63b551/singlestoredb-1.15.0-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:859a52695818ffa4de1aae31345b32e1b4bcfd9565e708fe7966b33e6eef48f9", size = 459925, upload-time = "2025-07-21T18:24:39.523Z" },
-    { url = "https://files.pythonhosted.org/packages/3e/4e/94c8428567efe8e08be038d4da8477970bcf26a908589f18a35ec776ff68/singlestoredb-1.15.0-cp38-abi3-win32.whl", hash = "sha256:66508c0e1a2b2832aaef8c676ae503a74a98c61bafbed7c287cc8ba49be43825", size = 397812, upload-time = "2025-07-21T18:24:40.786Z" },
-    { url = "https://files.pythonhosted.org/packages/b8/38/ae2867044880b060c7cc058302caea5666cda4a630cc53168016a83bac33/singlestoredb-1.15.0-cp38-abi3-win_amd64.whl", hash = "sha256:9b60ea1a56d459ff3d2d2bdf9c38ac48564e7e86de6b0679adcab7e139396056", size = 396543, upload-time = "2025-07-21T18:24:42.008Z" },
-    { url = "https://files.pythonhosted.org/packages/48/94/ca0d35fe00a0263ded58e9188c58a2b7b6f8e8c2f5f42591d806f98e3aa2/singlestoredb-1.15.0-py3-none-any.whl", hash = "sha256:b9abbf700a56e9db23531c99365b4ade8e0107dd63dacbc6ae41db9c8954bb1c", size = 365184, upload-time = "2025-07-21T18:24:42.921Z" },
+    { url = "https://files.pythonhosted.org/packages/49/b0/9db596cb6f2aff0944c994421c4ebecf79e7a9a05c0b850c4f0f81b1dae6/singlestoredb-1.15.1-cp38-abi3-macosx_10_9_universal2.whl", hash = "sha256:4ef38b13eca9f89efa1d92e14a50bb5667962cb30019309d3c51285a1b80e544", size = 457792, upload-time = "2025-08-07T21:02:49.421Z" },
+    { url = "https://files.pythonhosted.org/packages/ec/7f/26169c207994194ba6def9d1c966d2ca6b7c0878efe4233fb2434e29a8da/singlestoredb-1.15.1-cp38-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:ec65d0e297ef76afcdf081ab2c9191d4e2acb956921e13e0b03396f3e073e0c6", size = 496004, upload-time = "2025-08-07T21:02:50.951Z" },
+    { url = "https://files.pythonhosted.org/packages/82/ac/b60984fa27c10e948cfe89564a67f1724be7bbe76ed99f445a224b0b6f77/singlestoredb-1.15.1-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:6d6b21a6dfc4b9b7028a7dd2cd254290a6b5be145d626ad909c1e06eb42fb17a", size = 497419, upload-time = "2025-08-07T21:02:53.831Z" },
+    { url = "https://files.pythonhosted.org/packages/e4/b2/45f71337a1fb1b00f60cc64ca695bd721bfc1da81824aede1db9ffc766ab/singlestoredb-1.15.1-cp38-abi3-win32.whl", hash = "sha256:e3648bdc77235f82496e2577076f465e50e04013ffedc5b0cbc3da08d6d0b228", size = 435391, upload-time = "2025-08-07T21:02:55.296Z" },
+    { url = "https://files.pythonhosted.org/packages/09/3f/1c94cddf8648bc281f2ba3dbd4642cc346ae8eeeb5b0032880adddc84fef/singlestoredb-1.15.1-cp38-abi3-win_amd64.whl", hash = "sha256:9228743b276832e55234706c8a0a28b04efb534318ed6f8ca31466e1aecf1405", size = 434121, upload-time = "2025-08-07T21:02:56.568Z" },
+    { url = "https://files.pythonhosted.org/packages/07/f7/fbd2c214cb7ff10fba7e0abcf18d8cfcb7d0e25e4ac2672ce1265af0f8a6/singlestoredb-1.15.1-py3-none-any.whl", hash = "sha256:872834db88d58d41c7f2fffbf2e3d2ecffbbd58f3a5c04ded4ce321146acc4f6", size = 402404, upload-time = "2025-08-07T21:02:57.653Z" },
 ]
 
 [[package]]

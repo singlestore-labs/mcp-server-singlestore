@@ -11,7 +11,7 @@ dependencies = [
  "segment-analytics-python>=2.3.4",
  "starlette>=0.46.2",
  "jsonschema>=4.0.0",
- "singlestoredb>=1.15.0",
+ "singlestoredb>=1.15.1",
  "pre-commit>=4.2.0",
  "pytest-asyncio>=1.1.0",
 ]
