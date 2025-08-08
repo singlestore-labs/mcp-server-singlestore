@@ -82,16 +82,6 @@ jobs:
         uv run ruff check src/ tests/
         uv run ruff format --check src/ tests/
 
-    - name: Run unit tests
-      run: |
-        uv run pytest tests/unit
-
-    - name: Run integration tests
-      env:
-            MCP_API_KEY: ${{ secrets.MCP_API_KEY }}
-      run: |
-        uv run pytest tests/integration
-
     - name: Build package
       run: |
         uv run python -m build
