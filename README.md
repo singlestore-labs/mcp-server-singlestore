@@ -170,6 +170,10 @@ The server implements the following tools:
   - Arguments: job configuration including `notebook_path`, `schedule_mode`, etc.
   - Returns details of the created job
 
+- **get_job**: Retrieve details of an existing job
+  - Arguments: `job_id` (string)
+  - Returns details of the specified job
+
 - **delete_job**: Delete an existing job
   - Arguments: `job_id` (string)
   - Deletes the specified job
