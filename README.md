@@ -106,63 +106,75 @@ Note: An API key is needed when using Docker because the OAuth flow isn't suppor
 
 The server implements the following tools:
 
-- **workspace_groups_info**: Retrieve details about the workspace groups accessible to the user
+- **get_user_info**: Retrieve details about the current user
   - No arguments required
-  - Returns details of the workspace groups
-- **workspaces_info**: Retrieve details about the workspaces in a specific workspace group
-  - Arguments: `workspaceGroupID` (string)
-  - Returns details of the workspaces
+  - Returns user information and details
+
 - **organization_info**: Retrieve details about the user's current organization
   - No arguments required
   - Returns details of the organization
-- **list_of_regions**: Retrieve a list of all regions that support workspaces for the user
+
+- **choose_organization**: Choose from available organizations (only available when API key environment variable is not set)
   - No arguments required
-  - Returns a list of regions
-- **execute_sql**: Execute SQL operations on a connected workspace
-  - Arguments: `workspace_group_identifier`, `workspace_identifier`, `username`, `password`, `database`, `sql_query`
-  - Returns the results of the SQL query in a structured format
-- **list_virtual_workspaces**: List all starter workspaces accessible to the user
+  - Returns a list of available organizations to choose from
+
+- **set_organization**: Set the active organization (only available when API key environment variable is not set)
+  - Arguments: `organization_id` (string)
+  - Sets the specified organization as active
+
+- **workspace_groups_info**: Retrieve details about the workspace groups accessible to the user
+  - No arguments required
+  - Returns details of the workspace groups
+
+- **workspaces_info**: Retrieve details about the workspaces in a specific workspace group
+  - Arguments: `workspace_group_id` (string)
+  - Returns details of the workspaces
+
+- **resume_workspace**: Resume a suspended workspace
+  - Arguments: `workspace_id` (string)
+  - Resumes the specified workspace
+
+- **list_starter_workspaces**: List all starter workspaces accessible to the user
   - No arguments required
   - Returns details of available starter workspaces
-- **create_virtual_workspace**: Create a new starter workspace with a user
-  - Arguments:
-    - `name`: Name of the starter workspace
-    - `database_name`: Name of the database to create
-    - `username`: Username for accessing the workspace
-    - `password`: Password for the user
-    - `workspace_group`: Object containing `name` (optional) and `cellID` (mandatory)
-  - Returns details of the created workspace and user
-- **execute_sql_on_virtual_workspace**: Execute SQL operations on a starter workspace
-  - Arguments: `virtual_workspace_id`, `username`, `password`, `sql_query`
-  - Returns the results of the SQL query in a structured format including data, row count, columns, and status
-- **list_notebook_samples**: List all notebook samples available in SingleStore Spaces
+
+- **create_starter_workspace**: Create a new starter workspace
+  - Arguments: workspace configuration parameters
+  - Returns details of the created starter workspace
+
+- **terminate_starter_workspace**: Terminate an existing starter workspace
+  - Arguments: `workspace_id` (string)
+  - Terminates the specified starter workspace
+
+- **list_regions**: Retrieve a list of all regions that support workspaces
   - No arguments required
-  - Returns details of available notebook samples
-- **create_notebook**: Create a new notebook in the user's personal space
+  - Returns a list of available regions
+
+- **list_sharedtier_regions**: Retrieve a list of shared tier regions
+  - No arguments required
+  - Returns a list of shared tier regions
+
+- **run_sql**: Execute SQL operations on a connected workspace
+  - Arguments: `workspace_id`, `database`, `sql_query`, and connection parameters
+  - Returns the results of the SQL query in a structured format
+
+- **create_notebook_file**: Create a new notebook file in SingleStore Spaces
   - Arguments: `notebook_name`, `content` (optional)
   - Returns details of the created notebook
-- **list_personal_files**: List all files in the user's personal space
-  - No arguments required
-  - Returns details of all files in the user's personal space
-- **create_scheduled_job**: Create a new scheduled job to run a notebook
-  - Arguments:
-    - `name`: Name for the job
-    - `notebook_path`: Path to the notebook to execute
-    - `schedule_mode`: Once or Recurring
-    - `execution_interval_minutes`: Minutes between executions (optional)
-    - `start_at`: When to start the job (optional)
-    - `description`: Description of the job (optional)
-    - `create_snapshot`: Whether to create notebook snapshots (optional)
-    - `runtime_name`: Name of the runtime environment
-    - `parameters`: Parameters for the job (optional)
-    - `target_config`: Target configuration for the job (optional)
+
+- **upload_notebook_file**: Upload a notebook file to SingleStore Spaces
+  - Arguments: `file_path`, `notebook_name`
+  - Returns details of the uploaded notebook
+
+- **create_job_from_notebook**: Create a scheduled job from a notebook
+  - Arguments: job configuration including `notebook_path`, `schedule_mode`, etc.
   - Returns details of the created job
-- **get_job_details**: Get details about a specific job
-  - Arguments: `job_id`
-  - Returns detailed information about the specified job
-- **list_job_executions**: List execution history for a specific job
-  - Arguments: `job_id`, `start` (optional), `end` (optional)
-  - Returns execution history for the specified job
+
+- **delete_job**: Delete an existing job
+  - Arguments: `job_id` (string)
+  - Deletes the specified job
+
+**Note**: Organization management tools (`choose_organization` and `set_organization`) are only available when the API key environment variable is not set, allowing for interactive organization selection during OAuth authentication.
 
 ## Development
 
