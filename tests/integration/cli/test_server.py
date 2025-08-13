@@ -6,7 +6,8 @@ from pathlib import Path
 from src.main import cli
 from src.commands.init import get_config_path, init_command
 from src.commands.constants import (
-    CLIENT_CLAUDE,
+    CLIENT_CLAUDE_DESKTOP,
+    CLIENT_CLAUDE_CODE,
     CLIENT_CURSOR,
     CLIENT_CHOICES,
     DEFAULT_CLIENT,
@@ -22,7 +23,7 @@ class TestInitCommand:
     @pytest.mark.parametrize(
         "client_args,expected_client",
         [
-            (["--client", CLIENT_CLAUDE], CLIENT_CLAUDE),
+            (["--client", CLIENT_CLAUDE_DESKTOP], CLIENT_CLAUDE_DESKTOP),
             (["--client", CLIENT_CURSOR], CLIENT_CURSOR),
             ([], DEFAULT_CLIENT),  # default client
         ],
@@ -59,7 +60,7 @@ class TestInitCommand:
         # Test that init_command handles file creation
         with patch("src.commands.init.print") as mock_print:
             try:
-                init_command(CLIENT_CLAUDE)
+                init_command(CLIENT_CLAUDE_DESKTOP)
                 # Verify that appropriate messages are printed
                 assert mock_print.called
             except Exception:
@@ -69,7 +70,7 @@ class TestInitCommand:
     def test_get_config_path_claude_darwin(self):
         """Test config path retrieval for Claude on macOS."""
         with patch("sys.platform", "darwin"):
-            path = get_config_path(CLIENT_CLAUDE)
+            path = get_config_path(CLIENT_CLAUDE_DESKTOP)
             assert path is not None
             assert "Claude" in str(path)
 
@@ -83,14 +84,86 @@ class TestInitCommand:
     def test_client_type_choices(self):
         """Test that CLIENT_CHOICES provides correct choices."""
         choices = CLIENT_CHOICES
-        assert CLIENT_CLAUDE in choices
+        assert CLIENT_CLAUDE_DESKTOP in choices
         assert CLIENT_CURSOR in choices
-        assert len(choices) == 2
+        assert len(choices) == 7  # Updated to include all new clients
 
     def test_client_type_default(self):
         """Test that DEFAULT_CLIENT provides correct default."""
         default = DEFAULT_CLIENT
-        assert default == CLIENT_CLAUDE
+        assert default == CLIENT_CLAUDE_DESKTOP
+
+    @patch("src.commands.init.subprocess.run")
+    def test_claude_code_subprocess_execution(self, mock_subprocess_run):
+        """Test that Claude Code client executes the CLI command via subprocess."""
+        from src.commands.init import update_client_config
+
+        # Mock successful subprocess execution
+        mock_result = MagicMock()
+        mock_result.stdout = "Successfully added singlestore-mcp-server"
+        mock_result.returncode = 0
+        mock_subprocess_run.return_value = mock_result
+
+        success, config_data = update_client_config(CLIENT_CLAUDE_CODE)
+
+        # Verify the subprocess was called correctly
+        assert success is True
+        assert config_data is not None
+        assert "cli_command" in config_data
+        assert "output" in config_data
+        assert (
+            config_data["cli_command"]
+            == "claude mcp add singlestore-mcp-server uvx singlestore-mcp-server start"
+        )
+        assert config_data["output"] == "Successfully added singlestore-mcp-server"
+
+        # Verify subprocess.run was called with correct arguments
+        mock_subprocess_run.assert_called_once_with(
+            [
+                "claude",
+                "mcp",
+                "add",
+                "singlestore-mcp-server",
+                "uvx",
+                "singlestore-mcp-server",
+                "start",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+    @patch("src.commands.init.subprocess.run")
+    def test_claude_code_file_not_found_error(self, mock_subprocess_run):
+        """Test Claude Code error handling when CLI is not found."""
+        from src.commands.init import update_client_config
+
+        # Mock FileNotFoundError (Claude CLI not installed)
+        mock_subprocess_run.side_effect = FileNotFoundError("claude command not found")
+
+        success, config_data = update_client_config(CLIENT_CLAUDE_CODE)
+
+        # Verify proper error handling
+        assert success is False
+        assert config_data is None
+
+    @patch("src.commands.init.subprocess.run")
+    def test_claude_code_command_failure(self, mock_subprocess_run):
+        """Test Claude Code error handling when CLI command fails."""
+        from src.commands.init import update_client_config
+        import subprocess
+
+        # Mock CalledProcessError (command failed)
+        error = subprocess.CalledProcessError(
+            1, ["claude", "mcp", "add"], stderr="Permission denied"
+        )
+        mock_subprocess_run.side_effect = error
+
+        success, config_data = update_client_config(CLIENT_CLAUDE_CODE)
+
+        # Verify proper error handling
+        assert success is False
+        assert config_data is None
 
 
 class TestStartCommand:
@@ -228,7 +301,7 @@ class TestCLIIntegration:
 class TestConfigurationTemplates:
     """Test configuration template functionality."""
 
-    @pytest.mark.parametrize("client", [CLIENT_CLAUDE, CLIENT_CURSOR])
+    @pytest.mark.parametrize("client", [CLIENT_CLAUDE_DESKTOP, CLIENT_CURSOR])
     def test_client_config_templates_exist(self, client):
         """Test that configuration templates exist for all supported clients."""
         from src.commands.init import CLIENT_CONFIG_TEMPLATES
@@ -238,7 +311,7 @@ class TestConfigurationTemplates:
         assert "mcpServers" in config
         assert "singlestore-mcp-server" in config["mcpServers"]
 
-    @pytest.mark.parametrize("client", [CLIENT_CLAUDE, CLIENT_CURSOR])
+    @pytest.mark.parametrize("client", [CLIENT_CLAUDE_DESKTOP, CLIENT_CURSOR])
     def test_client_config_paths_exist(self, client):
         """Test that configuration paths are defined for all supported clients."""
         from src.commands.init import CLIENT_CONFIG_PATHS
@@ -252,10 +325,21 @@ class TestConfigurationTemplates:
     def test_config_template_structure(self):
         """Test that config templates have correct structure."""
         from src.commands.init import CLIENT_CONFIG_TEMPLATES
+        from src.commands.constants import CLIENT_VSCODE
 
         for client, config in CLIENT_CONFIG_TEMPLATES.items():
-            assert "mcpServers" in config
-            server_config = config["mcpServers"]["singlestore-mcp-server"]
+            if client == CLIENT_CLAUDE_CODE:
+                # Claude Code uses CLI configuration, no template validation needed
+                continue
+            elif client == CLIENT_VSCODE:
+                # VS Code uses a different structure
+                assert "mcp.mcpServers" in config
+                server_config = config["mcp.mcpServers"]["singlestore-mcp-server"]
+            else:
+                # Other clients use standard mcpServers structure
+                assert "mcpServers" in config
+                server_config = config["mcpServers"]["singlestore-mcp-server"]
+
             assert "command" in server_config
             assert "args" in server_config
             assert isinstance(server_config["args"], list)
