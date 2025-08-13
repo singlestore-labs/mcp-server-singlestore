@@ -4,101 +4,184 @@
 
 [Model Context Protocol]((https://modelcontextprotocol.io/introduction)) (MCP) is a standardized protocol designed to manage context between large language models (LLMs) and external systems. This repository provides an installer and an MCP Server for Singlestore, enabling seamless integration.
 
-With MCP, you can use Claude Desktop, Cursor, or any compatible MCP client to interact with SingleStore using natural language, making it easier to perform complex operations effortlessly.
+With MCP, you can use Claude Desktop, Claude Code, Cursor, or any compatible MCP client to interact with SingleStore using natural language, making it easier to perform complex operations effortlessly.
 
 💡 **Pro Tip**: Not sure what the MCP server can do? Just call the `/help` prompt in your chat!
 
 ## Requirements
 
-- Python >= v3.11.0
+- Python >= v3.10.0
 - [uvx](https://docs.astral.sh/uv/guides/tools/) installed on your python environment
-- Claude Desktop, Cursor, or another supported LLM client
+- VS Code, Cursor, Windsurf, Claude Desktop, Claude Code, Goose or any other MCP client
 
-## Client Setup
+## Getting started
 
-### 1. Init Command
+## Getting started
 
-The simplest way to set up the MCP server is to use the initialization command:
+First, install the SingleStore MCP server with your client.
 
-```bash
-uvx singlestore-mcp-server init
-```
+**Standard config** works in most of the tools:
 
-This command will:
-
-1. Automatically locate the configuration file for your platform
-2. Create or update the configuration to include the SingleStore MCP server
-3. Configure browser-based OAuth authentication
-4. Provide instructions for starting the server
-
-To specify a client (e.g., `claude` or `cursor`), use the `--client` flag:
-
-```bash
-uvx singlestore-mcp-server init --client=<client>
-```
-
-### 2. Installing via Smithery
-
-To install `mcp-server-singlestore` automatically via [Smithery](https://smithery.ai/server/@singlestore-labs/mcp-server-singlestore):
-
-```bash
-npx -y @smithery/cli install @singlestore-labs/mcp-server-singlestore --client=<client>
-```
-
-Replace `<client>` with `claude` or `cursor` as needed.
-
-### 3. Manual Configuration
-
-#### Claude Desktop and Cursor
-
-1. Add the following configuration to your client configuration file. Check the client's configuration file here:
-
-- [Claude Desktop](https://modelcontextprotocol.io/quickstart/user)
-- [Cursor](https://docs.cursor.com/context/model-context-protocol#configuration-locations)
-
-  ```json
-  {
-    "mcpServers": {
-     "singlestore-mcp-server": {
+```json
+{
+  "mcpServers": {
+    "singlestore-mcp-server": {
       "command": "uvx",
       "args": [
         "singlestore-mcp-server",
         "start"
       ]
-     }
     }
   }
-  ```
-
-   **No API keys, tokens, or environment variables required!** The server automatically handles authentication via browser OAuth when started.
-
-### 4. Using Docker
-
-#### Building the Docker Image
-
-To build the Docker image for the MCP server, run the following command in the project root:
-
-```bash
-docker build -t mcp-server-singlestore .
+}
 ```
 
-#### Running the Docker Container
+**No API keys, tokens, or environment variables required!** The server automatically handles authentication via browser OAuth when started.
 
-To run the Docker container, use the following command:
+<details>
+<summary>Claude Desktop</summary>
 
+**Automatic setup:**
 ```bash
-docker run -d \
-  -p 8000:8000 \
-  -e MCP_API_KEY="your_api_key_here" \
-  -it \
-  --name mcp-server \
-  mcp-server-singlestore
+uvx singlestore-mcp-server init --client=claude-desktop
 ```
 
-Note: An API key is needed when using Docker because the OAuth flow isn't supported locally for servers running in a Docker container. We're working with the Docker team to enable OAuth for local servers in the future. For better security, we recommend using Docker Desktop to configure the S2 MCP server—see [this blog post](https://www.docker.com/blog/docker-mcp-catalog-secure-way-to-discover-and-run-mcp-servers/) for details on Docker's new MCP Catalog.
+**Manual setup:**
+Follow the MCP install [guide](https://modelcontextprotocol.io/quickstart/user), use the standard config above.
 
+</details>
 
-2. Restart your client after making changes to the configuration.
+<details>
+<summary>Claude Code</summary>
+
+**Automatic setup:**
+```bash
+uvx singlestore-mcp-server init --client=claude-code
+```
+This will automatically run the Claude CLI command for you.
+
+**Manual setup:**
+```bash
+claude mcp add singlestore-mcp-server uvx singlestore-mcp-server start
+```
+
+</details>
+
+<details>
+<summary>Cursor</summary>
+
+**Automatic setup:**
+```bash
+uvx singlestore-mcp-server init --client=cursor
+```
+
+**Manual setup:**
+Go to `Cursor Settings` -> `MCP` -> `Add new MCP Server`. Name to your liking, use `command` type with the command `uvx singlestore-mcp-server start`. You can also verify config or add command line arguments via clicking `Edit`.
+
+</details>
+
+<details>
+<summary>VS Code</summary>
+
+**Automatic setup:**
+```bash
+uvx singlestore-mcp-server init --client=vscode
+```
+
+**Manual setup:**
+Follow the MCP install [guide](https://code.visualstudio.com/docs/copilot/chat/mcp-servers#_add-an-mcp-server), use the standard config above. You can also install using the VS Code CLI:
+
+```bash
+code --add-mcp '{"name":"singlestore-mcp-server","command":"uvx","args":["singlestore-mcp-server","start"]}'
+```
+
+After installation, the SingleStore MCP server will be available for use with your GitHub Copilot agent in VS Code.
+
+</details>
+
+<details>
+<summary>Windsurf</summary>
+
+**Automatic setup:**
+```bash
+uvx singlestore-mcp-server init --client=windsurf
+```
+
+**Manual setup:**
+Follow Windsurf MCP [documentation](https://docs.windsurf.com/windsurf/cascade/mcp). Use the standard config above.
+
+</details>
+
+<details>
+<summary>Gemini CLI</summary>
+
+**Automatic setup:**
+```bash
+uvx singlestore-mcp-server init --client=gemini
+```
+
+**Manual setup:**
+Follow the MCP install [guide](https://github.com/google-gemini/gemini-cli/blob/main/docs/tools/mcp-server.md#configure-the-mcp-server-in-settingsjson), use the standard config above.
+
+</details>
+
+<details>
+<summary>LM Studio</summary>
+
+**Automatic setup:**
+```bash
+uvx singlestore-mcp-server init --client=lm-studio
+```
+
+**Manual setup:**
+Go to `Program` in the right sidebar -> `Install` -> `Edit mcp.json`. Use the standard config above.
+
+</details>
+
+<details>
+<summary>Goose</summary>
+
+**Manual setup only:**
+Go to `Advanced settings` -> `Extensions` -> `Add custom extension`. Name to your liking, use type `STDIO`, and set the `command` to `uvx singlestore-mcp-server start`. Click "Add Extension".
+
+</details>
+
+<details>
+<summary>Qodo Gen</summary>
+
+**Manual setup only:**
+Open [Qodo Gen](https://docs.qodo.ai/qodo-documentation/qodo-gen) chat panel in VSCode or IntelliJ → Connect more tools → + Add new MCP → Paste the standard config above.
+
+Click <code>Save</code>.
+
+</details>
+
+### Using Docker
+
+**NOTE:** An API key is required when using Docker because the OAuth flow isn't supported for servers running in Docker containers.
+
+```json
+{
+  "mcpServers": {
+    "singlestore-mcp-server": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm", "--init", "--pull=always",
+        "-e", "MCP_API_KEY=your_api_key_here",
+        "singlestore/mcp-server-singlestore"
+      ]
+    }
+  }
+}
+```
+
+You can build the Docker image yourself:
+
+```bash
+docker build -t singlestore/mcp-server-singlestore .
+```
+
+For better security, we recommend using Docker Desktop to configure the SingleStore MCP server—see [this blog post](https://www.docker.com/blog/docker-mcp-catalog-secure-way-to-discover-and-run-mcp-servers/) for details on Docker's new MCP Catalog.
 
 ## Components
 

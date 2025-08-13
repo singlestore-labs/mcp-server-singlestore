@@ -1,32 +1,67 @@
 import os
 import json
 import sys
+import subprocess
 from pathlib import Path
 from typing import Optional
 
 from ..logger import get_logger
-from .constants import CLIENT_CLAUDE, CLIENT_CURSOR, CLIENT_CHOICES
+from .constants import (
+    CLIENT_CLAUDE_DESKTOP,
+    CLIENT_CLAUDE_CODE,
+    CLIENT_CURSOR,
+    CLIENT_VSCODE,
+    CLIENT_WINDSURF,
+    CLIENT_LM_STUDIO,
+    CLIENT_GEMINI,
+    CLIENT_CHOICES,
+)
 
 # Get logger for this module
 logger = get_logger()
 
 # Client config file paths (platform-dependent)
 CLIENT_CONFIG_PATHS = {
-    CLIENT_CLAUDE: {
+    CLIENT_CLAUDE_DESKTOP: {
         "darwin": ("~/Library/Application Support/Claude/claude_desktop_config.json"),
         "win32": "%APPDATA%\\Claude\\claude_desktop_config.json",
         "linux": "~/.config/Claude/claude_desktop_config.json",
+    },
+    CLIENT_CLAUDE_CODE: {
+        "darwin": None,
+        "win32": None,
+        "linux": None,
     },
     CLIENT_CURSOR: {
         "darwin": "~/.cursor/mcp.json",
         "win32": "~/.cursor/mcp.json",
         "linux": "~/.cursor/mcp.json",
     },
+    CLIENT_VSCODE: {
+        "darwin": "~/Library/Application Support/Code/User/settings.json",
+        "win32": "%APPDATA%\\Code\\User\\settings.json",
+        "linux": "~/.config/Code/User/settings.json",
+    },
+    CLIENT_WINDSURF: {
+        "darwin": "~/.windsurf/mcp.json",
+        "win32": "~/.windsurf/mcp.json",
+        "linux": "~/.windsurf/mcp.json",
+    },
+    CLIENT_LM_STUDIO: {
+        "darwin": "~/Library/Application Support/LM Studio/mcp.json",
+        "win32": "%APPDATA%\\LM Studio\\mcp.json",
+        "linux": "~/.config/lm-studio/mcp.json",
+    },
+    CLIENT_GEMINI: {
+        "darwin": "~/.config/gemini/settings.json",
+        "win32": "%APPDATA%\\gemini\\settings.json",
+        "linux": "~/.config/gemini/settings.json",
+    },
 }
 
 # Client-specific config templates
 CLIENT_CONFIG_TEMPLATES = {
-    CLIENT_CLAUDE: {
+    CLIENT_CLAUDE_DESKTOP: {
         "mcpServers": {
             "singlestore-mcp-server": {
                 "command": "uvx",
@@ -37,7 +72,40 @@ CLIENT_CONFIG_TEMPLATES = {
             }
         }
     },
+    CLIENT_CLAUDE_CODE: {},
     CLIENT_CURSOR: {
+        "mcpServers": {
+            "singlestore-mcp-server": {
+                "command": "uvx",
+                "args": ["singlestore-mcp-server", "start"],
+            }
+        }
+    },
+    CLIENT_VSCODE: {
+        "mcp.mcpServers": {
+            "singlestore-mcp-server": {
+                "command": "uvx",
+                "args": ["singlestore-mcp-server", "start"],
+            }
+        }
+    },
+    CLIENT_WINDSURF: {
+        "mcpServers": {
+            "singlestore-mcp-server": {
+                "command": "uvx",
+                "args": ["singlestore-mcp-server", "start"],
+            }
+        }
+    },
+    CLIENT_LM_STUDIO: {
+        "mcpServers": {
+            "singlestore-mcp-server": {
+                "command": "uvx",
+                "args": ["singlestore-mcp-server", "start"],
+            }
+        }
+    },
+    CLIENT_GEMINI: {
         "mcpServers": {
             "singlestore-mcp-server": {
                 "command": "uvx",
@@ -56,8 +124,12 @@ def get_config_path(client: str) -> Optional[Path]:
         client: The LLM client name
 
     Returns:
-        Path to the config file or None if unsupported platform
+        Path to the config file or None if unsupported platform or CLI-based client
     """
+    # Claude Code uses CLI configuration, no config file
+    if client == CLIENT_CLAUDE_CODE:
+        return None
+
     platform = sys.platform
     if platform not in CLIENT_CONFIG_PATHS[client]:
         logger.error(f"Unsupported platform: {platform} for client: {client}")
@@ -65,6 +137,9 @@ def get_config_path(client: str) -> Optional[Path]:
 
     # Get the raw path and expand environment variables and user directory
     raw_path = CLIENT_CONFIG_PATHS[client][platform]
+    if raw_path is None:
+        return None
+
     if platform == "win32":
         # Windows-specific environment variable expansion
         for env_var in os.environ:
@@ -105,6 +180,47 @@ def update_client_config(client: str) -> tuple[bool, Optional[dict]]:
     Returns:
         Tuple of (success: bool, config_data: Optional[dict])
     """
+    # Handle Claude Code specially - it uses CLI configuration
+    if client == CLIENT_CLAUDE_CODE:
+        command = [
+            "claude",
+            "mcp",
+            "add",
+            "singlestore-mcp-server",
+            "uvx",
+            "singlestore-mcp-server",
+            "start",
+        ]
+        try:
+            logger.info("Running Claude Code CLI command...")
+            result = subprocess.run(command, capture_output=True, text=True, check=True)
+            logger.info("Successfully added SingleStore MCP server to Claude Code")
+            if result.stdout:
+                logger.info(f"Output: {result.stdout.strip()}")
+            logger.info(
+                "The server will handle authentication automatically via browser OAuth."
+            )
+            return True, {
+                "cli_command": " ".join(command),
+                "output": result.stdout.strip() if result.stdout else "",
+            }
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to run Claude Code CLI command: {e}")
+            if e.stderr:
+                logger.error(f"Error output: {e.stderr.strip()}")
+            logger.info("You can run this command manually:")
+            logger.info(" ".join(command))
+            return False, None
+        except FileNotFoundError:
+            logger.error(
+                "Claude CLI not found. Please make sure Claude Code is installed and the 'claude' command is available in your PATH."
+            )
+            logger.info(
+                "You can run this command manually once Claude Code is installed:"
+            )
+            logger.info(" ".join(command))
+            return False, None
+
     config_path = get_config_path(client)
     if not config_path:
         return False, None
@@ -124,7 +240,21 @@ def update_client_config(client: str) -> tuple[bool, Optional[dict]]:
                 try:
                     existing_config = json.load(f)
                     # Merge the configs based on client type
-                    if client in [CLIENT_CLAUDE, CLIENT_CURSOR]:
+                    if client == CLIENT_VSCODE:
+                        # VS Code uses a different structure in settings.json
+                        if "mcp.mcpServers" not in existing_config:
+                            existing_config["mcp.mcpServers"] = {}
+                        existing_config["mcp.mcpServers"]["singlestore-mcp-server"] = (
+                            config_data["mcp.mcpServers"]["singlestore-mcp-server"]
+                        )
+                    elif client in [
+                        CLIENT_CLAUDE_DESKTOP,
+                        CLIENT_CURSOR,
+                        CLIENT_WINDSURF,
+                        CLIENT_LM_STUDIO,
+                        CLIENT_GEMINI,
+                    ]:
+                        # Standard mcpServers structure
                         if "mcpServers" not in existing_config:
                             existing_config["mcpServers"] = {}
                         existing_config["mcpServers"]["singlestore-mcp-server"] = (
@@ -161,7 +291,7 @@ def init_command(client: str) -> int:
     Initialize the SingleStore MCP server for a specific client with JWT authentication.
 
     Args:
-        client: Name of the LLM client (claude, cursor)
+        client: Name of the LLM client (claude-desktop, claude-code, cursor, vscode, windsurf, lm-studio, gemini)
 
     Returns:
         Exit code (0 for success, 1 for failure)
@@ -187,13 +317,33 @@ def init_command(client: str) -> int:
 
         # Show the generated config
         logger.info("\nGenerated configuration:")
-        mcp_server_config = config_data.get("mcpServers", {}).get(
-            "singlestore-mcp-server", {}
-        )
-        config_display = {
-            "mcpServers": {"...": "...", "singlestore-mcp-server": mcp_server_config}
-        }
-        logger.info(json.dumps(config_display, indent=4))
+        if client == CLIENT_CLAUDE_CODE:
+            if "output" in config_data and config_data["output"]:
+                logger.info(f"Claude Code output: {config_data['output']}")
+            else:
+                logger.info(f"CLI command executed: {config_data['cli_command']}")
+        elif client == CLIENT_VSCODE:
+            mcp_server_config = config_data.get("mcp.mcpServers", {}).get(
+                "singlestore-mcp-server", {}
+            )
+            config_display = {
+                "mcp.mcpServers": {
+                    "...": "...",
+                    "singlestore-mcp-server": mcp_server_config,
+                }
+            }
+            logger.info(json.dumps(config_display, indent=4))
+        else:
+            mcp_server_config = config_data.get("mcpServers", {}).get(
+                "singlestore-mcp-server", {}
+            )
+            config_display = {
+                "mcpServers": {
+                    "...": "...",
+                    "singlestore-mcp-server": mcp_server_config,
+                }
+            }
+            logger.info(json.dumps(config_display, indent=4))
 
         logger.info("Restart your LLM client to apply the changes.")
         return 0
