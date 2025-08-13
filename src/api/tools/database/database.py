@@ -31,7 +31,11 @@ class DatabaseCredentials(BaseModel):
 
 
 async def _get_database_credentials(
-    ctx: Context, target: WorkspaceTarget, database_name: str | None = None
+    ctx: Context,
+    target: WorkspaceTarget,
+    database_name: str | None = None,
+    provided_username: str | None = None,
+    provided_password: str | None = None,
 ) -> tuple[str, str]:
     """
     Get database credentials based on the authentication method.
@@ -40,6 +44,8 @@ async def _get_database_credentials(
         ctx: The MCP context
         target: The workspace target
         database_name: The database name to use for key generation
+        provided_username: Optional username provided by the caller
+        provided_password: Optional password provided by the caller
 
     Returns:
         Tuple of (username, password)
@@ -57,6 +63,11 @@ async def _get_database_credentials(
     )
 
     if is_using_api_key:
+        # If credentials are provided directly, use them
+        if provided_username and provided_password:
+            logger.debug(f"Using provided credentials for workspace: {target.name}")
+            return (provided_username, provided_password)
+
         # For API key authentication, we need database credentials
         # Generate database key using credentials manager
         credentials_manager = get_session_credentials_manager()
@@ -272,8 +283,202 @@ def __get_workspace_by_id(workspace_id: str) -> WorkspaceTarget:
     return WorkspaceTarget(target, is_shared)
 
 
+async def create_pipeline(
+    ctx: Context,
+    pipeline_name: str,
+    data_source: str,
+    target_table_or_procedure: str,
+    workspace_id: str,
+    database: Optional[str] = None,
+    file_format: str = "CSV",
+    credentials: Optional[str] = None,
+    config_options: Optional[str] = None,
+    max_partitions_per_batch: Optional[int] = None,
+    field_terminator: str = ",",
+    field_enclosure: str = '"',
+    field_escape: str = "\\",
+    line_terminator: str = "\\n",
+    line_starting: str = "",
+    auto_start: bool = True,
+) -> Dict[str, Any]:
+    """
+    Create a SQL pipeline for streaming data from a data source to a database table or stored procedure.
+
+    A pipeline is a SQL instruction that creates a stream of data from a source (like S3, Stage, etc.)
+    to a target table or procedure in SingleStore. This tool generates and executes the CREATE PIPELINE
+    SQL statement and optionally starts the pipeline.
+
+    Args:
+        pipeline_name: Name for the pipeline (will be used in CREATE PIPELINE statement)
+        data_source: Source URL (e.g., S3 URL, Stage URL, etc.)
+        target_table_or_procedure: Target table name or procedure name (use "PROCEDURE procedure_name" for procedures)
+        workspace_id: Workspace ID where the pipeline should be created
+        database: Optional database name to use
+        file_format: File format (CSV, JSON, etc.) - default is CSV
+        credentials: Optional credentials string for accessing the data source
+        config_options: Optional configuration options (e.g., '{"region": "us-east-1"}')
+        max_partitions_per_batch: Optional max partitions per batch setting
+        field_terminator: Field terminator for CSV format (default: ",")
+        field_enclosure: Field enclosure character for CSV (default: '"')
+        field_escape: Field escape character for CSV (default: "\\")
+        line_terminator: Line terminator for CSV (default: "\\n")
+        line_starting: Line starting pattern for CSV (default: "")
+        auto_start: Whether to automatically start the pipeline after creation (default: True)
+
+    Returns:
+        Dictionary with pipeline creation status and details
+
+    Example:
+        # Create pipeline from S3
+        pipeline_name = "uk_price_paid"
+        data_source = "s3://singlestore-docs-example-datasets/pp-monthly/pp-monthly-update-new-version.csv"
+        target_table_or_procedure = "PROCEDURE process_uk_price_paid"
+        credentials = "{}"
+        config_options = '{"region": "us-east-1"}'
+
+        # Create pipeline from Stage
+        data_source = "stage://datasets/my_data.csv"
+        target_table_or_procedure = "my_target_table"
+    """
+    # Validate workspace ID format
+    validated_id = validate_workspace_id(workspace_id)
+
+    await ctx.info(
+        f"Creating pipeline '{pipeline_name}' from '{data_source}' to '{target_table_or_procedure}' in workspace '{validated_id}'"
+    )
+
+    start_time = time.time()
+
+    # Build the CREATE PIPELINE SQL statement
+    sql_parts = [
+        f"CREATE OR REPLACE PIPELINE {pipeline_name} AS",
+        f"     LOAD DATA {data_source.upper() if data_source.startswith(('s3://', 'stage://')) else data_source}",
+    ]
+
+    # Add credentials if provided
+    if credentials:
+        sql_parts.append(f"     CREDENTIALS '{credentials}'")
+
+    # Add config options if provided
+    if config_options:
+        sql_parts.append(f"     CONFIG '{config_options}'")
+
+    # Add max partitions per batch if provided
+    if max_partitions_per_batch:
+        sql_parts.append(f"     MAX_PARTITIONS_PER_BATCH {max_partitions_per_batch}")
+
+    # Add target (table or procedure)
+    sql_parts.append(f"     INTO {target_table_or_procedure}")
+
+    # Add format and CSV-specific options
+    sql_parts.append(f"     FORMAT {file_format.upper()}")
+
+    if file_format.upper() == "CSV":
+        sql_parts.extend(
+            [
+                f"     FIELDS TERMINATED BY '{field_terminator}' ENCLOSED BY '{field_enclosure}' ESCAPED BY '{field_escape}'",
+                f"     LINES TERMINATED BY '{line_terminator}' STARTING BY '{line_starting}'",
+            ]
+        )
+
+    # Combine all parts into final SQL
+    create_pipeline_sql = "\n".join(sql_parts) + ";"
+
+    try:
+        # Execute the CREATE PIPELINE statement
+        create_result = await run_sql(
+            ctx=ctx, sql_query=create_pipeline_sql, id=validated_id, database=database
+        )
+
+        if create_result.get("status") != "success":
+            return {
+                "status": "error",
+                "message": f"Failed to create pipeline: {create_result.get('message', 'Unknown error')}",
+                "errorCode": "PIPELINE_CREATION_FAILED",
+                "errorDetails": create_result,
+            }
+
+        # If auto_start is True, also start the pipeline
+        start_result = None
+        if auto_start:
+            start_pipeline_sql = f"START PIPELINE IF NOT RUNNING {pipeline_name};"
+            start_result = await run_sql(
+                ctx=ctx,
+                sql_query=start_pipeline_sql,
+                id=validated_id,
+                database=database,
+            )
+
+        execution_time = (time.time() - start_time) * 1000
+
+        # Track analytics
+        settings = config.get_settings()
+        user_id = config.get_user_id()
+        settings.analytics_manager.track_event(
+            user_id,
+            "tool_calling",
+            {
+                "name": "create_pipeline",
+                "pipeline_name": pipeline_name,
+                "workspace_id": validated_id,
+                "auto_start": auto_start,
+            },
+        )
+
+        # Build success message
+        success_message = f"Pipeline '{pipeline_name}' created successfully"
+        if auto_start and start_result and start_result.get("status") == "success":
+            success_message += " and started"
+
+        return {
+            "status": "success",
+            "message": success_message,
+            "data": {
+                "pipelineName": pipeline_name,
+                "dataSource": data_source,
+                "targetTableOrProcedure": target_table_or_procedure,
+                "workspaceId": validated_id,
+                "database": database,
+                "autoStarted": auto_start
+                and start_result
+                and start_result.get("status") == "success",
+                "createSql": create_pipeline_sql,
+                "startSql": (
+                    f"START PIPELINE IF NOT RUNNING {pipeline_name};"
+                    if auto_start
+                    else None
+                ),
+            },
+            "metadata": {
+                "executionTimeMs": round(execution_time, 2),
+                "timestamp": datetime.now().isoformat(),
+                "fileFormat": file_format,
+                "creationResult": create_result,
+                "startResult": start_result,
+            },
+        }
+
+    except Exception as e:
+        logger.error(f"Error creating pipeline: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Failed to create pipeline: {str(e)}",
+            "errorCode": "PIPELINE_CREATION_ERROR",
+            "errorDetails": {
+                "exception_type": type(e).__name__,
+                "pipelineName": pipeline_name,
+                "workspaceId": validated_id,
+            },
+        }
+
+
 async def run_sql(
-    ctx: Context, sql_query: str, id: str, database: Optional[str] = None
+    ctx: Context,
+    sql_query: str,
+    id: str,
+    database: Optional[str] = None,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Use this tool to execute a single SQL statement against a SingleStore database.
@@ -289,6 +494,8 @@ async def run_sql(
         id: Workspace or starter workspace ID
         sql_query: The SQL query to execute
         database: (optional) Database name to use
+        username: (optional) Database username for authentication. If not provided, will be requested via elicitation for API key auth
+        password: (optional) Database password for authentication. If not provided, will be requested via elicitation for API key auth
 
     Returns:
         Standardized response with query results and metadata
@@ -312,7 +519,9 @@ async def run_sql(
 
     # Get database credentials based on authentication method
     try:
-        username, password = await _get_database_credentials(ctx, target, database_name)
+        db_username, db_password = await _get_database_credentials(
+            ctx, target, database_name, username, password
+        )
     except Exception as e:
         if "Database credentials required" in str(e):
             # Handle the specific case where elicitation is not supported
@@ -343,8 +552,8 @@ async def run_sql(
             ctx=ctx,
             target=target,
             sql_query=sql_query,
-            username=username,
-            password=password,
+            username=db_username,
+            password=db_password,
             database=database_name,
         )
     except Exception as e:
@@ -377,7 +586,7 @@ async def run_sql(
 
     # Track analytics
     settings.analytics_manager.track_event(
-        username,
+        db_username,
         "tool_calling",
         {
             "name": "run_sql",

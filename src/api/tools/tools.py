@@ -14,7 +14,7 @@ from src.api.tools.starter_workspaces import (
     terminate_starter_workspace,
 )
 from src.api.tools.regions import list_regions, list_sharedtier_regions
-from src.api.tools.database import run_sql
+from src.api.tools.database import run_sql, create_pipeline
 from src.api.tools.user import get_user_info
 from src.api.tools.notebooks import (
     create_notebook_file,
@@ -26,6 +26,7 @@ from src.api.tools.organization import (
     choose_organization,
     set_organization,
 )
+from src.api.tools.stage import upload_file_to_stage
 
 # Define the tools with their metadata
 tools_definition = [
@@ -42,8 +43,10 @@ tools_definition = [
     {"func": list_regions},
     {"func": list_sharedtier_regions},
     {"func": run_sql},
+    {"func": create_pipeline},
     {"func": create_notebook_file},
     {"func": upload_notebook_file},
+    {"func": upload_file_to_stage},
     {"func": create_job_from_notebook},
     {"func": get_job},
     {"func": delete_job},
