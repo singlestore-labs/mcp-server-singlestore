@@ -223,7 +223,7 @@ async def __execute_sql_unified(
             raise
 
 
-def __get_workspace_by_id(workspace_id: str) -> WorkspaceTarget:
+def get_workspace_by_id(workspace_id: str) -> WorkspaceTarget:
     """
     Get a workspace or starter workspace by ID.
 
@@ -290,104 +290,122 @@ async def create_pipeline(
     target_table_or_procedure: str,
     workspace_id: str,
     database: Optional[str] = None,
-    file_format: str = "CSV",
     credentials: Optional[str] = None,
-    config_options: Optional[str] = None,
-    max_partitions_per_batch: Optional[int] = None,
-    field_terminator: str = ",",
-    field_enclosure: str = '"',
-    field_escape: str = "\\",
-    line_terminator: str = "\\n",
-    line_starting: str = "",
-    auto_start: bool = True,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Create a SQL pipeline for streaming data from a data source to a database table or stored procedure.
+    Create a SQL pipeline for streaming CSV data from an S3 data source to a database table or stored procedure.
 
-    A pipeline is a SQL instruction that creates a stream of data from a source (like S3, Stage, etc.)
-    to a target table or procedure in SingleStore. This tool generates and executes the CREATE PIPELINE
-    SQL statement and optionally starts the pipeline.
+    This tool is restricted to S3 data sources only and automatically configures the pipeline with:
+    - CSV format only
+    - Comma delimiter (,)
+    - MAX_PARTITIONS_PER_BATCH = 2
+    - Auto-start enabled
+    - No config options
 
     Args:
         pipeline_name: Name for the pipeline (will be used in CREATE PIPELINE statement)
-        data_source: Source URL (e.g., S3 URL, Stage URL, etc.)
+        data_source: S3 URL (must start with 's3://')
         target_table_or_procedure: Target table name or procedure name (use "PROCEDURE procedure_name" for procedures)
         workspace_id: Workspace ID where the pipeline should be created
         database: Optional database name to use
-        file_format: File format (CSV, JSON, etc.) - default is CSV
-        credentials: Optional credentials string for accessing the data source
-        config_options: Optional configuration options (e.g., '{"region": "us-east-1"}')
-        max_partitions_per_batch: Optional max partitions per batch setting
-        field_terminator: Field terminator for CSV format (default: ",")
-        field_enclosure: Field enclosure character for CSV (default: '"')
-        field_escape: Field escape character for CSV (default: "\\")
-        line_terminator: Line terminator for CSV (default: "\\n")
-        line_starting: Line starting pattern for CSV (default: "")
-        auto_start: Whether to automatically start the pipeline after creation (default: True)
+        credentials: Optional AWS credentials in JSON format for private S3 buckets:
+                    '{"aws_access_key_id": "key", "aws_secret_access_key": "secret", "aws_session_token": "token"}'
+                    Use '{}' for public S3 buckets
+        username: Optional database username for API key authentication
+        password: Optional database password for API key authentication
 
     Returns:
         Dictionary with pipeline creation status and details
 
     Example:
-        # Create pipeline from S3
+        # Create pipeline from public S3 bucket
         pipeline_name = "uk_price_paid"
         data_source = "s3://singlestore-docs-example-datasets/pp-monthly/pp-monthly-update-new-version.csv"
-        target_table_or_procedure = "PROCEDURE process_uk_price_paid"
+        target_table_or_procedure = "process_uk_price_paid"
         credentials = "{}"
-        config_options = '{"region": "us-east-1"}'
 
-        # Create pipeline from Stage
-        data_source = "stage://datasets/my_data.csv"
-        target_table_or_procedure = "my_target_table"
+        # Create pipeline from private S3 bucket
+        credentials = '{"aws_access_key_id": "AKIAIOSFODNN7EXAMPLE", "aws_secret_access_key": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"}'
     """
     # Validate workspace ID format
     validated_id = validate_workspace_id(workspace_id)
 
+    # Validate that data source is S3
+    if not data_source.lower().startswith("s3://"):
+        return {
+            "status": "error",
+            "message": "Only S3 data sources are supported. Data source must start with 's3://'",
+            "errorCode": "INVALID_DATA_SOURCE",
+        }
+
     await ctx.info(
-        f"Creating pipeline '{pipeline_name}' from '{data_source}' to '{target_table_or_procedure}' in workspace '{validated_id}'"
+        f"Creating S3 pipeline '{pipeline_name}' from '{data_source}' to '{target_table_or_procedure}' in workspace '{validated_id}'"
     )
 
     start_time = time.time()
 
+    # Fixed parameters for restrictions
+    file_format = "CSV"
+    max_partitions_per_batch = 2
+    field_terminator = ","
+    field_enclosure = '"'
+    field_escape = "\\\\"
+    line_terminator = "\\n"
+    line_starting = ""
+
     # Build the CREATE PIPELINE SQL statement
     sql_parts = [
         f"CREATE OR REPLACE PIPELINE {pipeline_name} AS",
-        f"     LOAD DATA {data_source.upper() if data_source.startswith(('s3://', 'stage://')) else data_source}",
+        f"     LOAD DATA S3 '{data_source}'",
     ]
 
     # Add credentials if provided
     if credentials:
         sql_parts.append(f"     CREDENTIALS '{credentials}'")
 
-    # Add config options if provided
-    if config_options:
-        sql_parts.append(f"     CONFIG '{config_options}'")
+    # Add fixed max partitions per batch
+    sql_parts.append(f"     MAX_PARTITIONS_PER_BATCH {max_partitions_per_batch}")
 
-    # Add max partitions per batch if provided
-    if max_partitions_per_batch:
-        sql_parts.append(f"     MAX_PARTITIONS_PER_BATCH {max_partitions_per_batch}")
+    # Determine if target is a table or procedure and format accordingly
+    is_procedure = (
+        target_table_or_procedure.upper().startswith("PROCEDURE ")
+        or "process_" in target_table_or_procedure.lower()
+    )
 
-    # Add target (table or procedure)
-    sql_parts.append(f"     INTO {target_table_or_procedure}")
+    if is_procedure:
+        # Remove "PROCEDURE " prefix if present
+        procedure_name = target_table_or_procedure
+        if procedure_name.upper().startswith("PROCEDURE "):
+            procedure_name = procedure_name[10:]  # Remove "PROCEDURE " prefix
+        sql_parts.append(f"     INTO PROCEDURE {procedure_name}")
+    else:
+        sql_parts.append(f"     INTO TABLE {target_table_or_procedure}")
 
-    # Add format and CSV-specific options
+    # Add fixed format and CSV-specific options
     sql_parts.append(f"     FORMAT {file_format.upper()}")
-
-    if file_format.upper() == "CSV":
-        sql_parts.extend(
-            [
-                f"     FIELDS TERMINATED BY '{field_terminator}' ENCLOSED BY '{field_enclosure}' ESCAPED BY '{field_escape}'",
-                f"     LINES TERMINATED BY '{line_terminator}' STARTING BY '{line_starting}'",
-            ]
-        )
+    sql_parts.append(
+        f"     FIELDS TERMINATED BY '{field_terminator}' ENCLOSED BY '{field_enclosure}' ESCAPED BY '{field_escape}'"
+    )
+    sql_parts.append(
+        f"     LINES TERMINATED BY '{line_terminator}' STARTING BY '{line_starting}'"
+    )
 
     # Combine all parts into final SQL
     create_pipeline_sql = "\n".join(sql_parts) + ";"
 
+    logger.info(create_pipeline_sql)
+
     try:
         # Execute the CREATE PIPELINE statement
         create_result = await run_sql(
-            ctx=ctx, sql_query=create_pipeline_sql, id=validated_id, database=database
+            ctx=ctx,
+            sql_query=create_pipeline_sql,
+            id=validated_id,
+            database=database,
+            username=username,
+            password=password,
         )
 
         if create_result.get("status") != "success":
@@ -398,16 +416,17 @@ async def create_pipeline(
                 "errorDetails": create_result,
             }
 
-        # If auto_start is True, also start the pipeline
+        # If auto_start is True, also start the pipeline (always true in restricted mode)
         start_result = None
-        if auto_start:
-            start_pipeline_sql = f"START PIPELINE IF NOT RUNNING {pipeline_name};"
-            start_result = await run_sql(
-                ctx=ctx,
-                sql_query=start_pipeline_sql,
-                id=validated_id,
-                database=database,
-            )
+        start_pipeline_sql = f"START PIPELINE IF NOT RUNNING {pipeline_name};"
+        start_result = await run_sql(
+            ctx=ctx,
+            sql_query=start_pipeline_sql,
+            id=validated_id,
+            database=database,
+            username=username,
+            password=password,
+        )
 
         execution_time = (time.time() - start_time) * 1000
 
@@ -421,13 +440,13 @@ async def create_pipeline(
                 "name": "create_pipeline",
                 "pipeline_name": pipeline_name,
                 "workspace_id": validated_id,
-                "auto_start": auto_start,
+                "auto_start": True,
             },
         )
 
         # Build success message
         success_message = f"Pipeline '{pipeline_name}' created successfully"
-        if auto_start and start_result and start_result.get("status") == "success":
+        if start_result and start_result.get("status") == "success":
             success_message += " and started"
 
         return {
@@ -439,20 +458,15 @@ async def create_pipeline(
                 "targetTableOrProcedure": target_table_or_procedure,
                 "workspaceId": validated_id,
                 "database": database,
-                "autoStarted": auto_start
-                and start_result
-                and start_result.get("status") == "success",
+                "autoStarted": start_result and start_result.get("status") == "success",
                 "createSql": create_pipeline_sql,
-                "startSql": (
-                    f"START PIPELINE IF NOT RUNNING {pipeline_name};"
-                    if auto_start
-                    else None
-                ),
+                "startSql": f"START PIPELINE IF NOT RUNNING {pipeline_name};",
             },
             "metadata": {
                 "executionTimeMs": round(execution_time, 2),
                 "timestamp": datetime.now().isoformat(),
-                "fileFormat": file_format,
+                "fileFormat": "CSV",
+                "maxPartitionsPerBatch": 2,
                 "creationResult": create_result,
                 "startResult": start_result,
             },
@@ -510,7 +524,7 @@ async def run_sql(
     settings = config.get_settings()
 
     # Target can either be a workspace or a starter workspace
-    target = __get_workspace_by_id(validated_id)
+    target = get_workspace_by_id(validated_id)
     database_name = database
 
     # For starter workspaces, use their database name if not specified

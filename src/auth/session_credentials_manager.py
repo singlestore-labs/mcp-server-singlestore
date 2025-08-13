@@ -138,7 +138,7 @@ def get_session_credentials_manager() -> SessionCredentialsManager:
 
     if _session_credentials_manager is None:
         _session_credentials_manager = SessionCredentialsManager()
-        logger.info("Created new session credentials manager")
+        logger.debug("Created new session credentials manager")
 
     return _session_credentials_manager
 
@@ -151,7 +151,7 @@ def reset_session_credentials_manager() -> None:
     """
     global _session_credentials_manager
     _session_credentials_manager = None
-    logger.info("Reset session credentials manager")
+    logger.debug("Reset session credentials manager")
 
 
 def invalidate_credentials(database_name: str) -> None:
