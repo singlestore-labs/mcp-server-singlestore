@@ -52,7 +52,7 @@ def register_tools(mcp: FastMCP, **filter_flags) -> None:
     using_api_key = (
         not settings.is_remote
         and isinstance(settings, LocalSettings)
-        and settings.api_key
+        and (settings.api_key or settings.jwt_token and settings.org_id)
     )
 
     # List of tools to exclude when using API key authentication
