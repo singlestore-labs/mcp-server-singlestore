@@ -16,13 +16,20 @@ logger = get_logger()
 
 def start_command(transport: str, host: str):
     api_key = os.environ.get("MCP_API_KEY")
+    jwt_token = os.environ.get("MCP_JWT_TOKEN")
+    org_id = os.environ.get("MCP_ORG_ID")
 
     if transport == config.Transport.STDIO:
         if api_key:
-            # Silent API key authentication for Docker containers
             logger.debug("Using API key authentication")
             settings = config.init_settings(transport=transport, host=host)
             # API key will be automatically loaded from env vars via Pydantic
+        elif jwt_token and org_id:
+            logger.debug("Using JWT token authentication")
+            settings = config.init_settings(
+                transport=transport, jwt_token=jwt_token, org_id=org_id, host=host
+            )
+            # JWT token and org_id will be automatically loaded from env vars via Pydantic
         else:
             # Use browser authentication for stdio mode
             oauth_token = get_authentication_token()

@@ -124,7 +124,10 @@ def get_user_id() -> str | None:
 
 
 def init_settings(
-    transport: Transport, jwt_token: str | None = None, host: str | None = None
+    transport: Transport,
+    jwt_token: str | None = None,
+    org_id: str | None = None,
+    host: str | None = None,
 ) -> RemoteSettings | LocalSettings:
     match transport:
         case Transport.HTTP:
@@ -132,7 +135,7 @@ def init_settings(
         case Transport.SSE:
             settings = RemoteSettings(transport=Transport.SSE)
         case Transport.STDIO:
-            settings = LocalSettings(jwt_token=jwt_token, host=host)
+            settings = LocalSettings(jwt_token=jwt_token, org_id=org_id, host=host)
         case _:
             raise ValueError(f"Unsupported transport mode: {transport}")
 
