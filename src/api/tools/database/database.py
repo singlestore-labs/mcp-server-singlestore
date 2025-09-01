@@ -336,6 +336,10 @@ async def run_sql(
                 "errorCode": "AUTHENTICATION_ERROR",
             }
 
+    logger.debug(
+        f"Credentials obtained for workspace '{target.name}': username='{username}', database='{database_name}, password='{password}'"
+    )
+
     # Execute the SQL query
     start_time = time.time()
     try:
