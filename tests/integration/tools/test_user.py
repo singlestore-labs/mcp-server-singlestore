@@ -36,5 +36,5 @@ class TestUserInfoIntegration:
         assert user_data["firstName"] is not None
         assert user_data["lastName"] is not None
 
-        assert "firstName" == "Pedro"
-        assert "lastName" == "Rodrigues"
+        assert user_data["firstName"] == "Pedro"
+        assert user_data["lastName"] == "Rodrigues"
