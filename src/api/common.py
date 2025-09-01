@@ -313,22 +313,19 @@ def __get_workspace_endpoint(
 
 def fetch_user() -> Dict[str, Any]:
     """
-    Get the current user's ID from the management API.
+    Get the current user's information from the management API.
 
     Returns:
-        str: The user ID
+    Dict[str, Any]: User information including userID, email, firstName, lastName
     """
 
     # Get all users in the organization
-    users = build_request("GET", "users")
+    user = build_request("GET", "users/current")
 
-    # Find the current user
-    # Since we can't directly get the current user ID, we'll use the first user
-    # In a real implementation, we might need additional logic to identify the current user
-    if users and isinstance(users, list) and len(users) > 0:
-        return users[0]
+    if user is not None:
+        return user
 
-    raise ValueError("Could not retrieve user ID from the API")
+    raise ValueError("Could not retrieve user information from the API")
 
 
 def get_org_id() -> str | None:
