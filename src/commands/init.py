@@ -11,6 +11,7 @@ from .constants import (
     CLIENT_CLAUDE_CODE,
     CLIENT_CURSOR,
     CLIENT_VSCODE,
+    CLIENT_VSCODE_INSIDERS,
     CLIENT_WINDSURF,
     CLIENT_LM_STUDIO,
     CLIENT_GEMINI,
@@ -38,9 +39,14 @@ CLIENT_CONFIG_PATHS = {
         "linux": "~/.cursor/mcp.json",
     },
     CLIENT_VSCODE: {
-        "darwin": "~/Library/Application Support/Code/User/settings.json",
-        "win32": "%APPDATA%\\Code\\User\\settings.json",
-        "linux": "~/.config/Code/User/settings.json",
+        "darwin": "~/Library/Application Support/Code/User/mcp.json",
+        "win32": "%APPDATA%\\Code\\User\\mcp.json",
+        "linux": "~/.config/Code/User/mcp.json",
+    },
+    CLIENT_VSCODE_INSIDERS: {
+        "darwin": "~/Library/Application Support/Code - Insiders/User/mcp.json",
+        "win32": "%APPDATA%\\Code - Insiders\\User\\mcp.json",
+        "linux": "~/.config/Code - Insiders/User/mcp.json",
     },
     CLIENT_WINDSURF: {
         "darwin": "~/.windsurf/mcp.json",
@@ -82,7 +88,15 @@ CLIENT_CONFIG_TEMPLATES = {
         }
     },
     CLIENT_VSCODE: {
-        "mcp.mcpServers": {
+        "servers": {
+            "singlestore-mcp-server": {
+                "command": "uvx",
+                "args": ["singlestore-mcp-server", "start"],
+            }
+        }
+    },
+    CLIENT_VSCODE_INSIDERS: {
+        "servers": {
             "singlestore-mcp-server": {
                 "command": "uvx",
                 "args": ["singlestore-mcp-server", "start"],
@@ -240,12 +254,12 @@ def update_client_config(client: str) -> tuple[bool, Optional[dict]]:
                 try:
                     existing_config = json.load(f)
                     # Merge the configs based on client type
-                    if client == CLIENT_VSCODE:
+                    if client in [CLIENT_VSCODE, CLIENT_VSCODE_INSIDERS]:
                         # VS Code uses a different structure in settings.json
-                        if "mcp.mcpServers" not in existing_config:
-                            existing_config["mcp.mcpServers"] = {}
-                        existing_config["mcp.mcpServers"]["singlestore-mcp-server"] = (
-                            config_data["mcp.mcpServers"]["singlestore-mcp-server"]
+                        if "servers" not in existing_config:
+                            existing_config["servers"] = {}
+                        existing_config["servers"]["singlestore-mcp-server"] = (
+                            config_data["servers"]["singlestore-mcp-server"]
                         )
                     elif client in [
                         CLIENT_CLAUDE_DESKTOP,
@@ -322,12 +336,12 @@ def init_command(client: str) -> int:
                 logger.info(f"Claude Code output: {config_data['output']}")
             else:
                 logger.info(f"CLI command executed: {config_data['cli_command']}")
-        elif client == CLIENT_VSCODE:
-            mcp_server_config = config_data.get("mcp.mcpServers", {}).get(
+        elif client in [CLIENT_VSCODE, CLIENT_VSCODE_INSIDERS]:
+            mcp_server_config = config_data.get("servers", {}).get(
                 "singlestore-mcp-server", {}
             )
             config_display = {
-                "mcp.mcpServers": {
+                "servers": {
                     "...": "...",
                     "singlestore-mcp-server": mcp_server_config,
                 }
