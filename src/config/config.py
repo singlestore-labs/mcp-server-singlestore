@@ -1,4 +1,4 @@
-from typing import List, cast
+from typing import List, Literal, cast
 from urllib.parse import urljoin
 import requests
 
@@ -33,7 +33,7 @@ class LocalSettings(Settings):
     org_id: str | None = None
     api_key: str | None = None
     transport: Transport = Transport.STDIO
-    is_remote: bool = False
+    is_remote: Literal[False] = False
 
     # Environment variable configuration for Docker use cases
     model_config = SettingsConfigDict(env_prefix="MCP_")
@@ -53,7 +53,7 @@ class LocalSettings(Settings):
 
 class RemoteSettings(Settings):
     org_id: str
-    is_remote: bool = True
+    is_remote: Literal[True] = True
     issuer_url: str
     required_scopes: List[str]
     server_url: AnyHttpUrl

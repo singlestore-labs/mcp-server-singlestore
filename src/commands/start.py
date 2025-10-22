@@ -1,11 +1,11 @@
 import os
+from urllib.parse import urljoin
 from mcp.server.fastmcp import FastMCP
 from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions
-
+from pydantic import AnyHttpUrl
+from src.auth.proxy_provider import SingleStoreOAuthProxy
 from src.api.prompts.register import register_prompts
-from src.auth.callback import make_auth_callback_handler
 from src.api.tools import register_tools
-from src.auth.provider import SingleStoreOAuthProvider
 from src.api.resources.register import register_resources
 from src.auth.browser_auth import get_authentication_token
 import src.config.config as config
@@ -43,17 +43,21 @@ def start_command(transport: str, host: str):
                 transport=transport, jwt_token=oauth_token, host=host
             )
     else:
-        raise NotImplementedError("Only stdio transport is currently supported.")
-        # settings = config.init_settings(transport=transport, jwt_token=None)
+        # raise NotImplementedError("Only stdio transport is currently supported.")
+        settings = config.init_settings(transport=transport, jwt_token=jwt_token)
 
     mcp_args = {
         "name": "SingleStore MCP Server",
+        "auth": None,
     }
 
-    if settings.is_remote:
+    if isinstance(settings, config.RemoteSettings) and settings.server_url:
+        server_endpoint = urljoin(settings.server_url.unicode_string(), "mcp")
+
         mcp_args["auth"] = AuthSettings(
-            issuer_url=settings.server_url,
+            issuer_url=settings.server_url,  # Points to self because it hosts the auth endpoints through a proxy
             required_scopes=settings.required_scopes,
+            resource_server_url=AnyHttpUrl(server_endpoint),
             client_registration_options=ClientRegistrationOptions(
                 enabled=True,
                 valid_scopes=settings.required_scopes,
@@ -61,9 +65,9 @@ def start_command(transport: str, host: str):
             ),
         )
 
-        provider = SingleStoreOAuthProvider(settings=settings)
+        auth_provider = SingleStoreOAuthProxy().get_provider()
 
-        mcp_args["auth_server_provider"] = provider
+        mcp_args["auth_server_provider"] = auth_provider
 
         mcp_args["host"] = settings.host
         mcp_args["port"] = settings.port
@@ -76,10 +80,7 @@ def start_command(transport: str, host: str):
     register_prompts(mcp)
 
     if settings.is_remote:
-        # Register the callback handler with the captured oauth_provider
-        mcp.custom_route("/callback", methods=["GET"])(
-            make_auth_callback_handler(provider)
-        )
+        mcp._custom_starlette_routes = auth_provider.get_routes()
 
     logger.info(
         f"Starting MCP server with transport={transport} on {settings.host}:{settings.port}"
