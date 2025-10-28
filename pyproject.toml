@@ -3,7 +3,7 @@ name = "singlestore_mcp_server"
 dynamic = ["version"]
 description = "SingleStore MCP server"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
  "mcp>=1.17.0",
  "nbformat>=5.10.4",
@@ -14,7 +14,7 @@ dependencies = [
  "singlestoredb>=1.15.1",
  "pre-commit>=4.2.0",
  "pytest-asyncio>=1.1.0",
- "fastmcp==2.12.4",
+ "fastmcp==2.13.0.1",
  "pyjwt>=2.10.1",
 ]
 
@@ -36,8 +36,8 @@ packages = ["src"]
 line-length = 88
 indent-width = 4
 
-# Assume Python 3.10+
-target-version = "py310"
+# Assume Python 3.11+
+target-version = "py311"
 
 # Exclude Jupyter notebooks
 extend-exclude = ["*.ipynb"]

@@ -2,6 +2,7 @@
 SingleStore OAuth Proxy Provider with automatic configuration from OpenID Connect discovery.
 """
 
+from urllib.parse import urljoin
 import jwt
 from jwt import PyJWKClient
 import requests
@@ -16,30 +17,37 @@ class SingleStoreOAuthProxy:
     endpoints from OpenID Connect configuration and provides JWT token verification.
 
     Args:
-        openid_config_url: The OpenID Connect discovery URL (e.g.,
-            "https://authsvc.singlestore.com/auth/oidc/op/Customer/.well-known/openid-configuration")
+        issuer_url: The issuer URL for SingleStore's OAuth server, e.g.,
+            "https://authsvc.singlestore.com/")
         client_id: OAuth client ID (defaults to SingleStore's MCP client ID)
         client_secret: OAuth client secret (defaults to "-")
         base_url: Your FastMCP server's public URL (defaults to "http://localhost:8010/")
         redirect_path: The callback path for OAuth (defaults to "/callback")
         valid_scopes: List of valid OAuth scopes (defaults to ["openid"])
+        jwt_signing_key: Secret for signing FastMCP JWT tokens (defaults to the MCP_JWT_SIGNING_KEY env variable)
     """
 
     def __init__(
         self,
-        openid_config_url: str = "https://authsvc.singlestore.com/auth/oidc/op/Customer/.well-known/openid-configuration",
-        client_id: str = "b7dbf19e-d140-4334-bae4-e8cd03614485",
+        issuer_url: str,
+        client_id: str,
         client_secret: str = "-",
         base_url: str = "http://localhost:8010/",
-        redirect_path: str = "/callback",
+        redirect_path: str | None = "/callback",
         valid_scopes: list[str] | None = None,
+        jwt_signing_key: str | None = None,
     ):
-        self.openid_config_url = openid_config_url
+        self.issuer_url = issuer_url
+        # Assumes the default path for SingleStore's OpenID configuration
+        self.openid_config_url = urljoin(
+            issuer_url, "/.well-known/openid-configuration"
+        )
         self.client_id = client_id
         self.client_secret = client_secret
         self.base_url = base_url
         self.redirect_path = redirect_path
         self.valid_scopes = valid_scopes or ["openid"]
+        self.jwt_signing_key = jwt_signing_key
 
         # Fetch OpenID configuration
         self._config = self._fetch_openid_config()
@@ -135,6 +143,9 @@ class SingleStoreOAuthProxy:
                 f"authorization_endpoint={authorization_endpoint}, token_endpoint={token_endpoint}"
             )
 
+        if not self.jwt_signing_key:
+            raise RuntimeError("JWT signing key is not set.")
+
         return OAuthProxy(
             upstream_authorization_endpoint=authorization_endpoint,
             upstream_token_endpoint=token_endpoint,
@@ -144,12 +155,9 @@ class SingleStoreOAuthProxy:
             base_url=self.base_url,
             redirect_path=self.redirect_path,
             valid_scopes=self.valid_scopes,
+            jwt_signing_key=self.jwt_signing_key,
         )
 
     def get_provider(self) -> OAuthProxy:
         """Get the configured OAuth proxy provider."""
         return self.provider
-
-
-# Default instance for backward compatibility
-auth_provider = SingleStoreOAuthProxy().get_provider()

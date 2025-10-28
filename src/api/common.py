@@ -1,10 +1,12 @@
+import asyncio
+import threading
 from typing import Any, Dict, List
 import requests
 import json
 
 from starlette.exceptions import HTTPException
-
 from src.api.types import MCPConcept, AVAILABLE_FLAGS
+from src.config import config
 from src.config.config import get_session_request, get_settings
 from src.logger import get_logger
 
@@ -356,6 +358,23 @@ def get_org_id() -> str | None:
     return org_id
 
 
+# Run async coroutine in a separate thread
+def __run_async_in_thread(coro):
+    result = None
+
+    def runner():
+        nonlocal result
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        result = loop.run_until_complete(coro)
+        loop.close()
+
+    t = threading.Thread(target=runner)
+    t.start()
+    t.join()
+    return result
+
+
 def get_access_token() -> str:
     """
     Get the access token for the current session.
@@ -368,13 +387,18 @@ def get_access_token() -> str:
     logger.debug(f"Getting access token, is_remote: {settings.is_remote}")
 
     access_token: str
-    if settings.is_remote:
+    if isinstance(settings, config.RemoteSettings):
         request = get_session_request()
         access_token = request.headers.get("Authorization", "").replace("Bearer ", "")
+        real_token = __run_async_in_thread(
+            settings.auth_provider.load_access_token(access_token)
+        )
+        if real_token:
+            access_token = real_token.token
         logger.debug(
             f"Remote access token retrieved (length: {len(access_token) if access_token else 0})"
         )
-    else:
+    elif isinstance(settings, config.LocalSettings):
         # Check for API key first, then fall back to JWT token
         if settings.api_key:
             access_token = settings.api_key

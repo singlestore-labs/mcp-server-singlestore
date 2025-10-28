@@ -1,6 +1,4 @@
 from typing import List, Literal, cast
-from urllib.parse import urljoin
-import requests
 
 from abc import ABC
 from contextvars import ContextVar
@@ -10,6 +8,8 @@ from pydantic import AnyHttpUrl, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from starlette.requests import Request
 from src.analytics.manager import AnalyticsManager
+from src.auth.proxy_provider import SingleStoreOAuthProxy
+from fastmcp.server.auth.oauth_proxy import OAuthProxy
 from src.utils.uuid_validation import validate_uuid_string
 
 
@@ -55,10 +55,11 @@ class RemoteSettings(Settings):
     org_id: str
     is_remote: Literal[True] = True
     issuer_url: str
+    openid_config_url: str | None = None
     required_scopes: List[str]
     server_url: AnyHttpUrl
     client_id: str
-    callback_path: AnyHttpUrl | None = None
+    callback_path: str = "/callback"
     # SingleStore OAuth URLs
     singlestore_auth_url: str | None = None
     singlestore_token_url: str | None = None
@@ -70,6 +71,8 @@ class RemoteSettings(Settings):
     segment_write_key: str
     # Analytics manager instance
     analytics_manager: AnalyticsManager | None = None
+    auth_provider: OAuthProxy | None = None
+    jwt_signing_key: str | None = None
 
     model_config = SettingsConfigDict(env_prefix="MCP_", env_file=".env.remote")
 
@@ -82,28 +85,15 @@ class RemoteSettings(Settings):
     def __init__(self, **data):
         """Initialize settings with values from environment variables."""
         super().__init__(**data)
-        self.callback_path = urljoin(self.server_url.unicode_string(), "callback")
-        self.singlestore_auth_url, self.singlestore_token_url = (
-            self.discover_oauth_server()
-        )
         self.analytics_manager = AnalyticsManager(self.segment_write_key)
-
-    def discover_oauth_server(self) -> tuple[str, str]:
-        """Discover OAuth server endpoints"""
-        discovery_url = f"{self.issuer_url}/.well-known/openid-configuration"
-        response = requests.get(discovery_url, timeout=10)
-        response.raise_for_status()
-
-        authorization_endpoint: str = response.json().get("authorization_endpoint")
-
-        if not authorization_endpoint:
-            raise ValueError("Failed to discover OAuth endpoints")
-
-        token_endpoint: str = response.json().get("token_endpoint")
-        if not token_endpoint:
-            raise ValueError("Failed to discover OAuth endpoints")
-
-        return authorization_endpoint, token_endpoint
+        self.auth_provider = SingleStoreOAuthProxy(
+            issuer_url=self.issuer_url,
+            client_id=self.client_id,
+            base_url=self.server_url.unicode_string(),
+            valid_scopes=self.required_scopes,
+            jwt_signing_key=self.jwt_signing_key,
+            redirect_path=self.callback_path,
+        ).get_provider()
 
 
 # Context variable to store the Settings instance

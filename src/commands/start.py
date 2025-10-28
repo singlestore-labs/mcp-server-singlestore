@@ -1,9 +1,7 @@
 import os
-from urllib.parse import urljoin
 from mcp.server.fastmcp import FastMCP
 from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions
 from pydantic import AnyHttpUrl
-from src.auth.proxy_provider import SingleStoreOAuthProxy
 from src.api.prompts.register import register_prompts
 from src.api.tools import register_tools
 from src.api.resources.register import register_resources
@@ -52,7 +50,7 @@ def start_command(transport: str, host: str):
     }
 
     if isinstance(settings, config.RemoteSettings) and settings.server_url:
-        server_endpoint = urljoin(settings.server_url.unicode_string(), "mcp")
+        server_endpoint = settings.server_url.unicode_string()
 
         mcp_args["auth"] = AuthSettings(
             issuer_url=settings.server_url,  # Points to self because it hosts the auth endpoints through a proxy
@@ -65,12 +63,11 @@ def start_command(transport: str, host: str):
             ),
         )
 
-        auth_provider = SingleStoreOAuthProxy().get_provider()
-
-        mcp_args["auth_server_provider"] = auth_provider
+        mcp_args["auth_server_provider"] = settings.auth_provider
 
         mcp_args["host"] = settings.host
         mcp_args["port"] = settings.port
+        mcp_args["streamable_http_path"] = "/"
 
     mcp = FastMCP(**mcp_args)
     config._app_ctx.set(mcp)
@@ -79,8 +76,8 @@ def start_command(transport: str, host: str):
     register_resources(mcp)
     register_prompts(mcp)
 
-    if settings.is_remote:
-        mcp._custom_starlette_routes = auth_provider.get_routes()
+    if isinstance(settings, config.RemoteSettings):
+        mcp._custom_starlette_routes = settings.auth_provider.get_routes()
 
     logger.info(
         f"Starting MCP server with transport={transport} on {settings.host}:{settings.port}"
