@@ -41,7 +41,6 @@ def start_command(transport: str, host: str):
                 transport=transport, jwt_token=oauth_token, host=host
             )
     else:
-        # raise NotImplementedError("Only stdio transport is currently supported.")
         settings = config.init_settings(transport=transport, jwt_token=jwt_token)
 
     mcp_args = {
@@ -49,7 +48,7 @@ def start_command(transport: str, host: str):
         "auth": None,
     }
 
-    if isinstance(settings, config.RemoteSettings) and settings.server_url:
+    if isinstance(settings, config.RemoteSettings):
         server_endpoint = settings.server_url.unicode_string()
 
         mcp_args["auth"] = AuthSettings(
@@ -76,7 +75,7 @@ def start_command(transport: str, host: str):
     register_resources(mcp)
     register_prompts(mcp)
 
-    if isinstance(settings, config.RemoteSettings):
+    if isinstance(settings, config.RemoteSettings) and settings.auth_provider:
         mcp._custom_starlette_routes = settings.auth_provider.get_routes()
 
     logger.info(

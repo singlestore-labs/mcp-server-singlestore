@@ -18,13 +18,13 @@ class SingleStoreOAuthProxy:
 
     Args:
         issuer_url: The issuer URL for SingleStore's OAuth server, e.g.,
-            "https://authsvc.singlestore.com/")
-        client_id: OAuth client ID (defaults to SingleStore's MCP client ID)
-        client_secret: OAuth client secret (defaults to "-")
-        base_url: Your FastMCP server's public URL (defaults to "http://localhost:8010/")
-        redirect_path: The callback path for OAuth (defaults to "/callback")
-        valid_scopes: List of valid OAuth scopes (defaults to ["openid"])
-        jwt_signing_key: Secret for signing FastMCP JWT tokens (defaults to the MCP_JWT_SIGNING_KEY env variable)
+            "https://authsvc.singlestore.com/"
+        client_id: OAuth client ID
+        client_secret: OAuth client secret
+        base_url: Your FastMCP server's public URL
+        redirect_path: The callback path for OAuth
+        valid_scopes: List of valid OAuth scopes
+        jwt_signing_key: Secret for signing FastMCP JWT tokens
     """
 
     def __init__(
