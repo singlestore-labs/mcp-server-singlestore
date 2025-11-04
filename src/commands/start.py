@@ -1,7 +1,6 @@
 import os
 from mcp.server.fastmcp import FastMCP
 from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions
-from pydantic import AnyHttpUrl
 from src.api.prompts.register import register_prompts
 from src.api.tools import register_tools
 from src.api.resources.register import register_resources
@@ -49,12 +48,10 @@ def start_command(transport: str, host: str):
     }
 
     if isinstance(settings, config.RemoteSettings):
-        server_endpoint = settings.server_url.unicode_string()
-
         mcp_args["auth"] = AuthSettings(
             issuer_url=settings.server_url,  # Points to self because it hosts the auth endpoints through a proxy
             required_scopes=settings.required_scopes,
-            resource_server_url=AnyHttpUrl(server_endpoint),
+            resource_server_url=settings.server_url,
             client_registration_options=ClientRegistrationOptions(
                 enabled=True,
                 valid_scopes=settings.required_scopes,
