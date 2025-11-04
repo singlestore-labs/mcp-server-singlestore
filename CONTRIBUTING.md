@@ -18,7 +18,7 @@ Thank you for your interest in contributing to the SingleStore MCP Server! This 
 
 Before you begin, ensure you have the following installed:
 
-- **Python 3.10+** (recommended: Python 3.11)
+- **Python 3.11+**
 - **[uv](https://docs.astral.sh/uv/)** - Modern Python package manager
 - **Git** - Version control
 - **SingleStore account** - For testing database connectivity
