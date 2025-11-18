@@ -9,6 +9,12 @@ import requests
 from fastmcp.server.auth.oauth_proxy import OAuthProxy
 from fastmcp.server.auth import TokenVerifier
 from mcp.server.auth.provider import AccessToken
+from key_value.aio.protocols import AsyncKeyValue
+from key_value.aio.wrappers.encryption import FernetEncryptionWrapper
+from cryptography.fernet import Fernet
+from fastmcp.server.auth.jwt_issuer import (
+    derive_jwt_key,
+)
 
 
 class SingleStoreOAuthProxy:
@@ -36,6 +42,8 @@ class SingleStoreOAuthProxy:
         redirect_path: str | None = "/callback",
         valid_scopes: list[str] | None = None,
         jwt_signing_key: str | None = None,
+        client_storage: AsyncKeyValue | None = None,
+        encrypt_db: bool = True,
     ):
         self.issuer_url = issuer_url
         # Assumes the default path for SingleStore's OpenID configuration
@@ -48,6 +56,8 @@ class SingleStoreOAuthProxy:
         self.redirect_path = redirect_path
         self.valid_scopes = valid_scopes or ["openid"]
         self.jwt_signing_key = jwt_signing_key
+        self.client_storage = client_storage
+        self.encrypt_db = encrypt_db
 
         # Fetch OpenID configuration
         self._config = self._fetch_openid_config()
@@ -146,6 +156,17 @@ class SingleStoreOAuthProxy:
         if not self.jwt_signing_key:
             raise RuntimeError("JWT signing key is not set.")
 
+        parsed_client_storage = self.client_storage
+        if self.client_storage and self.encrypt_db:
+            storage_encryption_key = derive_jwt_key(
+                high_entropy_material=self.jwt_signing_key,
+                salt="fastmcp-storage-encryption-key",
+            )
+            # Wrap the client storage with encryption
+            parsed_client_storage = FernetEncryptionWrapper(
+                key_value=self.client_storage, fernet=Fernet(storage_encryption_key)
+            )
+
         return OAuthProxy(
             upstream_authorization_endpoint=authorization_endpoint,
             upstream_token_endpoint=token_endpoint,
@@ -156,6 +177,7 @@ class SingleStoreOAuthProxy:
             redirect_path=self.redirect_path,
             valid_scopes=self.valid_scopes,
             jwt_signing_key=self.jwt_signing_key,
+            client_storage=parsed_client_storage,
         )
 
     def get_provider(self) -> OAuthProxy:

@@ -22,7 +22,7 @@ class Transport(str, Enum):
 
 class Settings(ABC, BaseSettings):
     host: str = "0.0.0.0"
-    port: int = 8000
+    port: int = 8010
     s2_api_base_url: str = "https://api.singlestore.com"
     graphql_public_endpoint: str = "https://backend.singlestore.com/public"
     transport: Transport
