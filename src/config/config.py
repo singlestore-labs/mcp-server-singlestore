@@ -10,6 +10,7 @@ from starlette.requests import Request
 from src.analytics.manager import AnalyticsManager
 from src.auth.proxy_provider import SingleStoreOAuthProxy
 from fastmcp.server.auth.oauth_proxy import OAuthProxy
+from src.storage.SingleStoreKV import SingleStoreKV
 from src.utils.uuid_validation import validate_uuid_string
 
 
@@ -20,7 +21,7 @@ class Transport(str, Enum):
 
 
 class Settings(ABC, BaseSettings):
-    host: str = "localhost"
+    host: str = "0.0.0.0"
     port: int = 8000
     s2_api_base_url: str = "https://api.singlestore.com"
     graphql_public_endpoint: str = "https://backend.singlestore.com/public"
@@ -52,7 +53,7 @@ class LocalSettings(Settings):
 
 
 class RemoteSettings(Settings):
-    org_id: str
+    org_id: str | None = None
     is_remote: Literal[True] = True
     issuer_url: str
     openid_config_url: str | None = None
@@ -63,8 +64,9 @@ class RemoteSettings(Settings):
     # SingleStore OAuth URLs
     singlestore_auth_url: str | None = None
     singlestore_token_url: str | None = None
-    # SingleStore DB URL for OAuth provider storage
-    oauth_db_url: str
+    # SingleStore KV instance
+    oauth_db_url: str | None = None
+    singlestore_kv: SingleStoreKV | None = None
     # Stores temporarily generated code verifier for PKCE. Will be deleted after use.
     singlestore_code_verifier: str = ""
     # Segment analytics write key
@@ -76,7 +78,7 @@ class RemoteSettings(Settings):
 
     model_config = SettingsConfigDict(env_prefix="MCP_", env_file=".env.remote")
 
-    @field_validator("org_id", "client_id", mode="before")
+    @field_validator("client_id", mode="before")
     @classmethod
     def validate_uuid_fields(cls, v):
         """Validate that org_id and client_id are valid UUIDs."""
@@ -86,6 +88,8 @@ class RemoteSettings(Settings):
         """Initialize settings with values from environment variables."""
         super().__init__(**data)
         self.analytics_manager = AnalyticsManager(self.segment_write_key)
+        if self.oauth_db_url:
+            self.singlestore_kv = SingleStoreKV(connection_str=self.oauth_db_url)
         self.auth_provider = SingleStoreOAuthProxy(
             issuer_url=self.issuer_url,
             client_id=self.client_id,
@@ -93,6 +97,7 @@ class RemoteSettings(Settings):
             valid_scopes=self.required_scopes,
             jwt_signing_key=self.jwt_signing_key,
             redirect_path=self.callback_path,
+            client_storage=self.singlestore_kv,
         ).get_provider()
 
 
