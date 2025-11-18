@@ -9,6 +9,7 @@ from mcp.server.fastmcp import Context
 import src.api.tools.organization.utils as utils
 from src.config import config
 from src.api.common import query_graphql_organizations
+from src.api.context import get_session_settings
 from src.utils.elicitation import try_elicitation, ElicitationError
 from src.logger import get_logger
 
@@ -72,6 +73,8 @@ async def choose_organization(ctx: Context) -> dict:
 
     settings = config.get_settings()
     user_id = config.get_user_id()
+    session_settings = get_session_settings()
+
     # Track tool call event
     settings.analytics_manager.track_event(
         user_id, "tool_calling", {"name": "choose_organization"}
@@ -154,7 +157,10 @@ async def choose_organization(ctx: Context) -> dict:
 
         # Set the selected organization in settings
         if selected_org:
-            settings.org_id = selected_org["orgID"]
+            if settings.is_remote and session_settings:
+                session_settings["org_id"] = selected_org["orgID"]
+            else:
+                settings.org_id = selected_org["orgID"]
 
             return {
                 "status": "success",
@@ -211,6 +217,7 @@ async def set_organization(ctx: Context, organization_id: str) -> dict:
     3. Call set_organization with the chosen ID
     """
     settings = config.get_settings()
+    session_settings = get_session_settings()
     user_id = config.get_user_id()
     # Track tool call event
     settings.analytics_manager.track_event(
@@ -243,10 +250,13 @@ async def set_organization(ctx: Context, organization_id: str) -> dict:
             }
 
         # Set the selected organization in settings
-        if hasattr(settings, "org_id"):
-            settings.org_id = selected_org["orgID"]
+        if settings.is_remote and session_settings:
+            session_settings["org_id"] = selected_org["orgID"]
         else:
-            setattr(settings, "org_id", selected_org["orgID"])
+            if hasattr(settings, "org_id"):
+                settings.org_id = selected_org["orgID"]
+            else:
+                setattr(settings, "org_id", selected_org["orgID"])
 
         await ctx.info(
             f"Organization set to: {selected_org['name']} (ID: {selected_org['orgID']})"

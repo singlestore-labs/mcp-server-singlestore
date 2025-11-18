@@ -8,6 +8,7 @@ from src.config import config
 from src.config.config import get_session_request, get_settings
 from src.logger import get_logger
 from src.utils.async_to_sync import async_to_sync
+from src.api.context import get_session_settings
 
 # Set up logger for this module
 logger = get_logger()
@@ -340,13 +341,17 @@ def get_org_id() -> str | None:
         str or None: The organization ID, or None if using API key authentication
     """
     settings = get_settings()
+    session_settings = get_session_settings()
 
     # If using API key authentication, no org_id is needed
     if not settings.is_remote and settings.api_key:
         logger.debug("Using API key authentication, no organization ID needed")
         return None
 
-    org_id = settings.org_id
+    if settings.is_remote and session_settings is not None:
+        org_id = session_settings.get("org_id", None)
+    else:
+        org_id = settings.org_id
 
     if not org_id:
         logger.debug(
