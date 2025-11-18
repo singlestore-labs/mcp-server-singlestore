@@ -10,7 +10,7 @@ With MCP, you can use Claude Desktop, Claude Code, Cursor, or any compatible MCP
 
 ## Requirements
 
-- Python >= v3.10.0
+- Python >= v3.11.0
 - [uvx](https://docs.astral.sh/uv/guides/tools/) installed on your python environment
 - VS Code, Cursor, Windsurf, Claude Desktop, Claude Code, Goose or any other MCP client
 
