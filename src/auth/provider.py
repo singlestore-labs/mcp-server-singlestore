@@ -239,7 +239,7 @@ class SingleStoreOAuthProvider(OAuthAuthorizationServerProvider):
                 )
                 raise HTTPException(400, "Failed to exchange code for token")
 
-            data = response.json()
+            data = await response.json()
 
             if "error" in data:
                 raise HTTPException(400, data.get("error_description", data["error"]))
@@ -349,7 +349,7 @@ class SingleStoreOAuthProvider(OAuthAuthorizationServerProvider):
                 token=token,
                 client_id=client_id,
                 scopes=scopes,
-                expires_at=expires_at,
+                expires_at=int(expires_at) if expires_at else None,
             )
 
     async def load_refresh_token(
