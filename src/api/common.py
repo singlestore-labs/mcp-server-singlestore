@@ -373,7 +373,7 @@ def get_access_token() -> str:
 
     logger.debug(f"Getting access token, is_remote: {settings.is_remote}")
 
-    access_token: str
+    access_token: str = ""
     if isinstance(settings, config.RemoteSettings) and settings.auth_provider:
         request = get_session_request()
         access_token = request.headers.get("Authorization", "").replace("Bearer ", "")
@@ -382,6 +382,8 @@ def get_access_token() -> str:
         )
         if real_token:
             access_token = real_token.token
+        else:
+            access_token = ""  # Clear access_token if auth provider returns None
         logger.debug(
             f"Remote access token retrieved (length: {len(access_token) if access_token else 0})"
         )
