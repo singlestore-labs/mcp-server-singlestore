@@ -365,6 +365,8 @@ def get_access_token() -> str:
     """
     settings = get_settings()
 
+    logger.debug(f"Getting access token, is_remote: {settings.is_remote}")
+
     access_token: str | None
     if isinstance(settings, RemoteSettings):
         request = get_session_request()
