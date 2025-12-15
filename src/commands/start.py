@@ -7,7 +7,7 @@ from src.auth.callback import make_auth_callback_handler
 from src.api.tools import register_tools
 from src.auth.provider import SingleStoreOAuthProvider
 from src.api.resources.register import register_resources
-from src.auth.browser_auth import get_authentication_token
+from src.auth.browser_auth import get_authentication_token_set
 import src.config.config as config
 from src.logger import get_logger
 
@@ -32,15 +32,18 @@ def start_command(transport: str, host: str):
             # JWT token and org_id will be automatically loaded from env vars via Pydantic
         else:
             # Use browser authentication for stdio mode
-            oauth_token = get_authentication_token()
-            if not oauth_token:
+            token_set = get_authentication_token_set()
+            if not token_set:
                 logger.error("Authentication failed. Please try again")
                 return
             logger.info("Authentication successful")
 
             # Create settings with OAuth token as JWT token
             settings = config.init_settings(
-                transport=transport, jwt_token=oauth_token, host=host
+                transport=transport,
+                jwt_token=token_set.access_token,
+                token_set=token_set,
+                host=host,
             )
     else:
         raise NotImplementedError("Only stdio transport is currently supported.")
