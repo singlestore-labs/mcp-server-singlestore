@@ -305,9 +305,9 @@ uv run singlestore-mcp-server start
 
 # Test authentication flow
 uv run python -c "
-from src.auth.browser_auth import get_authentication_token
-token = get_authentication_token()
-print('Token obtained:', bool(token))
+from src.auth.browser_auth import get_authentication_token_set
+token = get_authentication_token_set()
+print('Token obtained:', bool(token.access_token))
 "
 ```
 

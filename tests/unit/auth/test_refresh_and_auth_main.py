@@ -1,8 +1,8 @@
-"""Unit tests for refactored refresh_token and get_authentication_token functions."""
+"""Unit tests for refactored refresh_token and get_authentication_token_set functions."""
 
 from unittest.mock import patch
 
-from src.auth.browser_auth import refresh_token, get_authentication_token
+from src.auth.browser_auth import get_authentication_token_set, refresh_token
 from tests.models import (
     TokenSetModel,
     TokenValidationResult,
@@ -146,7 +146,7 @@ class TestRefreshToken:
 
 
 class TestGetAuthenticationToken:
-    """Test cases for the refactored get_authentication_token function."""
+    """Test cases for the refactored get_authentication_token_set function."""
 
     @patch("src.auth.browser_auth.check_saved_credentials")
     @patch("src.auth.browser_auth.validate_token_for_refresh")
@@ -165,10 +165,11 @@ class TestGetAuthenticationToken:
         mock_validate.return_value = validation_result
 
         # Act
-        result = get_authentication_token()
+        result = get_authentication_token_set()
 
         # Assert
-        assert result == "valid_token"
+        assert result is not None
+        assert result.access_token == "valid_token"
         mock_check_creds.assert_called_once()
         mock_validate.assert_called_once_with(token_set)
 
@@ -201,10 +202,11 @@ class TestGetAuthenticationToken:
         mock_attempt_refresh.return_value = refreshed_token_set
 
         # Act
-        result = get_authentication_token()
+        result = get_authentication_token_set()
 
         # Assert
-        assert result == "refreshed_token"
+        assert result is not None
+        assert result.access_token == "refreshed_token"
         mock_check_creds.assert_called_once()
         mock_validate.assert_called_once_with(expired_token_set)
         mock_attempt_refresh.assert_called_once()
@@ -241,10 +243,11 @@ class TestGetAuthenticationToken:
         mock_authenticate.return_value = (True, new_token_set)
 
         # Act
-        result = get_authentication_token()
+        result = get_authentication_token_set()
 
         # Assert
-        assert result == "new_auth_token"
+        assert result is not None
+        assert result.access_token == "new_auth_token"
         mock_check_creds.assert_called_once()
         mock_validate.assert_called_once_with(expired_token_set)
         mock_attempt_refresh.assert_called_once()
@@ -263,10 +266,11 @@ class TestGetAuthenticationToken:
         mock_authenticate.return_value = (True, new_token_set)
 
         # Act
-        result = get_authentication_token()
+        result = get_authentication_token_set()
 
         # Assert
-        assert result == "new_token"
+        assert result is not None
+        assert result.access_token == "new_token"
         mock_check_creds.assert_called_once()
         mock_authenticate.assert_called_once()
 
@@ -280,10 +284,11 @@ class TestGetAuthenticationToken:
         mock_authenticate.return_value = (True, new_token_set)
 
         # Act
-        result = get_authentication_token(force_reauth=True)
+        result = get_authentication_token_set(force_reauth=True)
 
         # Assert
-        assert result == "force_auth_token"
+        assert result is not None
+        assert result.access_token == "force_auth_token"
         mock_authenticate.assert_called_once()
 
     @patch("src.auth.browser_auth.authenticate")
@@ -297,7 +302,7 @@ class TestGetAuthenticationToken:
         mock_authenticate.return_value = (False, None)
 
         # Act
-        result = get_authentication_token()
+        result = get_authentication_token_set()
 
         # Assert
         assert result is None
@@ -315,7 +320,7 @@ class TestGetAuthenticationToken:
         mock_authenticate.return_value = (True, None)
 
         # Act
-        result = get_authentication_token()
+        result = get_authentication_token_set()
 
         # Assert
         assert result is None
@@ -339,12 +344,13 @@ class TestGetAuthenticationToken:
             mock_authenticate.return_value = (True, new_token_set)
 
             # Act
-            result = get_authentication_token(
+            result = get_authentication_token_set(
                 client_id=client_id, oauth_host=oauth_host, auth_timeout=auth_timeout
             )
 
             # Assert
-            assert result == "custom_token"
+            assert result is not None
+            assert result.access_token == "custom_token"
             mock_authenticate.assert_called_once_with(
                 client_id, oauth_host, auth_timeout
             )

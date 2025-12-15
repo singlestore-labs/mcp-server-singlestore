@@ -169,7 +169,7 @@ class TestInitCommand:
 class TestStartCommand:
     """Test the start command functionality."""
 
-    @patch("src.commands.start.get_authentication_token")
+    @patch("src.commands.start.get_authentication_token_set")
     @patch("src.config.config.init_settings")
     @patch("src.api.tools.register_tools")
     @patch("src.api.resources.register.register_resources")
@@ -198,7 +198,7 @@ class TestStartCommand:
                     runner.invoke(cli, ["start", "--transport", TRANSPORT_STDIO])
                     mock_get_auth_token.assert_called_once()
 
-    @patch("src.commands.start.get_authentication_token")
+    @patch("src.commands.start.get_authentication_token_set")
     def test_start_command_stdio_auth_failure(self, mock_get_auth_token):
         """Test start command with stdio transport and failed authentication."""
         mock_get_auth_token.return_value = None
@@ -226,7 +226,7 @@ class TestStartCommand:
                 with patch_dict.dict(environ, {"MCP_API_KEY": ""}, clear=True):
                     runner = CliRunner()
                     with patch(
-                        "src.commands.start.get_authentication_token"
+                        "src.commands.start.get_authentication_token_set"
                     ) as mock_auth:
                         mock_auth.return_value = (
                             None  # Simulate auth failure for quick exit
