@@ -5,7 +5,7 @@ import json
 from starlette.exceptions import HTTPException
 
 from src.api.types import MCPConcept, AVAILABLE_FLAGS
-from src.config.config import get_session_request, get_settings
+from src.config.config import RemoteSettings, get_session_request, get_settings
 from src.logger import get_logger
 
 # Set up logger for this module
@@ -367,26 +367,19 @@ def get_access_token() -> str:
 
     logger.debug(f"Getting access token, is_remote: {settings.is_remote}")
 
-    access_token: str
-    if settings.is_remote:
+    access_token: str | None
+    if isinstance(settings, RemoteSettings):
         request = get_session_request()
         access_token = request.headers.get("Authorization", "").replace("Bearer ", "")
         logger.debug(
             f"Remote access token retrieved (length: {len(access_token) if access_token else 0})"
         )
     else:
-        # Check for API key first, then fall back to JWT token
-        if settings.api_key:
-            access_token = settings.api_key
-            logger.debug("Using API key for authentication")
-        else:
-            access_token = settings.jwt_token
-            logger.debug(
-                f"Local JWT token retrieved (length: {len(access_token) if access_token else 0})"
-            )
+        # Checks for API key first, then fall back to JWT token
+        access_token = settings.get_access_token()
 
     if not access_token:
         logger.warning("No access token available!")
-        raise HTTPException(401, "Unauthorized: No access token provided")
+        raise HTTPException(401, "Unauthorized: No access token provided or expired.")
 
     return access_token

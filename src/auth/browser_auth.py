@@ -564,12 +564,12 @@ def exchange_code_for_tokens(
     return token_set
 
 
-def get_authentication_token(
+def get_authentication_token_set(
     client_id: str = DEFAULT_CLIENT_ID,
     oauth_host: str = DEFAULT_OAUTH_HOST,
     auth_timeout: int = DEFAULT_AUTH_TIMEOUT,
     force_reauth: bool = False,
-) -> Optional[str]:
+) -> Optional[TokenSetModel]:
     """
     Get authentication token for local MCP server.
     Checks saved credentials first, then launches browser auth if needed.
@@ -593,7 +593,7 @@ def get_authentication_token(
             # If token is valid, use it
             if validation_result.is_valid:
                 logger.debug("Using saved authentication token")
-                return token_set.access_token
+                return credentials.token_set
 
             # If token needs refresh, try to refresh it
             if validation_result.needs_refresh:
@@ -601,7 +601,7 @@ def get_authentication_token(
                     token_set, client_id, oauth_host
                 )
                 if refreshed_token_set:
-                    return refreshed_token_set.access_token
+                    return refreshed_token_set
 
         # If no valid credentials found, launch browser authentication
         logger.debug("No valid authentication token found")
@@ -611,7 +611,7 @@ def get_authentication_token(
     success, token_set = authenticate(client_id, oauth_host, auth_timeout)
 
     if success and token_set and token_set.access_token:
-        return token_set.access_token
+        return token_set
     else:
         return None
 
@@ -747,7 +747,9 @@ def check_saved_credentials() -> Optional[CredentialsModel]:
 
 
 def attempt_token_refresh(
-    token_set: TokenSetModel, client_id: str, oauth_host: str
+    token_set: TokenSetModel,
+    client_id: str = DEFAULT_CLIENT_ID,
+    oauth_host: str = DEFAULT_OAUTH_HOST,
 ) -> Optional[TokenSetModel]:
     """
     Attempt to refresh an expired token.

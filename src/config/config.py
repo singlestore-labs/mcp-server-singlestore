@@ -10,7 +10,13 @@ from pydantic import AnyHttpUrl, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from starlette.requests import Request
 from src.analytics.manager import AnalyticsManager
+from src.auth.browser_auth import attempt_token_refresh
+from src.auth.models.models import TokenSetModel
 from src.utils.uuid_validation import validate_uuid_string
+from src.logger import get_logger
+
+# Set up logger for this module
+logger = get_logger()
 
 
 class Transport(str, Enum):
@@ -32,15 +38,30 @@ class LocalSettings(Settings):
     jwt_token: str | None = None
     org_id: str | None = None
     api_key: str | None = None
+    token_set: TokenSetModel | None = None
     transport: Transport = Transport.STDIO
     is_remote: bool = False
 
     # Environment variable configuration for Docker use cases
     model_config = SettingsConfigDict(env_prefix="MCP_")
 
-    def set_jwt_token(self, token: str) -> None:
-        """Set JWT token for authentication (obtained via browser OAuth)"""
-        self.jwt_token = token
+    def set_token_set(self, token_set: TokenSetModel) -> None:
+        """Set TokenSetModel for authentication (obtained via browser OAuth or token refresh)"""
+        self.token_set = token_set
+        self.jwt_token = token_set.access_token
+
+    def get_access_token(self) -> str | None:
+        """Get the current access token (JWT token or API key), refreshing if necessary."""
+        if self.api_key:
+            return self.api_key
+        if self.token_set:
+            new_token_set = attempt_token_refresh(self.token_set)
+            # Returns new token set if refreshed, none if refresh was not necessary
+            if new_token_set:
+                self.set_token_set(new_token_set)
+                logger.debug("Updated settings with refreshed token set")
+
+        return self.jwt_token
 
     analytics_manager: AnalyticsManager = AnalyticsManager(enabled=False)
 
@@ -126,6 +147,7 @@ def get_user_id() -> str | None:
 def init_settings(
     transport: Transport,
     jwt_token: str | None = None,
+    token_set: TokenSetModel | None = None,
     org_id: str | None = None,
     host: str | None = None,
 ) -> RemoteSettings | LocalSettings:
@@ -135,7 +157,9 @@ def init_settings(
         case Transport.SSE:
             settings = RemoteSettings(transport=Transport.SSE)
         case Transport.STDIO:
-            settings = LocalSettings(jwt_token=jwt_token, org_id=org_id, host=host)
+            settings = LocalSettings(
+                jwt_token=jwt_token, token_set=token_set, org_id=org_id, host=host
+            )
         case _:
             raise ValueError(f"Unsupported transport mode: {transport}")
 
