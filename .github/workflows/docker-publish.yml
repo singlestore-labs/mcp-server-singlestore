@@ -2,9 +2,6 @@ name: Docker Publish
 
 on:
   push:
-    paths:
-      - '.github/workflows/docker-publish.yml'
-      - 'Dockerfile'
 
 env:
   REGISTRY: ghcr.io
