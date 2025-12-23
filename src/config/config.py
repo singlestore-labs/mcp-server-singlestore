@@ -76,7 +76,7 @@ class RemoteSettings(Settings):
     auth_provider: OAuthProxy | None = None
     jwt_signing_key: str | None = None
 
-    model_config = SettingsConfigDict(env_prefix="MCP_", env_file=".env.remote")
+    model_config = SettingsConfigDict(env_prefix="MCP_")
 
     @field_validator("client_id", mode="before")
     @classmethod
