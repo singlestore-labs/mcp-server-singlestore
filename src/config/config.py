@@ -33,7 +33,7 @@ class LocalSettings(Settings):
     jwt_token: str | None = None
     org_id: str | None = None
     api_key: str | None = None
-    transport: Transport = Transport.STDIO
+    transport: Transport | None = Transport.STDIO
     is_remote: Literal[False] = False
 
     # Environment variable configuration for Docker use cases
@@ -53,7 +53,6 @@ class LocalSettings(Settings):
 
 
 class RemoteSettings(Settings):
-    org_id: str | None = None
     is_remote: Literal[True] = True
     issuer_url: str
     openid_config_url: str | None = None
@@ -81,7 +80,7 @@ class RemoteSettings(Settings):
     @field_validator("client_id", mode="before")
     @classmethod
     def validate_uuid_fields(cls, v):
-        """Validate that org_id and client_id are valid UUIDs."""
+        """Validate that client_id are valid UUIDs."""
         return validate_uuid_string(v)
 
     def __init__(self, **data):

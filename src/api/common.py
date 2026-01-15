@@ -376,12 +376,17 @@ def get_access_token() -> str:
     access_token: str
     if isinstance(settings, config.RemoteSettings) and settings.auth_provider:
         request = get_session_request()
-        access_token = request.headers.get("Authorization", "").replace("Bearer ", "")
+        proxy_access_token = request.headers.get("Authorization", "").replace(
+            "Bearer ", ""
+        )
         real_token = async_to_sync(settings.auth_provider.load_access_token)(
-            access_token
+            proxy_access_token
         )
         if real_token:
             access_token = real_token.token
+        else:
+            # Fallback to proxy token if real token not available
+            access_token = proxy_access_token
         logger.debug(
             f"Remote access token retrieved (length: {len(access_token) if access_token else 0})"
         )

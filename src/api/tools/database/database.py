@@ -32,7 +32,7 @@ class DatabaseCredentials(BaseModel):
 
 async def _get_database_credentials(
     ctx: Context, target: WorkspaceTarget, database_name: str | None = None
-) -> tuple[str, str]:
+) -> tuple[str | None, str]:
     """
     Get database credentials based on the authentication method.
 

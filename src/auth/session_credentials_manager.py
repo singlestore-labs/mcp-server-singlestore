@@ -103,7 +103,7 @@ class SessionCredentialsManager:
         return False
 
     def generate_database_key(
-        self, workspace_name: str, database_name: str = None
+        self, workspace_name: str, database_name: str | None = None
     ) -> str:
         """
         Generate a unique database key for credential storage.
