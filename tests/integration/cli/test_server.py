@@ -86,7 +86,7 @@ class TestInitCommand:
         choices = CLIENT_CHOICES
         assert CLIENT_CLAUDE_DESKTOP in choices
         assert CLIENT_CURSOR in choices
-        assert len(choices) == 7  # Updated to include all new clients
+        assert len(choices) == 8  # Updated to include all new clients
 
     def test_client_type_default(self):
         """Test that DEFAULT_CLIENT provides correct default."""
@@ -333,8 +333,8 @@ class TestConfigurationTemplates:
                 continue
             elif client == CLIENT_VSCODE:
                 # VS Code uses a different structure
-                assert "mcp.mcpServers" in config
-                server_config = config["mcp.mcpServers"]["singlestore-mcp-server"]
+                assert "servers" in config
+                server_config = config["servers"]["singlestore-mcp-server"]
             else:
                 # Other clients use standard mcpServers structure
                 assert "mcpServers" in config
