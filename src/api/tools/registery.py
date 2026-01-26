@@ -1,26 +1,12 @@
 from typing import List
 from mcp.server.fastmcp import FastMCP
 
-from src.api.common import filter_tools_by_flags
+from src.api.common import get_active_mcp_concepts
 from .types import Tool
 from .tools import tools as tool_list
+from src.logger import get_logger
 
-
-def filter_tools(**flag_filters) -> List[Tool]:
-    """
-    Filter tools by flag names - SUPER SIMPLE!
-
-    Args:
-        **flag_filters: Flag names with True/False values
-
-    Examples:
-        # Get only private tools
-        filter_tools(private=True)
-
-        # Get public tools (non-private, non-deprecated)
-        filter_tools(private=False, deprecated=False)
-    """
-    return filter_tools_by_flags(tool_list, **flag_filters)
+logger = get_logger()
 
 
 def register_tools(mcp: FastMCP, **filter_flags) -> None:
@@ -45,14 +31,12 @@ def register_tools(mcp: FastMCP, **filter_flags) -> None:
     if not filter_flags:
         filter_flags = {"internal": False, "deprecated": False}
 
-    filtered_tools: List[Tool] = filter_tools(**filter_flags)
+    filtered_tools: List[Tool] = get_active_mcp_concepts(tool_list)
 
     # Check if we're using API key authentication in local mode
     settings = get_settings()
-    using_api_key = (
-        not settings.is_remote
-        and isinstance(settings, LocalSettings)
-        and (settings.api_key or settings.jwt_token and settings.org_id)
+    using_api_key = isinstance(settings, LocalSettings) and (
+        settings.api_key or settings.jwt_token and settings.org_id
     )
 
     # List of tools to exclude when using API key authentication
@@ -60,6 +44,10 @@ def register_tools(mcp: FastMCP, **filter_flags) -> None:
 
     for tool in filtered_tools:
         func = tool.func
+        # Skip if func is not defined
+        if func is None:
+            logger.warning(f"Tool {tool.title} has no associated function, skipping.")
+            continue
         # Skip organization-related tools when using API key authentication
         if using_api_key and func.__name__ in api_key_excluded_tools:
             continue

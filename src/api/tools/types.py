@@ -8,7 +8,7 @@ from src.api.types import MCPConcept
 
 @dataclass()
 class Tool(MCPConcept):
-    func: Callable = None
+    func: Callable | None = None
 
 
 class WorkspaceTarget:
@@ -23,7 +23,7 @@ class WorkspaceTarget:
         self.is_shared = is_shared
 
     @property
-    def endpoint(self) -> str:
+    def endpoint(self) -> str | None:
         """Get the workspace endpoint."""
         return self.workspace.endpoint
 
@@ -33,8 +33,10 @@ class WorkspaceTarget:
         return self.workspace.name
 
     @property
-    def database_name(self) -> str:
+    def database_name(self) -> str | None:
         """Get the database name (for starter workspaces)."""
-        if hasattr(self.workspace, "database_name"):
+        if isinstance(self.workspace, s2_wksp.StarterWorkspace) and hasattr(
+            self.workspace, "database_name"
+        ):
             return self.workspace.database_name
         return None

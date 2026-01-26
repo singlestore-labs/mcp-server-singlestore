@@ -2,7 +2,7 @@ from functools import wraps
 from typing import Callable, List
 from mcp.server.fastmcp import FastMCP
 
-from src.api.common import filter_mcp_concepts
+from src.api.common import get_active_mcp_concepts
 from .types import Resource
 from .resources import resources as resources_list
 
@@ -19,7 +19,7 @@ def create_resources_wrapper(func: Callable, name: str, description: str, uri: s
 
 
 def register_resources(mcp: FastMCP) -> None:
-    filtered_resources: List[Resource] = filter_mcp_concepts(resources_list)
+    filtered_resources: List[Resource] = get_active_mcp_concepts(resources_list)
 
     for resource in filtered_resources:
         func = resource.func

@@ -178,6 +178,8 @@ class SingleStoreOAuthProxy:
             valid_scopes=self.valid_scopes,
             jwt_signing_key=self.jwt_signing_key,
             client_storage=parsed_client_storage,
+            # Disable warning before redirecting to SingleStore's auth
+            require_authorization_consent=False,
         )
 
     def get_provider(self) -> OAuthProxy:

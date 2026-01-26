@@ -12,6 +12,9 @@ from src.auth.proxy_provider import SingleStoreOAuthProxy
 from fastmcp.server.auth.oauth_proxy import OAuthProxy
 from src.storage.SingleStoreKV import SingleStoreKV
 from src.utils.uuid_validation import validate_uuid_string
+from src.logger import get_logger
+
+logger = get_logger()
 
 
 class Transport(str, Enum):
@@ -21,12 +24,13 @@ class Transport(str, Enum):
 
 
 class Settings(ABC, BaseSettings):
-    host: str = "0.0.0.0"
+    host: str | None = "0.0.0.0"
     port: int = 8010
     s2_api_base_url: str = "https://api.singlestore.com"
     graphql_public_endpoint: str = "https://backend.singlestore.com/public"
     transport: Transport
     is_remote: bool
+    analytics_manager: AnalyticsManager
 
 
 class LocalSettings(Settings):
@@ -88,7 +92,9 @@ class RemoteSettings(Settings):
         super().__init__(**data)
         self.analytics_manager = AnalyticsManager(self.segment_write_key)
         if self.oauth_db_url:
+            logger.debug("Creating SingleStoreKV for OAuth client storage")
             self.singlestore_kv = SingleStoreKV(connection_str=self.oauth_db_url)
+        logger.debug("Creating SingleStoreOAuthProxy as auth provider")
         self.auth_provider = SingleStoreOAuthProxy(
             issuer_url=self.issuer_url,
             client_id=self.client_id,
@@ -101,7 +107,7 @@ class RemoteSettings(Settings):
 
 
 # Context variable to store the Settings instance
-_settings_ctx: ContextVar[Settings] = ContextVar("settings", default=None)
+_settings_ctx: ContextVar[Settings | None] = ContextVar("settings", default=None)
 
 # Context variable to store the user_id for the session
 _user_id_ctx: ContextVar[str | None] = ContextVar("user_id", default=None)
@@ -137,7 +143,7 @@ def init_settings(
     return settings
 
 
-def get_settings() -> RemoteSettings | LocalSettings:
+def get_settings() -> Settings:
     settings = _settings_ctx.get()
     if settings is None:
         raise RuntimeError("Settings have not been initialized.")
@@ -145,7 +151,7 @@ def get_settings() -> RemoteSettings | LocalSettings:
 
 
 # Context variable to store the app instance
-_app_ctx: ContextVar[FastMCP] = ContextVar("app", default=None)
+_app_ctx: ContextVar[FastMCP | None] = ContextVar("app", default=None)
 
 
 def get_app() -> FastMCP:
@@ -162,4 +168,7 @@ def get_session_request() -> Request:
         Request: The current session's request object
     """
     app = get_app()
-    return cast(Request, app.get_context()._request_context.request)
+    request_context = app.get_context()._request_context
+    if request_context is None or request_context.request is None:
+        raise RuntimeError("Request context is not available.")
+    return cast(Request, request_context.request)

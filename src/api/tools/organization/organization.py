@@ -157,9 +157,10 @@ async def choose_organization(ctx: Context) -> dict:
 
         # Set the selected organization in settings
         if selected_org:
-            if settings.is_remote and session_settings:
-                session_settings["org_id"] = selected_org["orgID"]
-            else:
+            if isinstance(settings, config.RemoteSettings):
+                if session_settings is not None:
+                    session_settings["org_id"] = selected_org["orgID"]
+            elif isinstance(settings, config.LocalSettings):
                 settings.org_id = selected_org["orgID"]
 
             return {
@@ -250,9 +251,10 @@ async def set_organization(ctx: Context, organization_id: str) -> dict:
             }
 
         # Set the selected organization in settings
-        if settings.is_remote and session_settings:
-            session_settings["org_id"] = selected_org["orgID"]
-        else:
+        if isinstance(settings, config.RemoteSettings):
+            if session_settings is not None:
+                session_settings["org_id"] = selected_org["orgID"]
+        elif isinstance(settings, config.LocalSettings):
             if hasattr(settings, "org_id"):
                 settings.org_id = selected_org["orgID"]
             else:

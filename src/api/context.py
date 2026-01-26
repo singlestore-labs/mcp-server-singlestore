@@ -2,15 +2,19 @@
 
 from contextvars import ContextVar
 from mcp.server.fastmcp import Context
+from mcp.shared.context import RequestContext
 from functools import wraps
 import inspect
 from typing import Callable, Dict, Any
+from src.logger import get_logger
 
+# Get logger for this module
+logger = get_logger()
 # Context variable to hold the current context object of a given tool call
 session_context = ContextVar("session_context")
 
 
-def get_session_context() -> Context | None:
+def get_session_context() -> RequestContext | None:
     return session_context.get(None)
 
 
@@ -18,7 +22,7 @@ def get_session_context() -> Context | None:
 def get_session_settings() -> Dict[str, Any] | None:
     current_context = get_session_context()
     if current_context is not None:
-        return current_context.request_context.lifespan_context
+        return current_context.lifespan_context
 
     raise Exception(
         "No session context available for this tool call, please try again."

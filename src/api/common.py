@@ -1,11 +1,16 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, TypeVar
 import requests
 import json
 
 from starlette.exceptions import HTTPException
-from src.api.types import MCPConcept, AVAILABLE_FLAGS
+from src.api.types import MCPConcept
 from src.config import config
-from src.config.config import get_session_request, get_settings
+from src.config.config import (
+    LocalSettings,
+    RemoteSettings,
+    get_session_request,
+    get_settings,
+)
 from src.logger import get_logger
 from src.utils.async_to_sync import async_to_sync
 from src.api.context import get_session_settings
@@ -13,76 +18,11 @@ from src.api.context import get_session_settings
 # Set up logger for this module
 logger = get_logger()
 
-
-def filter_mcp_concepts(mcp_concepts: List[MCPConcept], **flags) -> List[MCPConcept]:
-    """
-    Filter MCP concepts based on boolean flags (backward compatibility).
-
-    Args:
-        mcp_concepts: List of MCP concepts to filter
-        **flags: Boolean flags to filter by (e.g., deprecated=True, private=False)
-                If no flags are provided, defaults to excluding deprecated concepts.
-
-    Returns:
-        Filtered list of MCP concepts
-    """
-    # Default behavior: exclude deprecated concepts if no flags provided
-    if not flags:
-        flags = {"deprecated": False}
-
-    def matches_flags(concept):
-        for flag_name, expected_value in flags.items():
-            if hasattr(concept, flag_name):
-                actual_value = getattr(concept, flag_name)
-                if actual_value != expected_value:
-                    return False
-            else:
-                # If the flag doesn't exist on the concept, skip this filter
-                continue
-        return True
-
-    return [concept for concept in mcp_concepts if matches_flags(concept)]
+ConceptT = TypeVar("ConceptT", bound=MCPConcept)
 
 
-def filter_tools_by_flags(
-    mcp_concepts: List[MCPConcept], **flag_filters
-) -> List[MCPConcept]:
-    """
-    Filter MCP concepts using simple string flag names.
-
-    Args:
-        mcp_concepts: List of MCP concepts to filter
-        **flag_filters: Flag names with True/False values
-
-    Returns:
-        Filtered list of MCP concepts
-
-    Examples:
-        # Get only private tools
-        filter_tools_by_flags(tools, private=True)
-
-        # Get non-deprecated, non-private tools
-        filter_tools_by_flags(tools, deprecated=False, private=False)
-
-        # Get remote experimental tools
-        filter_tools_by_flags(tools, remote=True, experimental=True)
-
-        # Get admin tools that aren't deprecated
-        filter_tools_by_flags(tools, admin=True, deprecated=False)
-    """
-
-    def matches_filters(concept: MCPConcept) -> bool:
-        for flag_name, expected_value in flag_filters.items():
-            if flag_name in AVAILABLE_FLAGS:
-                actual_value = concept.has_flag(flag_name)
-                if actual_value != expected_value:
-                    return False
-            else:
-                # Invalid flag name - skip or warn
-                continue
-        return True
-
-    return [concept for concept in mcp_concepts if matches_filters(concept)]
+def get_active_mcp_concepts(mcp_concepts: List[ConceptT]) -> List[ConceptT]:
+    return [concept for concept in mcp_concepts if not concept.disabled]
 
 
 def query_graphql_organizations():
@@ -96,7 +36,7 @@ def query_graphql_organizations():
     graphql_endpoint = settings.graphql_public_endpoint
 
     logger.debug(f"GraphQL endpoint: {graphql_endpoint}")
-    logger.debug(f"Settings is_remote: {settings.is_remote}")
+    logger.debug(f"Settings is_remote: {isinstance(settings, RemoteSettings)}")
 
     # GraphQL query for organizations
     query = """
@@ -185,8 +125,8 @@ def query_graphql_organizations():
 def build_request(
     type: str,
     endpoint: str,
-    params: dict = None,
-    data: dict = None,
+    params: dict | None = None,
+    data: dict | None = None,
 ):
     """
     Make an API request to the SingleStore Management API.
@@ -204,7 +144,7 @@ def build_request(
 
     settings = get_settings()
 
-    def build_request_endpoint(endpoint: str, params: dict = None):
+    def build_request_endpoint(endpoint: str, params: dict | None = None):
         url = f"{settings.s2_api_base_url}/v1/{endpoint}"
 
         if params is None:
@@ -344,14 +284,15 @@ def get_org_id() -> str | None:
     session_settings = get_session_settings()
 
     # If using API key authentication, no org_id is needed
-    if not settings.is_remote and settings.api_key:
-        logger.debug("Using API key authentication, no organization ID needed")
-        return None
+    if isinstance(settings, LocalSettings):
+        if settings.api_key:
+            logger.debug("Using API key authentication, no organization ID needed")
+            return None
+        else:
+            org_id = settings.org_id
 
-    if settings.is_remote and session_settings is not None:
+    if isinstance(settings, RemoteSettings) and session_settings is not None:
         org_id = session_settings.get("org_id", None)
-    else:
-        org_id = settings.org_id
 
     if not org_id:
         logger.debug(
@@ -371,7 +312,9 @@ def get_access_token() -> str:
     """
     settings = get_settings()
 
-    logger.debug(f"Getting access token, is_remote: {settings.is_remote}")
+    logger.debug(
+        f"Getting access token, is_remote: {isinstance(settings, RemoteSettings)}"
+    )
 
     access_token: str
     if isinstance(settings, config.RemoteSettings) and settings.auth_provider:

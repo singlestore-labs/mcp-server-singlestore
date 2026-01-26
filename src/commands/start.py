@@ -64,6 +64,7 @@ def start_command(transport: str, host: str):
         mcp_args["host"] = settings.host
         mcp_args["port"] = settings.port
         mcp_args["streamable_http_path"] = "/"
+        mcp_args["debug"] = os.environ.get("LOG_LEVEL", "").lower() == "debug"
 
     mcp = FastMCP(**mcp_args)
     config._app_ctx.set(mcp)

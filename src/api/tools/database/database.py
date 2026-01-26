@@ -92,8 +92,8 @@ async def _get_database_credentials(
                     "database-specific credentials for connecting to the workspace."
                 )
             elif elicitation_result.status == "success" and elicitation_result.data:
-                username = elicitation_result.data.username
-                password = elicitation_result.data.password
+                username = elicitation_result.data["username"]
+                password = elicitation_result.data["password"]
 
                 # Store credentials in session cache for future use
                 try:

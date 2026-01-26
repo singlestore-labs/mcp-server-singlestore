@@ -37,7 +37,7 @@ class AnalyticsManager:
         self, user_id: str, event_name: str, properties: dict | None = None
     ):
         try:
-            if not self.enabled:
+            if not self.enabled or not self.analytics or not user_id or not event_name:
                 return
             self.analytics.track(
                 user_id=user_id, event=event_name, properties=properties or {}
@@ -47,7 +47,7 @@ class AnalyticsManager:
 
     def identify(self, user_id: str, traits: dict | None = None):
         try:
-            if not self.enabled:
+            if not self.enabled or not self.analytics or not user_id:
                 return
             self.analytics.identify(user_id=user_id, traits=traits or {})
         except Exception as e:
