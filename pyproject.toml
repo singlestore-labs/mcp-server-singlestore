@@ -35,7 +35,7 @@ authors = ["Your Name <you@example.com>"]
 python = "^3.11"
 
 [tool.poetry.dev-dependencies]
-pip-audit = "^3.1"
+pip-audit = "^2.10"
 
 [tool.poetry.extras]
 audit-tools = ["pip-audit"]
@@ -124,8 +124,3 @@ markers = [
 ]
 
 asyncio_default_fixture_loop_scope = "function"
-
-[dependency-groups]
-dev = [
-    "pip-audit (>=2.10.0,<3.0.0)"
-]
