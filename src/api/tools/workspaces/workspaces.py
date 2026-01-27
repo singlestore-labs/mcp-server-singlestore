@@ -49,6 +49,7 @@ def workspaces_info(workspace_group_id: str) -> dict:
     # Use the SDK to get workspaces for the group
     workspace_manager = utils.get_workspace_manager()
     try:
+        assert validated_group_id is not None, "Workspace group ID should not be None"
         group = workspace_manager.get_workspace_group(validated_group_id)
     except Exception as e:
         logger.error(f"Failed to fetch workspaces for group {validated_group_id}: {e}")
@@ -74,15 +75,17 @@ def workspaces_info(workspace_group_id: str) -> dict:
             "scaling_progress": ws.scaling_progress,
             "last_resumed_at": (
                 ws.last_resumed_at.isoformat()
-                if getattr(ws, "last_resumed_at", None)
+                if hasattr(ws, "last_resumed_at") and ws.last_resumed_at
                 else None
             ),
             "created_at": (
-                ws.created_at.isoformat() if getattr(ws, "created_at", None) else None
+                ws.created_at.isoformat()
+                if hasattr(ws, "created_at") and ws.created_at
+                else None
             ),
             "terminated_at": (
                 ws.terminated_at.isoformat()
-                if getattr(ws, "terminated_at", None)
+                if hasattr(ws, "terminated_at") and ws.terminated_at
                 else None
             ),
         }
@@ -146,6 +149,7 @@ def resume_workspace(workspace_id: str) -> dict:
     workspace = None
     # Get the workspace group
     try:
+        assert validated_workspace_id is not None, "Workspace ID should not be None"
         workspace = workspace_manager.get_workspace(validated_workspace_id)
     except Exception as e:
         logger.error(f"Failed to fetch workspace {validated_workspace_id}: {e}")
@@ -180,7 +184,7 @@ def resume_workspace(workspace_id: str) -> dict:
             "endpoint": workspace.endpoint,
             "last_resumed_at": (
                 workspace.last_resumed_at.isoformat()
-                if getattr(workspace, "last_resumed_at", None)
+                if hasattr(workspace, "last_resumed_at") and workspace.last_resumed_at
                 else None
             ),
         },

@@ -28,7 +28,7 @@ class S2Manager:
         }
         if "conn_attrs" in self.extra_kwargs:
             conn_attrs.update(self.extra_kwargs.pop("conn_attrs"))
-        self.connection = s2.connect(
+        self.connection = s2.connect(  # type: ignore[attr-defined]
             host=self.host,
             user=self.user,
             password=self.password,

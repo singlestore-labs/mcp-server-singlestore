@@ -12,6 +12,7 @@ def register_prompts(mcp: FastMCP) -> None:
 
     for prompt in filtered_prompts:
         func = prompt.func
-        mcp.prompt(
-            name=func.__name__, description=func.__doc__ or "", title=prompt.title
-        )(func)
+        if func is not None:
+            mcp.prompt(
+                name=func.__name__, description=func.__doc__ or "", title=prompt.title
+            )(func)

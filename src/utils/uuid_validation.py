@@ -14,7 +14,7 @@ from uuid import UUID
 
 
 def validate_uuid_string(
-    value: Union[str, UUID, None], strict: bool = None
+    value: Union[str, UUID, None], strict: bool | None = None
 ) -> str | None:
     """
     Validate and convert UUID to string format.

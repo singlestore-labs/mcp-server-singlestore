@@ -14,7 +14,7 @@ def create_resources_wrapper(func: Callable, name: str, description: str, uri: s
 
     wrapper.__name__ = name
     wrapper.__doc__ = description
-    wrapper.uri = uri
+    wrapper.uri = uri  # type: ignore
     return wrapper
 
 
@@ -24,9 +24,12 @@ def register_resources(mcp: FastMCP) -> None:
     for resource in filtered_resources:
         func = resource.func
         uri = resource.uri
-        # Add context support for MCP
-        wrapper = create_resources_wrapper(func, func.__name__, func.__doc__ or "", uri)
+        if func is not None and uri is not None:
+            # Add context support for MCP
+            wrapper = create_resources_wrapper(
+                func, func.__name__, func.__doc__ or "", uri
+            )
 
-        mcp.resource(uri=uri, name=func.__name__, description=func.__doc__ or "")(
-            wrapper
-        )
+            mcp.resource(uri=uri, name=func.__name__, description=func.__doc__ or "")(
+                wrapper
+            )

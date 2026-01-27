@@ -176,7 +176,7 @@ async def __execute_sql_unified(
         for row in rows:
             result_dict = {}
             for i, column in enumerate(columns):
-                result_dict[column] = row[i]
+                result_dict[column] = row[i]  # type: ignore[index]
             results.append(result_dict)
         s2_manager.close()
         return {
@@ -269,7 +269,7 @@ def __get_workspace_by_id(workspace_id: str) -> WorkspaceTarget:
     if not target:
         raise ValueError(f"Cannot find workspace {workspace_id}")
 
-    return WorkspaceTarget(target, is_shared)
+    return WorkspaceTarget(target, is_shared)  # type: ignore[arg-type]
 
 
 async def run_sql(
@@ -343,6 +343,7 @@ async def run_sql(
     # Execute the SQL query
     start_time = time.time()
     try:
+        assert username is not None, "Username should not be None"
         result = await __execute_sql_unified(
             ctx=ctx,
             target=target,

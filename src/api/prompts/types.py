@@ -6,4 +6,4 @@ from src.api.types import MCPConcept
 
 @dataclass()
 class Prompt(MCPConcept):
-    func: Callable = None
+    func: Callable | None = None

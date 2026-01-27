@@ -56,8 +56,8 @@ class SingleStoreKV(AsyncKeyValue):
                     (key, coll),
                 )
                 row = cur.fetchone()
-                if row:
-                    return row[0]
+                if row is not None:
+                    return row[0]  # type: ignore[misc]
                 return None
 
     async def get_many(
@@ -77,7 +77,7 @@ class SingleStoreKV(AsyncKeyValue):
                 rows = cur.fetchall()
 
                 # Ensure the results are in the same order as the input keys
-                results_map = {row[0]: row[1] for row in rows}
+                results_map = {row[0]: row[1] for row in rows}  # type: ignore[index]
                 return [results_map.get(key) for key in keys]
 
     # Put methods
@@ -108,7 +108,7 @@ class SingleStoreKV(AsyncKeyValue):
                     (coll, key, json_value, expires_at),
                 )
 
-    async def put_many(
+    async def put_many(  # type: ignore[override]
         self,
         keys: Sequence[str],
         values: Sequence[Mapping[str, Any]],
@@ -185,7 +185,7 @@ class SingleStoreKV(AsyncKeyValue):
                 )
                 row = cur.fetchone()
                 if row:
-                    value, expires_at = row
+                    value, expires_at = row  # type: ignore[misc]
                     if expires_at:
                         if expires_at > datetime.now():
                             ttl = (expires_at - datetime.now()).total_seconds()
@@ -212,7 +212,8 @@ class SingleStoreKV(AsyncKeyValue):
                 )
                 rows = cur.fetchall()
                 results_map: dict[str, tuple[dict[str, Any], datetime | None]] = {
-                    row[0]: (row[1], row[2]) for row in rows
+                    row[0]: (row[1], row[2])
+                    for row in rows  # type: ignore[index]
                 }
 
                 results: list[tuple[dict[str, Any] | None, float | None]] = []

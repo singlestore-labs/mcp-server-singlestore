@@ -46,7 +46,7 @@ async def create_job_from_notebook(
         job_obj = jobs_manager.schedule(
             notebook_path=notebook_path,
             name=name,
-            mode=s2.management.job.Mode(mode),
+            mode=s2.management.job.Mode(mode),  # type: ignore[attr-defined]
             create_snapshot=True,
             execution_interval_in_minutes=execution_interval_in_minutes,
         )

@@ -34,7 +34,7 @@ class AnalyticsManager:
         logger.error("Analytics error:", error)
 
     def track_event(
-        self, user_id: str, event_name: str, properties: dict | None = None
+        self, user_id: str | None, event_name: str, properties: dict | None = None
     ):
         try:
             if not self.enabled or not self.analytics or not user_id or not event_name:

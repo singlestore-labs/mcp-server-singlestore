@@ -53,7 +53,9 @@ def get_notebook_schema() -> dict:
 
 
 def create_file_in_shared_space(
-    path: str, content: Optional[Dict[str, Any]] = None, access_token: str = None
+    path: str,
+    content: Optional[Dict[str, Any]] = None,
+    access_token: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Create a new file (such as a notebook) in the user's shared space.
@@ -70,7 +72,7 @@ def create_file_in_shared_space(
 
     org_id = get_org_id()
 
-    file_manager = s2.manage_files(
+    file_manager = s2.manage_files(  # type: ignore[attr-defined]
         access_token=access_token,
         base_url=settings.s2_api_base_url,
         organization_id=org_id,
@@ -389,7 +391,7 @@ def check_if_file_exists(file_name: str, location: str = "shared") -> bool:
     org_id = get_org_id()
     access_token = get_access_token()
 
-    file_manager = s2.manage_files(
+    file_manager = s2.manage_files(  # type: ignore[attr-defined]
         access_token=access_token,
         base_url=settings.s2_api_base_url,
         organization_id=org_id,

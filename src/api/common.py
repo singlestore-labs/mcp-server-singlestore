@@ -282,6 +282,7 @@ def get_org_id() -> str | None:
     """
     settings = get_settings()
     session_settings = get_session_settings()
+    org_id: str | None = None
 
     # If using API key authentication, no org_id is needed
     if isinstance(settings, LocalSettings):
@@ -316,7 +317,7 @@ def get_access_token() -> str:
         f"Getting access token, is_remote: {isinstance(settings, RemoteSettings)}"
     )
 
-    access_token: str
+    access_token: str | None = None
     if isinstance(settings, config.RemoteSettings) and settings.auth_provider:
         request = get_session_request()
         proxy_access_token = request.headers.get("Authorization", "").replace(

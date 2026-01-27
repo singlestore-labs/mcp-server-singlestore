@@ -50,8 +50,8 @@ def workspace_groups_info() -> dict:
             "workspaceGroupID": group.id,
             "name": group.name,
             "region": {
-                "regionName": group.region.name,
-                "provider": group.region.provider,
+                "regionName": group.region.name if group.region else None,
+                "provider": group.region.provider if group.region else None,
             },
             "firewallRanges": group.firewall_ranges,
             "allowAllTraffic": group.allow_all_traffic,

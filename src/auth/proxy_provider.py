@@ -107,12 +107,12 @@ class SingleStoreOAuthProxy:
                 self.audience = audience
                 self.jwks_client = PyJWKClient(self.jwks_uri)
 
-            async def verify_token(self, token: str) -> AccessToken | None:
+            async def verify_token(self, token: str) -> AccessToken | None:  # type: ignore[override]
                 signing_key = self.jwks_client.get_signing_key_from_jwt(token)
                 try:
                     decoded_token = jwt.decode(
                         token,
-                        signing_key,
+                        signing_key,  # type: ignore
                         audience=self.audience,
                         options={"verify_exp": True},
                         algorithms=["ES512"],

@@ -19,12 +19,17 @@ def start_command(transport: str, host: str):
     if transport == config.Transport.STDIO:
         if api_key:
             logger.debug("Using API key authentication")
-            settings = config.init_settings(transport=transport, host=host)
+            settings = config.init_settings(
+                transport=config.Transport(transport), host=host
+            )
             # API key will be automatically loaded from env vars via Pydantic
         elif jwt_token and org_id:
             logger.debug("Using JWT token authentication")
             settings = config.init_settings(
-                transport=transport, jwt_token=jwt_token, org_id=org_id, host=host
+                transport=config.Transport(transport),
+                jwt_token=jwt_token,
+                org_id=org_id,
+                host=host,
             )
             # JWT token and org_id will be automatically loaded from env vars via Pydantic
         else:
@@ -37,10 +42,14 @@ def start_command(transport: str, host: str):
 
             # Create settings with OAuth token as JWT token
             settings = config.init_settings(
-                transport=transport, jwt_token=oauth_token, host=host
+                transport=config.Transport(transport),
+                jwt_token=oauth_token,
+                host=host,  # type: ignore[arg-type]
             )
     else:
-        settings = config.init_settings(transport=transport, jwt_token=jwt_token)
+        settings = config.init_settings(
+            transport=config.Transport(transport), jwt_token=jwt_token
+        )  # type: ignore[arg-type]
 
     mcp_args = {
         "name": "SingleStore MCP Server",
@@ -80,4 +89,4 @@ def start_command(transport: str, host: str):
         f"Starting MCP server with transport={transport} on {settings.host}:{settings.port}"
     )
 
-    mcp.run(transport=transport)
+    mcp.run(transport=transport)  # type: ignore[arg-type]

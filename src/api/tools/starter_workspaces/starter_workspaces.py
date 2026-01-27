@@ -144,12 +144,12 @@ async def create_starter_workspace(
             if error == ElicitationError.NOT_SUPPORTED:
                 # Use first available region if elicitation not supported
                 first_region = regions_data[0]
-                provider = first_region.get("provider")
-                region_name = first_region.get("regionName")
+                provider = first_region.get("provider", "")
+                region_name = first_region.get("regionName", "")
                 await ctx.info(f"Using default region: {provider} - {region_name}")
             elif elicit_result.status == "success" and elicit_result.data:
-                provider = elicit_result.data.provider
-                region_name = elicit_result.data.region_name
+                provider = elicit_result.data["provider"]
+                region_name = elicit_result.data["region_name"]
                 await ctx.info(f"Selected region: {provider} - {region_name}")
             else:
                 return {
@@ -280,7 +280,7 @@ async def terminate_starter_workspace(
             if not (
                 elicit_result.status == "success"
                 and elicit_result.data
-                and elicit_result.data.confirm
+                and getattr(elicit_result.data, "confirm", False)
             ):
                 return {
                     "status": "cancelled",
@@ -323,7 +323,7 @@ async def terminate_starter_workspace(
 
     except Exception as e:
         error_msg = f"Failed to terminate starter workspace '{validated_workspace_id}': {str(e)}"
-        ctx.error(error_msg)
+        await ctx.error(error_msg)
 
         return {
             "status": "error",

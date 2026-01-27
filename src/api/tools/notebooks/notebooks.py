@@ -181,7 +181,7 @@ async def upload_notebook_file(
             }
     except Exception as e:
         error_msg = f"Failed to validate local file '{local_path}': {str(e)}"
-        ctx.error(error_msg)
+        await ctx.error(error_msg)
 
         return {
             "status": "error",
@@ -220,8 +220,8 @@ async def upload_notebook_file(
             UploadName,
         )
 
-        if elicitation_result.status == "success":
-            upload_name = elicitation_result.data.name
+        if elicitation_result.status == "success" and elicitation_result.data:
+            upload_name = elicitation_result.data["name"]
         elif elicitation_result.status == "cancelled":
             return {
                 "status": "cancelled",
@@ -243,9 +243,9 @@ async def upload_notebook_file(
             UploadLocation,
         )
 
-        if elicitation_result.status == "success":
-            if elicitation_result.data.location in ["shared", "personal"]:
-                final_location = elicitation_result.data.location
+        if elicitation_result.status == "success" and elicitation_result.data:
+            if elicitation_result.data["location"] in ["shared", "personal"]:
+                final_location = elicitation_result.data["location"]
             else:
                 return {
                     "status": "error",
@@ -298,7 +298,7 @@ async def upload_notebook_file(
     access_token = get_access_token()
 
     org_id = get_org_id()
-    file_manager = s2.manage_files(
+    file_manager = s2.manage_files(  # type: ignore[attr-defined]
         access_token=access_token,
         base_url=settings.s2_api_base_url,
         organization_id=org_id,

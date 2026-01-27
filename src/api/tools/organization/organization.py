@@ -108,7 +108,7 @@ async def choose_organization(ctx: Context) -> dict:
 
                 organizationID: str = Field(
                     description="Select the organization ID to use",
-                    choices=[org["orgID"] for org in organizations],
+                    json_schema_extra={"enum": [org["orgID"] for org in organizations]},
                 )
 
             # Format the organization list for display
@@ -139,7 +139,7 @@ async def choose_organization(ctx: Context) -> dict:
 
             if elicit_result.status == "success" and elicit_result.data:
                 # Find the matching organization from the selection
-                selected_org_id = elicit_result.data.organizationID
+                selected_org_id = elicit_result.data["organizationID"]
                 if selected_org_id:
                     for org in organizations:
                         if org["orgID"] == selected_org_id:

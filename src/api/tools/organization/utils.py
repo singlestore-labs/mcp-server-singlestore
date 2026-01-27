@@ -8,7 +8,7 @@ def fetch_organization():
     Returns the organization object using the workspace manager.
     """
     settings = config.get_settings()
-    workspace_manager = s2.manage_workspaces(
+    workspace_manager = s2.manage_workspaces(  # type: ignore[attr-defined]
         access_token=get_access_token(),
         base_url=settings.s2_api_base_url,
         organization_id=get_org_id(),

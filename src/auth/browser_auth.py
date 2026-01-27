@@ -84,7 +84,7 @@ class AuthCallbackHandler(http.server.SimpleHTTPRequestHandler):
         self.callback_params = urllib.parse.parse_qs(parsed_path.query)
 
         # Convert multi-value dict to single value dict for auth process
-        self.server.callback_params = {k: v[0] for k, v in self.callback_params.items()}
+        self.server.callback_params = {k: v[0] for k, v in self.callback_params.items()}  # type: ignore[attr-defined]
 
         # Send a simple response
         self.send_response(200)
@@ -112,7 +112,7 @@ class AuthCallbackHandler(http.server.SimpleHTTPRequestHandler):
         self.wfile.write(response.encode())
 
         # Signal that we've received the callback
-        self.server.received_callback = True
+        self.server.received_callback = True  # type: ignore[attr-defined]
 
 
 def generate_code_verifier() -> str:
@@ -273,7 +273,7 @@ def authenticate(
         pkce_data = generate_pkce_data()
 
         # Find an available port for the redirect server
-        with socketserver.TCPServer(("127.0.0.1", 0), None) as s:
+        with socketserver.TCPServer(("127.0.0.1", 0), None) as s:  # type: ignore[arg-type]
             port = s.server_address[1]
 
         # Redirect URI

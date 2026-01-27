@@ -10,7 +10,7 @@ def get_workspace_manager():
     settings = config.get_settings()
     access_token = get_access_token()
     org_id = get_org_id()
-    workspace_manager = s2.manage_workspaces(
+    workspace_manager = s2.manage_workspaces(  # type: ignore[attr-defined]
         access_token=access_token,
         base_url=settings.s2_api_base_url,
         organization_id=org_id,

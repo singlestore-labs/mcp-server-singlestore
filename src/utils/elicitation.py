@@ -61,7 +61,7 @@ async def try_elicitation(
                 ElicitationResult(
                     status="success",
                     message="Elicitation successful",
-                    data=result.data,
+                    data=result.data.model_dump(),
                 ),
                 None,
             )
