@@ -4,6 +4,9 @@ from typing import Any, Mapping, Sequence, SupportsFloat
 
 import singlestoredb as s2
 from key_value.aio.protocols import AsyncKeyValue
+from src.logger import get_logger
+
+logger = get_logger()
 
 
 class SingleStoreKV(AsyncKeyValue):
@@ -12,33 +15,52 @@ class SingleStoreKV(AsyncKeyValue):
     _DEFAULT_COLLECTION = "default"
     _TABLE_NAME = "mcp_kv_store"
 
-    def __init__(self, connection_str: str):
+    def __init__(self, connection_str: str, connection_timeout: int = 10):
         """Initialize the SingleStoreKV store.
 
         Args:
             connection_str: The SingleStoreDB connection string.
+            connection_timeout: Connection timeout in seconds (default: 10).
         """
         self.connection_str = connection_str
-        self._create_table_task = self._create_table_if_not_exists()
+        self.connection_timeout = connection_timeout
+        self._table_created = False
 
     def _get_conn(self):
-        return s2.connect(self.connection_str)  # type: ignore
+        """Get a database connection with timeout and error handling."""
+        try:
+            return s2.connect(  # pyright: ignore[reportPrivateImportUsage]
+                self.connection_str,
+                connect_timeout=self.connection_timeout,
+            )
+        except Exception as e:
+            logger.error(f"Failed to connect to SingleStore: {e}")
+            raise Exception("Failed to connect to SingleStore")
 
     def _create_table_if_not_exists(self) -> None:
         """Create the key-value table if it does not exist."""
-        with self._get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    f"""
-                    CREATE TABLE IF NOT EXISTS {self._TABLE_NAME} (
-                        collection VARCHAR(255) NOT NULL,
-                        key_id VARCHAR(255) NOT NULL,
-                        value JSON NOT NULL,
-                        expires_at DATETIME(6),
-                        PRIMARY KEY (collection, key_id)
-                    );
-                    """,
-                )
+        if self._table_created:
+            return
+
+        try:
+            with self._get_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        f"""
+                        CREATE TABLE IF NOT EXISTS {self._TABLE_NAME} (
+                            collection VARCHAR(255) NOT NULL,
+                            key_id VARCHAR(255) NOT NULL,
+                            value JSON NOT NULL,
+                            expires_at DATETIME(6),
+                            PRIMARY KEY (collection, key_id)
+                        );
+                        """,
+                    )
+                    self._table_created = True
+                    logger.info(f"Ensured table {self._TABLE_NAME} exists")
+        except Exception as e:
+            logger.error(f"Failed to create table {self._TABLE_NAME}: {e}")
+            raise
 
     # Get methods
     async def get(
@@ -48,17 +70,22 @@ class SingleStoreKV(AsyncKeyValue):
         collection: str | None = None,
     ) -> dict[str, Any] | None:
         """Retrieve a value by key from the specified collection."""
+        self._create_table_if_not_exists()
         coll = collection or self._DEFAULT_COLLECTION
-        with self._get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    f"SELECT value FROM {self._TABLE_NAME} WHERE key_id = %s AND collection = %s AND (expires_at IS NULL OR expires_at > NOW())",
-                    (key, coll),
-                )
-                row = cur.fetchone()
-                if row is not None:
-                    return row[0]  # type: ignore[misc]
-                return None
+        try:
+            with self._get_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        f"SELECT value FROM {self._TABLE_NAME} WHERE key_id = %s AND collection = %s AND (expires_at IS NULL OR expires_at > NOW())",
+                        (key, coll),
+                    )
+                    row = cur.fetchone()
+                    if row is not None:
+                        return row[0]  # type: ignore[misc]
+                    return None
+        except Exception as e:
+            logger.error(f"Failed to get key '{key}' from collection '{coll}': {e}")
+            raise
 
     async def get_many(
         self, keys: Sequence[str], *, collection: str | None = None
@@ -90,6 +117,7 @@ class SingleStoreKV(AsyncKeyValue):
         ttl: SupportsFloat | None = None,
     ) -> None:
         """Store a key-value pair."""
+        self._create_table_if_not_exists()
         coll = collection or self._DEFAULT_COLLECTION
         expires_at = None
         if ttl is not None:
@@ -97,16 +125,20 @@ class SingleStoreKV(AsyncKeyValue):
 
         json_value = json.dumps(value)
 
-        with self._get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    f"""
-                    INSERT INTO {self._TABLE_NAME} (collection, key_id, value, expires_at)
-                    VALUES (%s, %s, %s, %s)
-                    ON DUPLICATE KEY UPDATE value = VALUES(value), expires_at = VALUES(expires_at)
-                    """,
-                    (coll, key, json_value, expires_at),
-                )
+        try:
+            with self._get_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        f"""
+                        INSERT INTO {self._TABLE_NAME} (collection, key_id, value, expires_at)
+                        VALUES (%s, %s, %s, %s)
+                        ON DUPLICATE KEY UPDATE value = VALUES(value), expires_at = VALUES(expires_at)
+                        """,
+                        (coll, key, json_value, expires_at),
+                    )
+        except Exception as e:
+            logger.error(f"Failed to put key '{key}' in collection '{coll}': {e}")
+            raise
 
     async def put_many(  # type: ignore[override]
         self,
