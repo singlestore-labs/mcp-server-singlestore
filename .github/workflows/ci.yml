@@ -45,6 +45,26 @@ jobs:
           uv run ruff check src/ tests/
           uv run ruff format --check src/ tests/
 
+  dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Poetry
+        run: curl -sSL https://install.python-poetry.org | python3 -
+
+      - name: Install dependencies
+        run: poetry install --no-interaction --only main
+
+      - name: Run pip-audit
+        run: poetry run pip-audit --progress spinner --fail-on high
+
   changelog-check:
     name: Changelog Check
     runs-on: ubuntu-latest
