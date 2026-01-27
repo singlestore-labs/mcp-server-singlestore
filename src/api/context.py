@@ -5,7 +5,7 @@ from mcp.server.fastmcp import Context
 from mcp.shared.context import RequestContext
 from functools import wraps
 import inspect
-from typing import Callable, Dict, Any
+from typing import Callable, Dict, Any, TypedDict, NotRequired, Union
 from src.logger import get_logger
 
 # Get logger for this module
@@ -18,8 +18,13 @@ def get_session_context() -> RequestContext | None:
     return session_context.get(None)
 
 
-# Using session's context to store session-specific settings like org_id
-def get_session_settings() -> Dict[str, Any] | None:
+class KnownSessionSettings(TypedDict):
+    org_id: NotRequired[str]
+    user_id: NotRequired[str]
+
+
+# Using session's context to store session-specific settings like org_id, user_id
+def get_session_settings() -> Union[KnownSessionSettings, Dict[str, Any]] | None:
     current_context = get_session_context()
     if current_context is not None:
         return current_context.lifespan_context
