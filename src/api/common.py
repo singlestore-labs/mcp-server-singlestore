@@ -2,6 +2,7 @@ from typing import Any, Dict, List, TypeVar
 import requests
 import json
 
+import jwt
 from starlette.exceptions import HTTPException
 from src.api.types import MCPConcept
 from src.config import config
@@ -312,6 +313,7 @@ def get_access_token() -> str:
         str: The access token
     """
     settings = get_settings()
+    session_settings = get_session_settings()
 
     logger.debug(
         f"Getting access token, is_remote: {isinstance(settings, RemoteSettings)}"
@@ -348,5 +350,8 @@ def get_access_token() -> str:
     if not access_token:
         logger.warning("No access token available!")
         raise HTTPException(401, "Unauthorized: No access token provided")
-
+    elif session_settings:
+        # Get user id from token and store it in session's settings
+        decoded_jwt = jwt.decode(access_token, options={"verify_signature": False})
+        session_settings["user_id"] = decoded_jwt.get("sub", "")
     return access_token
