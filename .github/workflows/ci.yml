@@ -2,21 +2,6 @@ name: CI
 
 on:
   push:
-    branches:
-      - main
-    paths:
-      - 'src/**/*.py'
-      - 'tests/**/*.py'
-      - 'pyproject.toml'
-      - 'requirements.txt'
-      - 'uv.lock'
-  pull_request:
-    paths:
-      - 'src/**/*.py'
-      - 'tests/**/*.py'
-      - 'pyproject.toml'
-      - 'requirements.txt'
-      - 'uv.lock'
 
 jobs:
   code-quality:
