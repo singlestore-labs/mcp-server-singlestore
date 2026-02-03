@@ -344,19 +344,65 @@ LOG_LEVEL=ERROR uv run singlestore-mcp-server start
 
 ## Environment Variables
 
-The following environment variables can be used for development:
+The SingleStore MCP server supports multiple environment variables for development and testing:
+
+### Development & Debugging
 
 ```bash
 # Logging level (DEBUG, INFO, WARNING, ERROR)
 export LOG_LEVEL=DEBUG
 
-# Custom OAuth settings (for testing)
-export OAUTH_HOST=https://authsvc.singlestore.com
-export CLIENT_ID=your-client-id
-
-# Development mode flags
-export DEVELOPMENT=true
 ```
+
+### Authentication (Local/Stdio Mode)
+
+These use the `MCP_` prefix as defined in `LocalSettings`:
+
+```bash
+# API key authentication
+export MCP_API_KEY=your_api_key_here
+
+# JWT token authentication (requires both)
+export MCP_JWT_TOKEN=your_jwt_token
+export MCP_ORG_ID=your_organization_uuid
+```
+
+### Remote/HTTP Mode Configuration
+
+Create an `.env.remote` file and store these values:
+
+```bash
+# OAuth Configuration
+export MCP_ISSUER_URL=https://authsvc.singlestore.com
+export MCP_CLIENT_ID=your_client_uuid
+export MCP_SERVER_URL=https://your-server.com
+export MCP_REQUIRED_SCOPES='["openid"]'
+
+# JWT Signing (for FastMCP OAuth proxy)
+export MCP_JWT_SIGNING_KEY=your_signing_key
+
+# OAuth Client Storage (optional - uses SingleStore KV)
+# (if not defined, stores to an encrypted disk store)
+export MCP_OAUTH_DB_URL=mysql://user:pass@host:port/database
+
+# Analytics (optional)
+export MCP_SEGMENT_WRITE_KEY=your_segment_key
+```
+
+### Docker Environment Variables
+
+When running in Docker, all `MCP_` prefixed variables are available, plus:
+
+```bash
+# Transport configuration (set at build or runtime)
+export TRANSPORT=streamable-http  # or stdio
+export HOST=0.0.0.0
+export PORT=8010
+```
+
+**Note**: See `src/config/config.py` for complete settings definitions:
+- `LocalSettings`: stdio mode configuration
+- `RemoteSettings`: HTTP/SSE mode configuration
 
 ## Contributing Guidelines
 
@@ -375,6 +421,8 @@ export DEVELOPMENT=true
 - Use the centralized logger from `src.logger`
 - Update type definitions when adding new constants
 - **Important**: When adding new client types, update both the constant lists AND the type definitions in the same file
+- When adding new transport modes, update `Transport` enum in `src/config/config.py`
+- When adding new authentication methods, update settings classes in `src/config/config.py`
 
 Example:
 

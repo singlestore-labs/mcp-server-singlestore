@@ -100,6 +100,25 @@ After installation, the SingleStore MCP server will be available for use with yo
 </details>
 
 <details>
+<summary>VS Code Insiders</summary>
+
+**Automatic setup:**
+```bash
+uvx singlestore-mcp-server init --client=vscode-insiders
+```
+
+**Manual setup:**
+Follow the MCP install [guide](https://code.visualstudio.com/docs/copilot/chat/mcp-servers#_add-an-mcp-server), use the standard config above. You can also install using the VS Code Insiders CLI:
+
+```bash
+code-insiders --add-mcp '{"name":"singlestore-mcp-server","command":"uvx","args":["singlestore-mcp-server","start"]}'
+```
+
+After installation, the SingleStore MCP server will be available for use with your GitHub Copilot agent in VS Code Insiders.
+
+</details>
+
+<details>
 <summary>Windsurf</summary>
 
 **Automatic setup:**
@@ -181,13 +200,150 @@ You can build the Docker image yourself:
 docker build -t singlestore/mcp-server-singlestore .
 ```
 
+#### Docker Build Arguments
+
+You can customize the Docker build with the following arguments:
+
+```bash
+# Custom transport mode (default: streamable-http)
+docker build --build-arg TRANSPORT=stdio -t singlestore/mcp-server-singlestore .
+
+# Custom host and port (defaults: 0.0.0.0:8010)
+docker build --build-arg HOST=127.0.0.1 --build-arg PORT=9000 -t singlestore/mcp-server-singlestore .
+
+# Combined example
+docker build \
+  --build-arg TRANSPORT=streamable-http \
+  --build-arg HOST=0.0.0.0 \
+  --build-arg PORT=8010 \
+  -t singlestore/mcp-server-singlestore .
+```
+
+**Available Build Arguments:**
+- `TRANSPORT`: Transport mode (`stdio` or `streamable-http`, default: `streamable-http`)
+- `HOST`: Server host (default: `0.0.0.0`)
+- `PORT`: Server port (default: `8010`)
+
+
 For better security, we recommend using Docker Desktop to configure the SingleStore MCP server—see [this blog post](https://www.docker.com/blog/docker-mcp-catalog-secure-way-to-discover-and-run-mcp-servers/) for details on Docker's new MCP Catalog.
+
+## Authentication & Configuration
+
+### Authentication Modes
+
+The SingleStore MCP server supports four authentication methods:
+
+#### 1. stdio + Browser OAuth (Default for stdio)
+The server automatically launches a browser-based OAuth flow when you first connect. No configuration needed.
+
+```json
+{
+  "mcpServers": {
+    "singlestore-mcp-server": {
+      "command": "uvx",
+      "args": ["singlestore-mcp-server", "start"]
+    }
+  }
+}
+```
+
+Authentication tokens are securely stored at `~/.singlestore/credentials.json` and automatically refreshed.
+
+#### 2. stdio + API Key Authentication
+Using an API Key for a specific organization:
+
+```bash
+export MCP_API_KEY=your_api_key_here
+```
+
+Or in your MCP client configuration:
+
+```json
+{
+  "mcpServers": {
+    "singlestore-mcp-server": {
+      "command": "uvx",
+      "args": ["singlestore-mcp-server", "start"],
+      "env": {
+        "MCP_API_KEY": "your_api_key_here"
+      }
+    }
+  }
+}
+```
+
+#### 3. stdio + JWT Token Authentication
+Mostly for testing purposes:
+
+```bash
+export MCP_JWT_TOKEN=your_jwt_token
+export MCP_ORG_ID=your_organization_uuid
+```
+
+
+#### 4. streamable-http + Remote OAuth (Default for streamable-http)
+The MCP client starts a connection, registering as an Oauth client, and recieving an authentication endpoint for the user to connect to. Once the user logs in, the server intercepts the authorization code and exchanges it for a JWT. 
+
+
+The server issues a new "proxy" token to the client for them to use in all subsequent calls. This "proxy" token is then internally exchanged or the "real", upstream JWT token to make calls to SingleStore's Management API. 
+
+The server then issues a **Proxy Token** to the client instead of the actual JWT. The server maintains a mapping of this pair in a secure store (either on disk or remotely in a SingleStore database), automatically swapping the proxy token for the real JWT during request processing.
+
+```json
+{
+  "mcpServers": {
+    "singlestore-mcp-server": {
+      "type": "http",
+      // depends on the values set on .env.remote
+      "url": "http://localhost:8010/"
+    }
+  }
+}
+```
+
+### Environment Variables
+
+The following environment variables are available for configuration:
+
+#### Logging
+- `LOG_LEVEL` - Logging verbosity (`DEBUG`, `INFO`, `WARNING`, `ERROR`)
+
+#### Authentication
+- `MCP_API_KEY` - SingleStore API key for authentication
+- `MCP_JWT_TOKEN` - Pre-obtained JWT token (requires `MCP_ORG_ID`)
+- `MCP_ORG_ID` - Organization UUID (for JWT auth)
+
+#### Remote/HTTP Mode (stored in .env.remote)
+- `MCP_JWT_SIGNING_KEY` - JWT signing key for token generation
+- `MCP_OAUTH_DB_URL` - SingleStore database URL for OAuth client storage
+- `MCP_ISSUER_URL` - OAuth issuer URL
+- `MCP_CLIENT_ID` - OAuth client ID
+- `MCP_SERVER_URL` - Server base URL for callbacks
+- `MCP_REQUIRED_SCOPES` - Required OAuth scopes (JSON array)
+- `MCP_SEGMENT_WRITE_KEY` - Segment analytics write key
+
+### Transport Modes
+
+The server supports two transport modes:
+
+- **stdio** - Standard input/output, ideal for local use
+- **streamable-http** - HTTP streaming for server deployments
+
+Specify transport mode:
+
+```bash
+# CLI
+uvx singlestore-mcp-server start --transport stdio
+
+# Docker
+docker run -e TRANSPORT=streamable-http singlestore/mcp-server-singlestore
+```
 
 ## Components
 
 ### Tools
 
-The server implements the following tools:
+The server implements 18 tools for database operations, workspace management, and notebook handling:
 
 - **get_user_info**: Retrieve details about the current user
   - No arguments required
