@@ -185,6 +185,7 @@ def build_request(
     endpoint: str,
     params: dict = None,
     data: dict = None,
+    files: dict = None,
 ):
     """
     Make an API request to the SingleStore Management API.
@@ -223,9 +224,11 @@ def build_request(
         return url
 
     # Headers with authentication
-    headers = {
-        "Content-Type": "application/json",
-    }
+    headers = {}
+
+    # Only set Content-Type for JSON requests (not multipart file uploads)
+    if files is None:
+        headers["Content-Type"] = "application/json"
 
     access_token = get_access_token()
 
@@ -234,21 +237,29 @@ def build_request(
 
     request_endpoint = build_request_endpoint(endpoint, params)
 
-    # Default empty JSON body for POST/PUT requests if none provided
-    if data is None and type in ["POST", "PUT", "PATCH"]:
-        data = {}
+    # When files are provided, skip JSON serialization (requests handles multipart)
+    if files is not None:
+        json_data = None
+    else:
+        # Default empty JSON body for POST/PUT requests if none provided
+        if data is None and type in ["POST", "PUT", "PATCH"]:
+            data = {}
 
-    # Convert dict to JSON string for request body
-    json_data = json.dumps(data) if data is not None else None
+        # Convert dict to JSON string for request body
+        json_data = json.dumps(data) if data is not None else None
 
     request = None
     match type:
         case "GET":
             request = requests.get(request_endpoint, headers=headers, params=params)
         case "POST":
-            request = requests.post(request_endpoint, headers=headers, data=json_data)
+            request = requests.post(
+                request_endpoint, headers=headers, data=json_data, files=files
+            )
         case "PUT":
-            request = requests.put(request_endpoint, headers=headers, data=json_data)
+            request = requests.put(
+                request_endpoint, headers=headers, data=json_data, files=files
+            )
         case "PATCH":
             request = requests.patch(request_endpoint, headers=headers, data=json_data)
         case "DELETE":
