@@ -46,6 +46,12 @@ def register_tools(mcp: FastMCP, **filter_flags) -> None:
     # Default: only register public tools (non-private, non-deprecated)
     if not filter_flags:
         filter_flags = {"internal": False, "deprecated": False}
+    
+    # Hide tools that are not relevant for the current transport mode
+    if settings.is_remote:
+        filter_flags["local_only"] = False
+    else:
+        filter_flags["remote_only"] = False
 
     # Hide tools that are not relevant for the current transport mode
     if settings.is_remote:
