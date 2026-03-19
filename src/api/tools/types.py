@@ -9,6 +9,8 @@ from src.api.types import MCPConcept
 @dataclass()
 class Tool(MCPConcept):
     func: Callable = None
+    flags: list[str] = None
+    name: str = None
 
 
 class WorkspaceTarget:

@@ -4,7 +4,7 @@ from typing import Set
 
 
 # Define all possible flags here - ADD NEW FLAGS TO THIS LIST ONLY!
-AVAILABLE_FLAGS = ["deprecated", "internal"]
+AVAILABLE_FLAGS = ["deprecated", "internal", "local_only", "remote_only"]
 
 
 def _create_flag_enum():
