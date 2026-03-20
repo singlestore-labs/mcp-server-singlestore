@@ -26,6 +26,15 @@ from src.api.tools.organization import (
     choose_organization,
     set_organization,
 )
+from src.api.tools.stage import (
+    stage_list_files,
+    stage_get_file,
+    stage_create_folder,
+    stage_upload_file_local,
+    stage_upload_file_remote,
+    stage_move,
+    stage_delete,
+)
 
 # Define the tools with their metadata
 tools_definition = [
@@ -47,6 +56,13 @@ tools_definition = [
     {"func": create_job_from_notebook},
     {"func": get_job},
     {"func": delete_job},
+    {"func": stage_list_files},
+    {"func": stage_get_file},
+    {"func": stage_create_folder},
+    {"func": stage_upload_file_local, "name": "stage_upload_file", "flags": ["local_only"]},
+    {"func": stage_upload_file_remote, "name": "stage_upload_file", "flags": ["remote_only"]},
+    {"func": stage_move},
+    {"func": stage_delete},
 ]
 
 # Export the tools
