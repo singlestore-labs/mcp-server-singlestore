@@ -186,6 +186,8 @@ def build_request(
     params: dict = None,
     data: dict = None,
     files: dict = None,
+    raw_response: bool = False,
+    allow_redirects: bool = True,
 ):
     """
     Make an API request to the SingleStore Management API.
@@ -195,9 +197,14 @@ def build_request(
         endpoint: API endpoint path
         params: Query parameters
         data: Request body for POST/PUT/PATCH requests
+        raw_response: If True, return the raw requests.Response object
+            instead of parsed JSON. Useful for non-JSON responses or
+            custom status code handling.
+        allow_redirects: Whether to follow HTTP redirects. Defaults to True.
+            Set to False to capture redirect responses (e.g. 307 with Location header).
 
     Returns:
-        JSON response from the API
+        JSON response from the API, or raw requests.Response if raw_response=True
     """
     # Ensure an organization is selected before making API requests
 
@@ -251,21 +258,46 @@ def build_request(
     request = None
     match type:
         case "GET":
-            request = requests.get(request_endpoint, headers=headers, params=params)
+            request = requests.get(
+                request_endpoint,
+                headers=headers,
+                params=params,
+                allow_redirects=allow_redirects,
+            )
         case "POST":
             request = requests.post(
-                request_endpoint, headers=headers, data=json_data, files=files
+                request_endpoint,
+                headers=headers,
+                data=json_data,
+                files=files,
+                allow_redirects=allow_redirects,
             )
         case "PUT":
             request = requests.put(
-                request_endpoint, headers=headers, data=json_data, files=files
+                request_endpoint,
+                headers=headers,
+                data=json_data,
+                files=files,
+                allow_redirects=allow_redirects,
             )
         case "PATCH":
-            request = requests.patch(request_endpoint, headers=headers, data=json_data)
+            request = requests.patch(
+                request_endpoint,
+                headers=headers,
+                data=json_data,
+                allow_redirects=allow_redirects,
+            )
         case "DELETE":
-            request = requests.delete(request_endpoint, headers=headers)
+            request = requests.delete(
+                request_endpoint,
+                headers=headers,
+                allow_redirects=allow_redirects,
+            )
         case _:
             raise ValueError(f"Unsupported request type: {type}")
+
+    if raw_response:
+        return request
 
     if request.status_code != 200:
         raise HTTPException(request.status_code, request.text)
