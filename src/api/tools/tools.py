@@ -59,8 +59,16 @@ tools_definition = [
     {"func": stage_list_files},
     {"func": stage_get_file},
     {"func": stage_create_folder},
-    {"func": stage_upload_file_local, "name": "stage_upload_file", "flags": ["local_only"]},
-    {"func": stage_upload_file_remote, "name": "stage_upload_file", "flags": ["remote_only"]},
+    {
+        "func": stage_upload_file_local,
+        "name": "stage_upload_file",
+        "flags": ["local_only"],
+    },
+    {
+        "func": stage_upload_file_remote,
+        "name": "stage_upload_file",
+        "flags": ["remote_only"],
+    },
     {"func": stage_move},
     {"func": stage_delete},
 ]

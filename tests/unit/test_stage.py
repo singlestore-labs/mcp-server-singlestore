@@ -250,11 +250,23 @@ class TestPathNormalization:
         [
             (stage_list_files, {"path": "data"}, "data/"),
             (stage_list_files, {"path": "data/"}, "data/"),
-            (stage_get_file, {"path": "file.csv/", "return_type": "metadata"}, "file.csv"),
+            (
+                stage_get_file,
+                {"path": "file.csv/", "return_type": "metadata"},
+                "file.csv",
+            ),
             (stage_create_folder, {"path": "folder"}, "folder/"),
             (stage_create_folder, {"path": "folder/"}, "folder/"),
-            (stage_upload_file_local, {"path": "file.txt/", "content": "x"}, "file.txt"),
-            (stage_upload_file_remote, {"path": "file.txt/", "content": "x"}, "file.txt"),
+            (
+                stage_upload_file_local,
+                {"path": "file.txt/", "content": "x"},
+                "file.txt",
+            ),
+            (
+                stage_upload_file_remote,
+                {"path": "file.txt/", "content": "x"},
+                "file.txt",
+            ),
         ],
     )
     async def test_path_normalization(
