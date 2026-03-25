@@ -347,7 +347,7 @@ async def run_sql(
                 "workspace_name": target.name,
                 "workspace_type": "shared" if target.is_shared else "dedicated",
                 "instruction": (
-                    "Please call this function again with the same parameters once you have "
+                    "Please call this function again with additional parameters once you have "
                     "the database credentials available, or ask the user to provide their "
                     "database username and password for this workspace."
                 ),
