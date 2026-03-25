@@ -31,7 +31,11 @@ class DatabaseCredentials(BaseModel):
 
 
 async def _get_database_credentials(
-    ctx: Context, target: WorkspaceTarget, database_name: str | None = None
+    ctx: Context,
+    target: WorkspaceTarget,
+    database_name: str | None = None,
+    username_input: str | None = None,
+    password_input: str | None = None,
 ) -> tuple[str, str]:
     """
     Get database credentials based on the authentication method.
@@ -63,6 +67,13 @@ async def _get_database_credentials(
         database_key = credentials_manager.generate_database_key(
             workspace_name=target.name, database_name=database_name
         )
+
+        # If the agent called the method with credentials, use those directly
+        if username_input and password_input:
+            credentials_manager.store_credentials(
+                database_key, username_input, password_input
+            )
+            return username_input, password_input
 
         # Check if we have cached credentials for this database
         if credentials_manager.has_credentials(database_key):
@@ -273,10 +284,20 @@ def __get_workspace_by_id(workspace_id: str) -> WorkspaceTarget:
 
 
 async def run_sql(
-    ctx: Context, sql_query: str, id: str, database: Optional[str] = None
+    ctx: Context,
+    sql_query: str,
+    id: str,
+    database: Optional[str] = None,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Use this tool to execute a single SQL statement against a SingleStore database.
+
+    Generally you should *NOT* specify the username and password when calling this tool.
+    You must only use those parameters if a previous attempt to call this method failed and
+    indicated that the `username` and `password` must be specified.
+    Credentials for a specific workspace and database combination will be cached.
 
     Returns:
     - Query results with column names and typed values
@@ -312,7 +333,9 @@ async def run_sql(
 
     # Get database credentials based on authentication method
     try:
-        username, password = await _get_database_credentials(ctx, target, database_name)
+        username, password = await _get_database_credentials(
+            ctx, target, database_name, username, password
+        )
     except Exception as e:
         if "Database credentials required" in str(e):
             # Handle the specific case where elicitation is not supported
@@ -324,7 +347,7 @@ async def run_sql(
                 "workspace_name": target.name,
                 "workspace_type": "shared" if target.is_shared else "dedicated",
                 "instruction": (
-                    "Please call this function again with the same parameters once you have "
+                    "Please call this function again with additional parameters once you have "
                     "the database credentials available, or ask the user to provide their "
                     "database username and password for this workspace."
                 ),
