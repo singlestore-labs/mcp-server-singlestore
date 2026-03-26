@@ -25,8 +25,14 @@ A **starter workspace** (also called shared or virtual workspace) is a free-tier
 **Stage** is an attached file storage service (up to 10 GB) for organizing files before importing them into a database, or handling them in Notebooks. Each workspace group and each starter workspace has its own Stage. You can:
 
 - Upload, list, move, and delete files and folders via the Management API.
-- Ingest data from Stage into tables using:
+- Ingest data from Stage into tables using either:
   - `LOAD DATA STAGE 'file.csv' INTO TABLE t ...` (dedicated workspaces only, SingleStore 8.9+).
+  - ```
+    CREATE PIPELINE p AS LOAD DATA STAGE 'file.csv' 
+    SKIP DUPLICATE KEY ERRORS INTO TABLE t 
+    FIELDS TERMINATED BY ',' IGNORE 1 LINES;
+    START PIPELINE p;
+    ```
   - The Cloud Portal's "Load To Database" flow, which generates a notebook.
 - Access Stage files from within notebooks for data processing.
 
@@ -37,6 +43,8 @@ Since Stage lives in a specific workspace group or starter workspace (henceforth
 **Important:**
  - Stage API calls use the **workspace group ID** (for dedicated) or the **starter workspace ID** (for shared) — not the individual workspace ID.
  - When loading JSON files, they are expected to be in a ND-JSON format (newline-delimited).
+
+ If you need any aditional information related to loading data from stage you can refer to: https://docs.singlestore.com/cloud/load-data/load-data-from-files/stage.md
 
 ### Notebooks
 
@@ -76,7 +84,6 @@ cur.execute('select * from table')
 
 # Fetch the results
 print(cur.description)
-print("----")
 for item in cur:
     print(item)
 ```

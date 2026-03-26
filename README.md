@@ -261,6 +261,30 @@ The server implements the following tools:
   - Arguments: `job_id` (string)
   - Deletes the specified job
 
+- **stage_list_files**: List files and folders in a Stage deployment's file system
+  - Arguments: `deployment_id` (string), `path` (string, optional)
+  - Returns folder contents including files and subfolders
+
+- **stage_get_file**: Get a file from Stage by path
+  - Arguments: `deployment_id` (string), `path` (string), `return_type` (string: 'metadata', 'url', or 'content')
+  - Returns file metadata, a download URL, or text content
+
+- **stage_create_folder**: Create a folder in Stage
+  - Arguments: `deployment_id` (string), `path` (string)
+  - Returns creation status
+
+- **stage_upload_file**: Upload a file to Stage with text content
+  - Arguments: `deployment_id` (string), `path` (string), `content` (string), `local_path` (string)
+  - Returns upload status
+
+- **stage_move**: Move or rename a file or folder in Stage
+  - Arguments: `deployment_id` (string), `source_path` (string), `destination_path` (string)
+  - Returns move status
+
+- **stage_delete**: Delete a file or folder from Stage
+  - Arguments: `deployment_id` (string), `path` (string)
+  - Returns deletion status
+
 **Note**: Organization management tools (`choose_organization` and `set_organization`) are only available when the API key environment variable is not set, allowing for interactive organization selection during OAuth authentication.
 
 ## Development
