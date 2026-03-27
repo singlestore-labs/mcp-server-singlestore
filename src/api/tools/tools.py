@@ -62,12 +62,12 @@ tools_definition = [
     {
         "func": stage_upload_file_local,
         "name": "stage_upload_file",
-        "flags": ["local_only"],
+        "local_only": True,
     },
     {
         "func": stage_upload_file_remote,
         "name": "stage_upload_file",
-        "flags": ["remote_only"],
+        "remote_only": True,
     },
     {"func": stage_move},
     {"func": stage_delete},
