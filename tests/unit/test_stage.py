@@ -171,13 +171,13 @@ class TestStageUploadFileLocal:
 
     @pytest.mark.asyncio
     async def test_reads_local_file_bytes(self, mock_ctx, tmp_path):
-        local_file = tmp_path / "data.bin"
+        local_file = tmp_path / "mcp_stage_test_data.bin"
         local_file.write_bytes(b"\x00\x01\x02")
 
         with patch("src.api.tools.stage.stage.build_request") as mock_req:
             mock_req.return_value = {}
             result = await stage_upload_file_local(
-                mock_ctx, DEPLOYMENT_ID, "data/data.bin", local_path=str(local_file)
+                mock_ctx, DEPLOYMENT_ID, "data/mcp_stage_test_data.bin", local_path=str(local_file)
             )
 
         assert result["status"] == "success"
@@ -209,6 +209,7 @@ class TestToolRegistration:
             if tool_call.kwargs["name"] == "stage_upload_file":
                 func = decorator_call.args[0]
                 import inspect
+
                 return list(inspect.signature(func).parameters.keys())
         return None
 
