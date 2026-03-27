@@ -29,7 +29,7 @@ async def stage_list_files(
     Args:
         deployment_id: The workspace group ID or starter workspace ID.
         path: Optional folder path to list. Defaults to root. Must refer to a
-              folder (trailing slash is added automatically if missing).
+              folder.
 
     Returns:
         Dictionary with folder contents including files and subfolders.
@@ -86,7 +86,7 @@ async def stage_get_file(
 
     Args:
         deployment_id: The workspace group ID or starter workspace ID.
-        path: Path to the file in Stage (must not end with '/').
+        path: Path to the file in Stage.
         return_type: What to return. One of:
             - 'metadata': File metadata as JSON (default).
             - 'url': A pre-signed download URL (does not download the file).
@@ -114,8 +114,9 @@ async def stage_get_file(
     path = path.rstrip("/")
 
     try:
+        endpoint = f"stage/{validated_id}/fs/{path}"
+
         if return_type == "metadata":
-            endpoint = f"stage/{validated_id}/fs/{path}"
             result = build_request("GET", endpoint, params={"metadata": "true"})
             execution_time = (time.time() - start_time) * 1000
             return {
@@ -127,8 +128,6 @@ async def stage_get_file(
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 },
             }
-
-        endpoint = f"stage/{validated_id}/fs/{path}"
 
         if return_type == "url":
             response = build_request(
@@ -190,8 +189,7 @@ async def stage_create_folder(
 
     Args:
         deployment_id: The workspace group ID or starter workspace ID.
-        path: Folder path to create. A trailing slash is added automatically
-              if not present.
+        path: Folder path to create.
 
     Returns:
         Dictionary with creation status.
@@ -247,7 +245,7 @@ async def stage_upload_file_local(
 
     Args:
         deployment_id: The workspace group ID or starter workspace ID.
-        path: Destination file path in Stage. Must not end with '/'.
+        path: Destination file path in Stage.
         content: Text content to upload as the file body.
         local_path: Absolute path to a local file to upload.
 
@@ -279,7 +277,7 @@ async def stage_upload_file_local(
     path = path.rstrip("/")
 
     # Extract filename from path for the multipart field
-    filename = path.rsplit("/", 1)[-1] if "/" in path else path
+    filename = path.rsplit("/", 1)[-1]
 
     try:
         if local_path is not None:
@@ -328,7 +326,7 @@ async def stage_upload_file_remote(
 
     Args:
         deployment_id: The workspace group ID or starter workspace ID.
-        path: Destination file path in Stage. Must not end with '/'.
+        path: Destination file path in Stage.
         content: Text content to upload as the file body.
 
     Returns:
@@ -346,7 +344,7 @@ async def stage_upload_file_remote(
     path = path.rstrip("/")
 
     # Extract filename from path for the multipart field
-    filename = path.rsplit("/", 1)[-1] if "/" in path else path
+    filename = path.rsplit("/", 1)[-1]
 
     try:
         endpoint = f"stage/{validated_id}/fs/{path}"
@@ -380,6 +378,8 @@ async def stage_move(
 ) -> Dict[str, Any]:
     """
     Move or rename a file or folder in Stage.
+    For folders, ensure the path ends with '/'.
+    For files, the path must not end with '/'.
 
     Works like the `mv` command - can rename and/or move into a different folder.
 
@@ -429,8 +429,8 @@ async def stage_delete(ctx: Context, deployment_id: str, path: str) -> Dict[str,
     """
     Delete a file or folder from Stage.
 
-    For folders, ensure the path ends with '/'. For files, the path must not
-    end with '/'.
+    For folders, ensure the path ends with '/'.
+    For files, the path must not end with '/'.
 
     Args:
         deployment_id: The workspace group ID or starter workspace ID.
@@ -455,7 +455,6 @@ async def stage_delete(ctx: Context, deployment_id: str, path: str) -> Dict[str,
         return {
             "status": "success",
             "message": f"Deleted '{path}' successfully",
-            "data": {"path": path},
             "metadata": {
                 "execution_time_ms": round(execution_time, 2),
                 "timestamp": datetime.now(timezone.utc).isoformat(),
