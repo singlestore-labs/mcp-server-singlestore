@@ -177,7 +177,10 @@ class TestStageUploadFileLocal:
         with patch("src.api.tools.stage.stage.build_request") as mock_req:
             mock_req.return_value = {}
             result = await stage_upload_file_local(
-                mock_ctx, DEPLOYMENT_ID, "data/mcp_stage_test_data.bin", local_path=str(local_file)
+                mock_ctx,
+                DEPLOYMENT_ID,
+                "data/mcp_stage_test_data.bin",
+                local_path=str(local_file),
             )
 
         assert result["status"] == "success"
