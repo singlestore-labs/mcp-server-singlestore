@@ -14,7 +14,7 @@ A **workspace group** is a logical grouping of compute workspaces within a regio
 
 ### Workspaces (Dedicated)
 
-A **workspace** is an individual compute pool inside a workspace group. Each workspace has its own endpoint for SQL connections. Multiple workspaces in the same group can access the same databases.
+A **workspace** is an individual compute pool inside a workspace group. Each workspace has its own endpoint for SQL connections. Multiple workspaces in the same group may access the same databases.
 
 ### Starter Workspaces (Shared)
 
@@ -24,7 +24,7 @@ A **starter workspace** (also called shared or virtual workspace) is a free-tier
 
 **Stage** is an attached file storage service (up to 10 GB) for organizing files before importing them into a database, or handling them in Notebooks. Each workspace group and each starter workspace has its own Stage. You can:
 
-- Upload, list, move, and delete files and folders via the Management API.
+- Upload, list, move, and delete files and folders.
 - Ingest data from Stage into tables using either:
   - `LOAD DATA STAGE 'file.csv' INTO TABLE t ...` (dedicated workspaces only, SingleStore 8.9+).
   - ```
@@ -32,7 +32,7 @@ A **starter workspace** (also called shared or virtual workspace) is a free-tier
     SKIP DUPLICATE KEY ERRORS INTO TABLE t 
     FIELDS TERMINATED BY ',' IGNORE 1 LINES;
     START PIPELINE p;
-    ```
+    ``` (works in both dedicated workspaces and starter workspaces)
   - The Cloud Portal's "Load To Database" flow, which generates a notebook.
 - Access Stage files from within notebooks for data processing.
 
@@ -44,7 +44,7 @@ Since Stage lives in a specific workspace group or starter workspace (henceforth
  - Stage API calls use the **workspace group ID** (for dedicated) or the **starter workspace ID** (for shared) — not the individual workspace ID.
  - When loading JSON files, they are expected to be in a ND-JSON format (newline-delimited).
 
- If you need any aditional information related to loading data from stage you can refer to: https://docs.singlestore.com/cloud/load-data/load-data-from-files/stage.md
+If you need any aditional information related to loading data from stage you can refer to: https://docs.singlestore.com/cloud/load-data/load-data-from-files/stage.md
 
 ### Notebooks
 
