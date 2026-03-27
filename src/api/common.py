@@ -245,9 +245,8 @@ def build_request(
     request_endpoint = build_request_endpoint(endpoint, params)
 
     # When files are provided, skip JSON serialization (requests handles multipart)
-    if files is not None:
-        json_data = None
-    else:
+    json_data = None
+    if files is None:
         # Default empty JSON body for POST/PUT requests if none provided
         if data is None and type in ["POST", "PUT", "PATCH"]:
             data = {}
