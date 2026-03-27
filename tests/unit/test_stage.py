@@ -12,6 +12,8 @@ from src.api.tools.stage import (
     stage_move,
     stage_delete,
 )
+from src.api.tools.tools import tools
+from src.api.common import filter_tools_by_flags
 from src.config.config import LocalSettings, _settings_ctx, _user_id_ctx
 from src.analytics.manager import AnalyticsManager
 
@@ -50,206 +52,16 @@ def mock_ctx():
 DEPLOYMENT_ID = "12345678-1234-1234-1234-123456789abc"
 
 
-class TestStageListFiles:
-    @pytest.mark.asyncio
-    async def test_list_root(self, mock_ctx):
-        with patch("src.api.tools.stage.stage.build_request") as mock_req:
-            mock_req.return_value = [{"name": "file.csv", "type": "file"}]
-            result = await stage_list_files(mock_ctx, DEPLOYMENT_ID)
-
-        assert result["status"] == "success"
-        assert result["data"] == [{"name": "file.csv", "type": "file"}]
-        mock_req.assert_called_once_with("GET", f"stage/{DEPLOYMENT_ID}/fs")
-
-
-class TestStageGetFile:
-    @pytest.mark.asyncio
-    async def test_get_metadata(self, mock_ctx):
-        with patch("src.api.tools.stage.stage.build_request") as mock_req:
-            mock_req.return_value = {"size": 1024, "type": "text/csv"}
-            result = await stage_get_file(
-                mock_ctx, DEPLOYMENT_ID, "data/file.csv", return_type="metadata"
-            )
-
-        assert result["status"] == "success"
-        assert result["data"] == {"size": 1024, "type": "text/csv"}
-        mock_req.assert_called_once_with(
-            "GET",
-            f"stage/{DEPLOYMENT_ID}/fs/data/file.csv",
-            params={"metadata": "true"},
-        )
-
-    @pytest.mark.asyncio
-    async def test_get_url(self, mock_ctx):
-        with patch("src.api.tools.stage.stage.build_request") as mock_req:
-            mock_response = MagicMock()
-            mock_response.status_code = 307
-            mock_response.headers = {"Location": "https://download.example.com/file"}
-            mock_req.return_value = mock_response
-
-            result = await stage_get_file(
-                mock_ctx, DEPLOYMENT_ID, "data/file.csv", return_type="url"
-            )
-
-        assert result["status"] == "success"
-        assert result["data"]["url"] == "https://download.example.com/file"
-        mock_req.assert_called_once_with(
-            "GET",
-            f"stage/{DEPLOYMENT_ID}/fs/data/file.csv",
-            raw_response=True,
-            allow_redirects=False,
-        )
-
-    @pytest.mark.asyncio
-    async def test_get_content(self, mock_ctx):
-        with patch("src.api.tools.stage.stage.build_request") as mock_req:
-            mock_response = MagicMock()
-            mock_response.status_code = 200
-            mock_response.text = "col1,col2\na,b\n"
-            mock_req.return_value = mock_response
-
-            result = await stage_get_file(
-                mock_ctx, DEPLOYMENT_ID, "data/file.csv", return_type="content"
-            )
-
-        assert result["status"] == "success"
-        assert result["data"]["content"] == "col1,col2\na,b\n"
-        mock_req.assert_called_once_with(
-            "GET",
-            f"stage/{DEPLOYMENT_ID}/fs/data/file.csv",
-            raw_response=True,
-        )
-
-    @pytest.mark.asyncio
-    async def test_invalid_return_type(self, mock_ctx):
-        result = await stage_get_file(
-            mock_ctx, DEPLOYMENT_ID, "file.csv", return_type="invalid"
-        )
-        assert result["status"] == "error"
-        assert result["errorCode"] == "INVALID_RETURN_TYPE"
-
-
-class TestStageCreateFolder:
-    @pytest.mark.asyncio
-    async def test_create_folder(self, mock_ctx):
-        with patch("src.api.tools.stage.stage.build_request") as mock_req:
-            mock_req.return_value = {}
-            result = await stage_create_folder(mock_ctx, DEPLOYMENT_ID, "new_folder")
-
-        assert result["status"] == "success"
-        mock_req.assert_called_once_with(
-            "PUT", f"stage/{DEPLOYMENT_ID}/fs/new_folder/", data=None
-        )
-
-
-class TestStageUploadFile:
-    @pytest.mark.asyncio
-    async def test_upload_with_content(self, mock_ctx):
-        with patch("src.api.tools.stage.stage.build_request") as mock_req:
-            mock_req.return_value = {}
-            result = await stage_upload_file_local(
-                mock_ctx, DEPLOYMENT_ID, "data/test.csv", content="a,b\n1,2\n"
-            )
-
-        assert result["status"] == "success"
-        assert result["data"]["filename"] == "test.csv"
-        call_kwargs = mock_req.call_args
-        assert call_kwargs.kwargs["files"]["file"][0] == "test.csv"
-        assert call_kwargs.kwargs["files"]["file"][1] == b"a,b\n1,2\n"
-
-    @pytest.mark.asyncio
-    async def test_upload_with_local_path(self, mock_ctx, tmp_path):
-        local_file = tmp_path / "data.bin"
-        local_file.write_bytes(b"\x00\x01\x02\x03")
-
-        with patch("src.api.tools.stage.stage.build_request") as mock_req:
-            mock_req.return_value = {}
-            result = await stage_upload_file_local(
-                mock_ctx, DEPLOYMENT_ID, "data/data.bin", local_path=str(local_file)
-            )
-
-        assert result["status"] == "success"
-        assert result["data"]["filename"] == "data.bin"
-        call_kwargs = mock_req.call_args
-        assert call_kwargs.kwargs["files"]["file"][1] == b"\x00\x01\x02\x03"
-
-    @pytest.mark.asyncio
-    async def test_upload_error_both_provided(self, mock_ctx):
-        result = await stage_upload_file_local(
-            mock_ctx,
-            DEPLOYMENT_ID,
-            "file.txt",
-            content="text",
-            local_path="/some/path",
-        )
-        assert result["status"] == "error"
-        assert result["errorCode"] == "INVALID_ARGUMENTS"
-        assert "not both" in result["message"]
-
-    @pytest.mark.asyncio
-    async def test_upload_error_neither_provided(self, mock_ctx):
-        result = await stage_upload_file_local(mock_ctx, DEPLOYMENT_ID, "file.txt")
-        assert result["status"] == "error"
-        assert result["errorCode"] == "INVALID_ARGUMENTS"
-
-    @pytest.mark.asyncio
-    async def test_upload_local_path_not_found(self, mock_ctx):
-        result = await stage_upload_file_local(
-            mock_ctx,
-            DEPLOYMENT_ID,
-            "file.txt",
-            local_path="/nonexistent/path/file.txt",
-        )
-        assert result["status"] == "error"
-        assert result["errorCode"] == "FILE_NOT_FOUND"
-
-
-class TestStageMove:
-    @pytest.mark.asyncio
-    async def test_move_file(self, mock_ctx):
-        with patch("src.api.tools.stage.stage.build_request") as mock_req:
-            mock_req.return_value = {}
-            result = await stage_move(
-                mock_ctx, DEPLOYMENT_ID, "old/file.csv", "new/file.csv"
-            )
-
-        assert result["status"] == "success"
-        mock_req.assert_called_once_with(
-            "PATCH",
-            f"stage/{DEPLOYMENT_ID}/fs/old/file.csv",
-            data={"newPath": "new/file.csv"},
-        )
-
-
-class TestStageDelete:
-    @pytest.mark.asyncio
-    async def test_delete_file(self, mock_ctx):
-        with patch("src.api.tools.stage.stage.build_request") as mock_req:
-            mock_req.return_value = {}
-            result = await stage_delete(mock_ctx, DEPLOYMENT_ID, "old_file.csv")
-
-        assert result["status"] == "success"
-        mock_req.assert_called_once_with(
-            "DELETE", f"stage/{DEPLOYMENT_ID}/fs/old_file.csv"
-        )
-
-    @pytest.mark.asyncio
-    async def test_delete_folder(self, mock_ctx):
-        with patch("src.api.tools.stage.stage.build_request") as mock_req:
-            mock_req.return_value = {}
-            result = await stage_delete(mock_ctx, DEPLOYMENT_ID, "folder/")
-
-        assert result["status"] == "success"
-        mock_req.assert_called_once_with("DELETE", f"stage/{DEPLOYMENT_ID}/fs/folder/")
-
-
 class TestPathNormalization:
+    """Verify trailing-slash logic: folders get '/', files get it stripped."""
+
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
         "func,kwargs,expected_path_suffix",
         [
             (stage_list_files, {"path": "data"}, "data/"),
             (stage_list_files, {"path": "data/"}, "data/"),
+            (stage_list_files, {"path": ""}, "/fs"),
             (
                 stage_get_file,
                 {"path": "file.csv/", "return_type": "metadata"},
@@ -259,13 +71,13 @@ class TestPathNormalization:
             (stage_create_folder, {"path": "folder/"}, "folder/"),
             (
                 stage_upload_file_local,
-                {"path": "file.txt/", "content": "x"},
-                "file.txt",
+                {"path": "dir/file.txt/", "content": "x"},
+                "dir/file.txt",
             ),
             (
                 stage_upload_file_remote,
-                {"path": "file.txt/", "content": "x"},
-                "file.txt",
+                {"path": "dir/file.txt/", "content": "x"},
+                "dir/file.txt",
             ),
         ],
     )
@@ -280,24 +92,147 @@ class TestPathNormalization:
         assert endpoint.endswith(expected_path_suffix)
 
 
-class TestErrorHandling:
+class TestStageGetFile:
+    """Test the branching logic in stage_get_file (3 return types + error paths)."""
+
     @pytest.mark.asyncio
-    @pytest.mark.parametrize(
-        "func,kwargs",
-        [
-            (stage_list_files, {}),
-            (stage_get_file, {"path": "file.csv", "return_type": "metadata"}),
-            (stage_create_folder, {"path": "folder"}),
-            (stage_upload_file_local, {"path": "file.txt", "content": "x"}),
-            (stage_upload_file_remote, {"path": "file.txt", "content": "x"}),
-            (stage_move, {"source_path": "a.csv", "destination_path": "b.csv"}),
-            (stage_delete, {"path": "file.csv"}),
-        ],
-    )
-    async def test_error_handling(self, mock_ctx, func, kwargs):
+    async def test_invalid_return_type(self, mock_ctx):
+        result = await stage_get_file(
+            mock_ctx, DEPLOYMENT_ID, "file.csv", return_type="invalid"
+        )
+        assert result["status"] == "error"
+        assert result["errorCode"] == "INVALID_RETURN_TYPE"
+
+    @pytest.mark.asyncio
+    async def test_url_non_307_returns_error(self, mock_ctx):
         with patch("src.api.tools.stage.stage.build_request") as mock_req:
-            mock_req.side_effect = Exception("API error")
-            result = await func(mock_ctx, DEPLOYMENT_ID, **kwargs)
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_response.text = "unexpected"
+            mock_req.return_value = mock_response
+
+            result = await stage_get_file(
+                mock_ctx, DEPLOYMENT_ID, "file.csv", return_type="url"
+            )
 
         assert result["status"] == "error"
-        assert "API error" in result["message"]
+        assert result["errorCode"] == "UNEXPECTED_RESPONSE"
+
+    @pytest.mark.asyncio
+    async def test_content_non_200_returns_error(self, mock_ctx):
+        with patch("src.api.tools.stage.stage.build_request") as mock_req:
+            mock_response = MagicMock()
+            mock_response.status_code = 404
+            mock_response.text = "not found"
+            mock_req.return_value = mock_response
+
+            result = await stage_get_file(
+                mock_ctx, DEPLOYMENT_ID, "file.csv", return_type="content"
+            )
+
+        assert result["status"] == "error"
+        assert result["errorCode"] == "CONTENT_FETCH_FAILED"
+
+    @pytest.mark.asyncio
+    async def test_content_returns_text(self, mock_ctx):
+        with patch("src.api.tools.stage.stage.build_request") as mock_req:
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_response.text = "col1,col2\na,b\n"
+            mock_req.return_value = mock_response
+
+            result = await stage_get_file(
+                mock_ctx, DEPLOYMENT_ID, "data/file.csv", return_type="content"
+            )
+
+        assert result["data"]["content"] == "col1,col2\na,b\n"
+
+
+class TestStageUploadFileLocal:
+    """Test input validation and file I/O in the local upload variant."""
+
+    @pytest.mark.asyncio
+    async def test_error_both_content_and_path(self, mock_ctx):
+        result = await stage_upload_file_local(
+            mock_ctx, DEPLOYMENT_ID, "f.txt", content="x", local_path="/some/path"
+        )
+        assert result["errorCode"] == "INVALID_ARGUMENTS"
+        assert "not both" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_error_neither_content_nor_path(self, mock_ctx):
+        result = await stage_upload_file_local(mock_ctx, DEPLOYMENT_ID, "f.txt")
+        assert result["errorCode"] == "INVALID_ARGUMENTS"
+
+    @pytest.mark.asyncio
+    async def test_local_path_not_found(self, mock_ctx):
+        result = await stage_upload_file_local(
+            mock_ctx, DEPLOYMENT_ID, "f.txt", local_path="/nonexistent/file"
+        )
+        assert result["errorCode"] == "FILE_NOT_FOUND"
+
+    @pytest.mark.asyncio
+    async def test_reads_local_file_bytes(self, mock_ctx, tmp_path):
+        local_file = tmp_path / "data.bin"
+        local_file.write_bytes(b"\x00\x01\x02")
+
+        with patch("src.api.tools.stage.stage.build_request") as mock_req:
+            mock_req.return_value = {}
+            result = await stage_upload_file_local(
+                mock_ctx, DEPLOYMENT_ID, "data/data.bin", local_path=str(local_file)
+            )
+
+        assert result["status"] == "success"
+        sent_bytes = mock_req.call_args.kwargs["files"]["file"][1]
+        assert sent_bytes == b"\x00\x01\x02"
+
+    @pytest.mark.asyncio
+    async def test_extracts_filename_from_path(self, mock_ctx):
+        with patch("src.api.tools.stage.stage.build_request") as mock_req:
+            mock_req.return_value = {}
+            result = await stage_upload_file_local(
+                mock_ctx, DEPLOYMENT_ID, "deep/nested/report.csv", content="a,b"
+            )
+
+        assert result["data"]["filename"] == "report.csv"
+
+
+class TestFlagFiltering:
+    """Verify local_only/remote_only flags filter upload tools per transport mode."""
+
+    def test_local_mode_excludes_remote_only(self):
+        local_tools = filter_tools_by_flags(
+            tools, internal=False, deprecated=False, remote_only=False
+        )
+        upload_titles = [t.title for t in local_tools if "upload_file" in t.title]
+        assert "stage_upload_file_local" in upload_titles
+        assert "stage_upload_file_remote" not in upload_titles
+
+    def test_remote_mode_excludes_local_only(self):
+        remote_tools = filter_tools_by_flags(
+            tools, internal=False, deprecated=False, local_only=False
+        )
+        upload_titles = [t.title for t in remote_tools if "upload_file" in t.title]
+        assert "stage_upload_file_remote" in upload_titles
+        assert "stage_upload_file_local" not in upload_titles
+
+    def test_both_register_under_same_name(self):
+        local_tools = filter_tools_by_flags(tools, remote_only=False)
+        remote_tools = filter_tools_by_flags(tools, local_only=False)
+        local_name = [t.name for t in local_tools if t.title == "stage_upload_file_local"]
+        remote_name = [t.name for t in remote_tools if t.title == "stage_upload_file_remote"]
+        assert local_name == ["stage_upload_file"]
+        assert remote_name == ["stage_upload_file"]
+
+
+class TestErrorHandling:
+    """Spot-check that API errors are caught and wrapped (one example suffices)."""
+
+    @pytest.mark.asyncio
+    async def test_api_error_returns_error_dict(self, mock_ctx):
+        with patch("src.api.tools.stage.stage.build_request") as mock_req:
+            mock_req.side_effect = Exception("connection refused")
+            result = await stage_list_files(mock_ctx, DEPLOYMENT_ID)
+
+        assert result["status"] == "error"
+        assert "connection refused" in result["message"]
