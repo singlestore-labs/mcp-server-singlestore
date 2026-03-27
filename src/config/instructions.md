@@ -27,12 +27,13 @@ A **starter workspace** (also called shared or virtual workspace) is a free-tier
 - Upload, list, move, and delete files and folders.
 - Ingest data from Stage into tables using either:
   - `LOAD DATA STAGE 'file.csv' INTO TABLE t ...` (dedicated workspaces only, SingleStore 8.9+).
-  - ```
+  - ```sql
     CREATE PIPELINE p AS LOAD DATA STAGE 'file.csv' 
     SKIP DUPLICATE KEY ERRORS INTO TABLE t 
     FIELDS TERMINATED BY ',' IGNORE 1 LINES;
     START PIPELINE p;
-    ``` (works in both dedicated workspaces and starter workspaces)
+    ```
+    (works in both dedicated workspaces and starter workspaces)
   - The Cloud Portal's "Load To Database" flow, which generates a notebook.
 - Access Stage files from within notebooks for data processing.
 
