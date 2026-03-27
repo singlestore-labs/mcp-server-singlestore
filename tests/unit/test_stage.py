@@ -9,11 +9,9 @@ from src.api.tools.stage import (
     stage_create_folder,
     stage_upload_file_local,
     stage_upload_file_remote,
-    stage_move,
-    stage_delete,
 )
-from src.api.tools.tools import tools
-from src.api.common import filter_tools_by_flags
+from src.api.tools.registery import register_tools
+from src.config.config import RemoteSettings
 from src.config.config import LocalSettings, _settings_ctx, _user_id_ctx
 from src.analytics.manager import AnalyticsManager
 
@@ -197,32 +195,31 @@ class TestStageUploadFileLocal:
         assert result["data"]["filename"] == "report.csv"
 
 
-class TestFlagFiltering:
-    """Verify local_only/remote_only flags filter upload tools per transport mode."""
+class TestToolRegistration:
+    """Verify register_tools registers the correct upload variant per mode."""
 
-    def test_local_mode_excludes_remote_only(self):
-        local_tools = filter_tools_by_flags(
-            tools, internal=False, deprecated=False, remote_only=False
-        )
-        upload_titles = [t.title for t in local_tools if "upload_file" in t.title]
-        assert "stage_upload_file_local" in upload_titles
-        assert "stage_upload_file_remote" not in upload_titles
+    def _get_upload_params(self, settings):
+        _settings_ctx.set(settings)
+        mcp = MagicMock()
+        register_tools(mcp)
+        for tool_call, decorator_call in zip(
+            mcp.tool.call_args_list,
+            mcp.tool.return_value.call_args_list,
+        ):
+            if tool_call.kwargs["name"] == "stage_upload_file":
+                func = decorator_call.args[0]
+                import inspect
+                return list(inspect.signature(func).parameters.keys())
+        return None
 
-    def test_remote_mode_excludes_local_only(self):
-        remote_tools = filter_tools_by_flags(
-            tools, internal=False, deprecated=False, local_only=False
-        )
-        upload_titles = [t.title for t in remote_tools if "upload_file" in t.title]
-        assert "stage_upload_file_remote" in upload_titles
-        assert "stage_upload_file_local" not in upload_titles
+    def test_local_mode_has_local_path_param(self, setup_test_env):
+        params = self._get_upload_params(setup_test_env)
+        assert "local_path" in params
 
-    def test_both_register_under_same_name(self):
-        local_tools = filter_tools_by_flags(tools, remote_only=False)
-        remote_tools = filter_tools_by_flags(tools, local_only=False)
-        local_name = [t.name for t in local_tools if t.title == "stage_upload_file_local"]
-        remote_name = [t.name for t in remote_tools if t.title == "stage_upload_file_remote"]
-        assert local_name == ["stage_upload_file"]
-        assert remote_name == ["stage_upload_file"]
+    def test_remote_mode_has_no_local_path_param(self):
+        settings = RemoteSettings.model_construct()
+        params = self._get_upload_params(settings)
+        assert "local_path" not in params
 
 
 class TestErrorHandling:
