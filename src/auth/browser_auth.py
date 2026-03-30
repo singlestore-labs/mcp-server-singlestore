@@ -690,6 +690,9 @@ def send_refresh_token_request(
     )
 
     if response.status_code != 200:
+        logger.warning(
+            f"Token refresh failed: {response.status_code} - {response.text}"
+        )
         raise Exception(f"Token refresh failed with status {response.status_code}")
 
     # Parse and validate token response

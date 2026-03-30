@@ -1,15 +1,57 @@
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List, TypeVar
 import requests
 import json
 
+from singlestoredb.exceptions import ManagementError
 from starlette.exceptions import HTTPException
 
 from src.api.types import MCPConcept, AVAILABLE_FLAGS
-from src.config.config import RemoteSettings, get_session_request, get_settings
+from src.config.config import (
+    LocalSettings,
+    RemoteSettings,
+    get_session_request,
+    get_settings,
+)
 from src.logger import get_logger
 
 # Set up logger for this module
 logger = get_logger()
+
+T = TypeVar("T")
+
+
+def call_sdk_with_retry(fn: Callable[[], T]) -> T:
+    """
+    Call a SingleStore SDK function and retry once on 401 after refreshing the token.
+
+    Usage:
+        result = call_sdk_with_retry(lambda: do_sdk_call())
+
+    Args:
+        fn: A callable that performs the SDK operation. Will be called again on retry
+            so it should re-fetch the access token internally if needed.
+    """
+    try:
+        return fn()
+    except ManagementError as e:
+        logger.warning(
+            f"SDK call failed: type={type(e).__module__}.{type(e).__qualname__}, msg={e}"
+        )
+        if e.errno != 401:
+            raise
+
+        settings = get_settings()
+        if not isinstance(settings, LocalSettings) or settings.api_key:
+            raise
+
+        logger.warning("Attempting token refresh due to 401 Unauthorized response.")
+        refresh_succeeded = settings.force_token_refresh()
+        if not refresh_succeeded:
+            logger.error("Token refresh failed.")
+            raise
+
+        logger.info("Token refresh succeeded, retrying SDK call...")
+        return fn()
 
 
 def filter_mcp_concepts(mcp_concepts: List[MCPConcept], **flags) -> List[MCPConcept]:
@@ -83,7 +125,7 @@ def filter_tools_by_flags(
     return [concept for concept in mcp_concepts if matches_filters(concept)]
 
 
-def query_graphql_organizations():
+def query_graphql_organizations(_retry_on_401: bool = True) -> List[Dict[str, Any]]:
     """
     Query the GraphQL endpoint to get a list of organizations the user has access to.
 
@@ -146,7 +188,21 @@ def query_graphql_organizations():
         logger.debug(f"Response headers: {dict(response.headers)}")
         logger.debug(f"Raw response text: {response.text}")
 
-        if response.status_code != 200:
+        if response.status_code == 401 and _retry_on_401:
+            logger.warning(
+                f"GraphQL request failed with status code {response.status_code}: {response.text}"
+            )
+            logger.warning("Attempting token refresh due to 401 Unauthorized response.")
+            if isinstance(settings, LocalSettings) and not settings.api_key:
+                refresh_succeeded = settings.force_token_refresh()
+                if refresh_succeeded:
+                    logger.info("Token refresh succeeded, retrying GraphQL request...")
+                    return query_graphql_organizations(
+                        _retry_on_401=False
+                    )  # Retry after refreshing token
+                else:
+                    logger.error("Token refresh failed.")
+        elif response.status_code != 200:
             error_msg = f"GraphQL request failed with status code {response.status_code}: {response.text}"
             logger.error(error_msg)
             raise ValueError(error_msg)
@@ -188,6 +244,7 @@ def build_request(
     files: dict = None,
     raw_response: bool = False,
     allow_redirects: bool = True,
+    _retry_on_401: bool = True,
 ):
     """
     Make an API request to the SingleStore Management API.
@@ -202,6 +259,8 @@ def build_request(
             custom status code handling.
         allow_redirects: Whether to follow HTTP redirects. Defaults to True.
             Set to False to capture redirect responses (e.g. 307 with Location header).
+        _retry_on_401: Internal flag to prevent infinite retry loops.
+            Do not set this manually.
 
     Returns:
         JSON response from the API, or raw requests.Response if raw_response=True
@@ -294,6 +353,30 @@ def build_request(
             )
         case _:
             raise ValueError(f"Unsupported request type: {type}")
+
+    # Handle 401 Unauthorized - attempt token refresh and retry once
+    if request.status_code == 401 and _retry_on_401:
+        logger.warning("Attempting token refresh due to 401 Unauthorized response.")
+
+        # Only attempt refresh for LocalSettings with OAuth tokens
+        if isinstance(settings, LocalSettings) and not settings.api_key:
+            refresh_succeeded = settings.force_token_refresh()
+
+            if refresh_succeeded:
+                logger.info("Token refresh succeeded, retrying request...")
+                # Retry the request with _retry_on_401=False to prevent infinite loops
+                return build_request(
+                    type=type,
+                    endpoint=endpoint,
+                    params=params,
+                    data=data,
+                    files=files,
+                    raw_response=raw_response,
+                    allow_redirects=allow_redirects,
+                    _retry_on_401=False,  # Prevent infinite retry
+                )
+            else:
+                logger.error("Token refresh failed.")
 
     if raw_response:
         return request

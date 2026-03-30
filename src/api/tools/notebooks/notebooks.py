@@ -13,7 +13,7 @@ from mcp.server.fastmcp import Context
 
 from src.api.tools.notebooks import utils
 from src.config import config
-from src.api.common import get_access_token, get_org_id
+from src.api.common import call_sdk_with_retry, get_access_token, get_org_id
 from src.logger import get_logger
 from src.utils.elicitation import try_elicitation
 
@@ -295,22 +295,9 @@ async def upload_notebook_file(
             },
         }
 
-    access_token = get_access_token()
-
     org_id = get_org_id()
-    file_manager = s2.manage_files(
-        access_token=access_token,
-        base_url=settings.s2_api_base_url,
-        organization_id=org_id,
-    )
 
-    file_manager_location = None
-
-    if final_location == "shared":
-        file_manager_location = file_manager.shared_space
-    elif final_location == "personal":
-        file_manager_location = file_manager.personal_space
-    else:
+    if final_location not in ("shared", "personal"):
         return {
             "status": "error",
             "message": "Invalid upload location. Must be 'shared' or 'personal'",
@@ -320,11 +307,18 @@ async def upload_notebook_file(
             },
         }
 
+    def _upload():
+        fm = s2.manage_files(
+            access_token=get_access_token(),
+            base_url=settings.s2_api_base_url,
+            organization_id=org_id,
+        )
+        space = fm.shared_space if final_location == "shared" else fm.personal_space
+        return space.upload_file(local_path=local_path, path=remote_path)
+
     file_info = None
     try:
-        file_info = file_manager_location.upload_file(
-            local_path=local_path, path=remote_path
-        )
+        file_info = call_sdk_with_retry(_upload)
     except Exception as upload_error:
         logger.error(upload_error)
         return {

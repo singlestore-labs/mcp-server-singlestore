@@ -10,7 +10,7 @@ import nbformat as nbf
 import nbformat.v4 as nbfv4
 
 from src.config import config
-from src.api.common import get_access_token, get_org_id
+from src.api.common import call_sdk_with_retry, get_access_token, get_org_id
 from src.logger import get_logger
 
 
@@ -53,7 +53,7 @@ def get_notebook_schema() -> dict:
 
 
 def create_file_in_shared_space(
-    path: str, content: Optional[Dict[str, Any]] = None, access_token: str = None
+    path: str, content: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """
     Create a new file (such as a notebook) in the user's shared space.
@@ -69,12 +69,6 @@ def create_file_in_shared_space(
     settings = config.get_settings()
 
     org_id = get_org_id()
-
-    file_manager = s2.manage_files(
-        access_token=access_token,
-        base_url=settings.s2_api_base_url,
-        organization_id=org_id,
-    )
 
     # Check if it's a notebook
     if path.endswith(".ipynb"):
@@ -115,7 +109,15 @@ def create_file_in_shared_space(
             f.write("")
 
     # Upload the file using the SDK method
-    file_info = file_manager.shared_space.upload_file(SAMPLE_NOTEBOOK_PATH, path)
+    def _upload():
+        fm = s2.manage_files(
+            access_token=get_access_token(),
+            base_url=settings.s2_api_base_url,
+            organization_id=org_id,
+        )
+        return fm.shared_space.upload_file(SAMPLE_NOTEBOOK_PATH, path)
+
+    file_info = call_sdk_with_retry(_upload)
 
     return {
         "status": "success",
@@ -387,20 +389,20 @@ def check_if_file_exists(file_name: str, location: str = "shared") -> bool:
     """
     settings = config.get_settings()
     org_id = get_org_id()
-    access_token = get_access_token()
 
-    file_manager = s2.manage_files(
-        access_token=access_token,
-        base_url=settings.s2_api_base_url,
-        organization_id=org_id,
-    )
+    def _check():
+        fm = s2.manage_files(
+            access_token=get_access_token(),
+            base_url=settings.s2_api_base_url,
+            organization_id=org_id,
+        )
+        if location == "shared":
+            return fm.shared_space.exists(file_name)
+        else:  # personal
+            try:
+                return fm.personal_space.exists(file_name)
+            except AttributeError:
+                logger.warning("Personal space not supported by SDK")
+                return False
 
-    if location == "shared":
-        return file_manager.shared_space.exists(file_name)
-    else:  # personal
-        try:
-            return file_manager.personal_space.exists(file_name)
-        except AttributeError:
-            # If personal space is not supported, return False
-            logger.warning("Personal space not supported by SDK")
-            return False
+    return call_sdk_with_retry(_check)
