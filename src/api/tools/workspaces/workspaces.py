@@ -54,7 +54,7 @@ def workspaces_info(workspace_group_id: str) -> dict:
         return group
 
     try:
-        group = call_sdk_with_retry(_fetch_group_and_workspaces)
+        group = call_sdk_with_retry(_fetch_group)
     except Exception as e:
         logger.error(f"Failed to fetch workspaces for group {validated_group_id}: {e}")
         return {
