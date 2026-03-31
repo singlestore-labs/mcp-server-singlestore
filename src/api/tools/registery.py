@@ -53,12 +53,6 @@ def register_tools(mcp: FastMCP, **filter_flags) -> None:
     else:
         filter_flags["remote_only"] = False
 
-    # Hide tools that are not relevant for the current transport mode
-    if settings.is_remote:
-        filter_flags["local_only"] = False
-    else:
-        filter_flags["remote_only"] = False
-
     filtered_tools: List[Tool] = filter_tools(**filter_flags)
 
     # Check if we're using API key authentication in local mode
