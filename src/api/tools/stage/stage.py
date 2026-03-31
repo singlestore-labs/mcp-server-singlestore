@@ -270,7 +270,7 @@ async def stage_upload_file_local(
     settings = config.get_settings()
     user_id = config.get_user_id()
     settings.analytics_manager.track_event(
-        user_id, "tool_calling", {"name": "stage_upload_file_local"}
+        user_id, "tool_calling", {"name": "stage_upload_file"}
     )
 
     # Ensure path does NOT end with slash (it's a file, not a folder)
@@ -337,7 +337,7 @@ async def stage_upload_file_remote(
     settings = config.get_settings()
     user_id = config.get_user_id()
     settings.analytics_manager.track_event(
-        user_id, "tool_calling", {"name": "stage_upload_file_local"}
+        user_id, "tool_calling", {"name": "stage_upload_file"}
     )
 
     # Ensure path does NOT end with slash (it's a file, not a folder)
