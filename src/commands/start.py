@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from mcp.server.fastmcp import FastMCP
 from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions
 
@@ -49,8 +50,12 @@ def start_command(transport: str, host: str):
         raise NotImplementedError("Only stdio transport is currently supported.")
         # settings = config.init_settings(transport=transport, jwt_token=None)
 
+    instructions_path = Path(__file__).parent.parent / "config" / "instructions.md"
+    instructions = instructions_path.read_text(encoding="utf-8")
+
     mcp_args = {
         "name": "SingleStore MCP Server",
+        "instructions": instructions,
     }
 
     if settings.is_remote:

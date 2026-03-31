@@ -41,14 +41,21 @@ def register_tools(mcp: FastMCP, **filter_flags) -> None:
     # Import here to avoid circular imports
     from src.config.config import get_settings, LocalSettings
 
+    settings = get_settings()
+
     # Default: only register public tools (non-private, non-deprecated)
     if not filter_flags:
         filter_flags = {"internal": False, "deprecated": False}
 
+    # Hide tools that are not relevant for the current transport mode
+    if settings.is_remote:
+        filter_flags["local_only"] = False
+    else:
+        filter_flags["remote_only"] = False
+
     filtered_tools: List[Tool] = filter_tools(**filter_flags)
 
     # Check if we're using API key authentication in local mode
-    settings = get_settings()
     using_api_key = (
         not settings.is_remote
         and isinstance(settings, LocalSettings)
@@ -60,7 +67,9 @@ def register_tools(mcp: FastMCP, **filter_flags) -> None:
 
     for tool in filtered_tools:
         func = tool.func
+        tool_name = tool.name or func.__name__
+
         # Skip organization-related tools when using API key authentication
-        if using_api_key and func.__name__ in api_key_excluded_tools:
+        if using_api_key and tool_name in api_key_excluded_tools:
             continue
-        mcp.tool(name=func.__name__, description=func.__doc__)(func)
+        mcp.tool(name=tool_name, description=func.__doc__)(func)
