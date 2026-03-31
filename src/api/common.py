@@ -202,7 +202,7 @@ def query_graphql_organizations(_retry_on_401: bool = True) -> List[Dict[str, An
                     )  # Retry after refreshing token
                 else:
                     logger.error("Token refresh failed.")
-        elif response.status_code != 200:
+        if response.status_code != 200:
             error_msg = f"GraphQL request failed with status code {response.status_code}: {response.text}"
             logger.error(error_msg)
             raise ValueError(error_msg)
