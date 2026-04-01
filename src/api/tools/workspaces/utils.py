@@ -7,9 +7,9 @@ def get_workspace_manager():
     """
     Returns the workspace manager object using the workspace manager.
     """
+    settings = config.get_settings()
 
     def _create():
-        settings = config.get_settings()
         return s2.manage_workspaces(
             access_token=get_access_token(),
             base_url=settings.s2_api_base_url,
