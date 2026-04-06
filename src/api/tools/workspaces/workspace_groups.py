@@ -4,6 +4,7 @@ import time
 from datetime import datetime, timezone
 
 from src.config import config
+from src.api.common import call_sdk_with_retry
 from src.logger import get_logger
 
 import src.api.tools.workspaces.utils as utils
@@ -41,9 +42,12 @@ def workspace_groups_info() -> dict:
         user_id, "tool_calling", {"name": "workspace_groups_info"}
     )
 
-    # Use workspace manager to get workspace groups
-    workspace_manager = utils.get_workspace_manager()
-    workspace_groups = workspace_manager.workspace_groups
+    # Use workspace manager to get workspace groups (wrapped for 401 retry)
+    def _fetch_workspace_groups():
+        workspace_manager = utils.get_workspace_manager()
+        return workspace_manager.workspace_groups
+
+    workspace_groups = call_sdk_with_retry(_fetch_workspace_groups)
 
     groups = [
         {

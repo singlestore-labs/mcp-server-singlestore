@@ -4,13 +4,35 @@ import time
 
 from datetime import datetime, timezone
 
+from singlestoredb.exceptions import ManagementError
+
 from src.config import config
+from src.api.common import call_sdk_with_retry
 from src.utils.uuid_validation import validate_uuid_string
 from src.logger import get_logger
 import src.api.tools.workspaces.utils as utils
 
 # Set up logger for this module
 logger = get_logger()
+
+
+class _WorkspaceOperationError(ManagementError):
+    """Base for workspace operation errors that preserves ManagementError fields."""
+
+    def __init__(self, cause: Exception):
+        super().__init__(
+            errno=getattr(cause, "errno", None),
+            msg=str(cause),
+            response=getattr(cause, "response", None),
+        )
+
+
+class _WorkspaceFetchError(_WorkspaceOperationError):
+    """Raised when fetching a workspace fails."""
+
+
+class _WorkspaceResumeError(_WorkspaceOperationError):
+    """Raised when resuming a workspace fails."""
 
 
 def workspaces_info(workspace_group_id: str) -> dict:
@@ -46,10 +68,14 @@ def workspaces_info(workspace_group_id: str) -> dict:
         {"name": "workspaces_info", "workspace_group_id": validated_group_id},
     )
 
-    # Use the SDK to get workspaces for the group
-    workspace_manager = utils.get_workspace_manager()
-    try:
+    # Use the SDK to get workspaces for the group (wrapped for 401 retry)
+    def _fetch_group():
+        workspace_manager = utils.get_workspace_manager()
         group = workspace_manager.get_workspace_group(validated_group_id)
+        return group
+
+    try:
+        group = call_sdk_with_retry(_fetch_group)
     except Exception as e:
         logger.error(f"Failed to fetch workspaces for group {validated_group_id}: {e}")
         return {
@@ -141,25 +167,33 @@ def resume_workspace(workspace_id: str) -> dict:
     except Exception as e:
         logger.warning(f"Analytics tracking failed: {e}")
 
-    workspace_manager = utils.get_workspace_manager()
+    # Fetch and resume the workspace in a single retry block so that a
+    # 401 during resume triggers a token refresh *and* re-creates the
+    # workspace manager with the new token.
+    def _get_workspace_and_resume():
+        try:
+            workspace_manager = utils.get_workspace_manager()
+            ws = workspace_manager.get_workspace(validated_workspace_id)
+        except Exception as e:
+            raise _WorkspaceFetchError(e) from e
 
-    workspace = None
-    # Get the workspace group
+        try:
+            ws.resume(wait_on_resumed=True)
+        except Exception as e:
+            raise _WorkspaceResumeError(e) from e
+        return ws
+
     try:
-        workspace = workspace_manager.get_workspace(validated_workspace_id)
-    except Exception as e:
+        workspace = call_sdk_with_retry(_get_workspace_and_resume)
+        logger.info(f"Workspace {validated_workspace_id} resumed successfully")
+    except _WorkspaceFetchError as e:
         logger.error(f"Failed to fetch workspace {validated_workspace_id}: {e}")
         return {
             "status": "error",
             "message": f"Failed to fetch workspace {validated_workspace_id}: {str(e)}",
             "errorCode": "WORKSPACE_GROUP_FETCH_FAILED",
         }
-
-    # Resume the workspace
-    try:
-        workspace.resume(wait_on_resumed=True)
-        logger.info(f"Workspace {validated_workspace_id} resumed successfully")
-    except Exception as e:
+    except _WorkspaceResumeError as e:
         logger.error(f"Failed to resume workspace {validated_workspace_id}: {e}")
         return {
             "status": "error",

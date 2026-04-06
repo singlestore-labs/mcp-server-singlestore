@@ -7,6 +7,7 @@ from typing import Optional
 from mcp.server.fastmcp import Context
 
 from src.api.tools.jobs import utils
+from src.api.common import call_sdk_with_retry
 from src.config import config
 from src.logger import get_logger
 
@@ -41,15 +42,18 @@ async def create_job_from_notebook(
     start_time = time.time()
     user_id = config.get_user_id()
     try:
-        jobs_manager = utils.get_org_jobs_manager()
+        # Wrap the entire job scheduling operation for 401 retry
+        def _schedule_job():
+            jobs_manager = utils.get_org_jobs_manager()
+            return jobs_manager.schedule(
+                notebook_path=notebook_path,
+                name=name,
+                mode=s2.management.job.Mode(mode),
+                create_snapshot=True,
+                execution_interval_in_minutes=execution_interval_in_minutes,
+            )
 
-        job_obj = jobs_manager.schedule(
-            notebook_path=notebook_path,
-            name=name,
-            mode=s2.management.job.Mode(mode),
-            create_snapshot=True,
-            execution_interval_in_minutes=execution_interval_in_minutes,
-        )
+        job_obj = call_sdk_with_retry(_schedule_job)
 
         settings.analytics_manager.track_event(
             user_id,
@@ -109,8 +113,12 @@ async def get_job(
     start_time = time.time()
     user_id = config.get_user_id()
     try:
-        jobs_manager = utils.get_org_jobs_manager()
-        job_obj = jobs_manager.get(job_id)
+        # Wrap the job retrieval for 401 retry
+        def _get_job():
+            jobs_manager = utils.get_org_jobs_manager()
+            return jobs_manager.get(job_id)
+
+        job_obj = call_sdk_with_retry(_get_job)
         if not job_obj:
             return {
                 "status": "error",
@@ -175,9 +183,12 @@ async def delete_job(
     user_id = config.get_user_id()
 
     try:
-        jobs_manager = utils.get_org_jobs_manager()
+        # Wrap the job deletion for 401 retry
+        def _delete_job():
+            jobs_manager = utils.get_org_jobs_manager()
+            return jobs_manager.delete(job_id)
 
-        success = jobs_manager.delete(job_id)
+        success = call_sdk_with_retry(_delete_job)
         if not success:
             return {
                 "status": "error",

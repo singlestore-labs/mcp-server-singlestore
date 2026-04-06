@@ -10,7 +10,7 @@ from pydantic import AnyHttpUrl, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from starlette.requests import Request
 from src.analytics.manager import AnalyticsManager
-from src.auth.browser_auth import attempt_token_refresh
+from src.auth.browser_auth import attempt_token_refresh, refresh_token
 from src.auth.models.models import TokenSetModel
 from src.utils.uuid_validation import validate_uuid_string
 from src.logger import get_logger
@@ -62,6 +62,44 @@ class LocalSettings(Settings):
                 logger.debug("Updated settings with refreshed token set")
 
         return self.jwt_token
+
+    def force_token_refresh(self) -> bool:
+        """
+        Force a token refresh regardless of expiry status.
+
+        This is used when the server returns 401, indicating the token is invalid
+        even if our local expiry check says it should still be valid (e.g., clock skew).
+
+        Returns:
+            bool: True if refresh succeeded and token was updated, False otherwise
+        """
+        if self.api_key:
+            # API key auth doesn't use token refresh
+            logger.debug("Using API key auth, no token refresh needed")
+            return False
+
+        if not self.token_set:
+            logger.warning("Cannot force refresh: no token_set available")
+            return False
+
+        if not self.token_set.refresh_token:
+            logger.warning("Cannot force refresh: no refresh_token available")
+            return False
+
+        logger.info("Forcing token refresh due to 401 API response")
+
+        try:
+            new_token_set = refresh_token(self.token_set)
+            if new_token_set:
+                self.set_token_set(new_token_set)
+                logger.info("Token refresh successful after 401")
+                return True
+            else:
+                logger.warning("Token refresh returned None")
+                return False
+        except Exception as e:
+            logger.error(f"Token refresh failed: {e}")
+            return False
 
     analytics_manager: AnalyticsManager = AnalyticsManager(enabled=False)
 
