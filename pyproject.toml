@@ -5,11 +5,11 @@ description = "SingleStore MCP server"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
- "mcp>=1.10.1",
+ "mcp>=1.27.0",
  "nbformat>=5.10.4",
  "pydantic-settings>=2.9.1",
  "segment-analytics-python>=2.3.4",
- "starlette>=0.46.2",
+ "starlette>=1.0.0",
  "jsonschema>=4.0.0",
  "singlestoredb>=1.15.1",
  "pre-commit>=4.2.0",
