@@ -13,7 +13,8 @@ def sample_notebook_content():
     return {
         "cells": [
             {"type": "markdown", "content": "# Test Notebook\nThis is a test."},
-            {"type": "code", "content": "print('Hello, world!')"},
+            {"type": "code", "content": "print('Hello, world!')", "language": "python"},
+            {"type": "code", "content": "SELECT 1", "language": "sql"},
         ]
     }
 

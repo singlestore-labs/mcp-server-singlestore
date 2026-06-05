@@ -22,6 +22,36 @@ SAMPLE_NOTEBOOK_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "..", "sample_notebook.ipynb"
 )
 
+VALID_LANGUAGES = ["python", "sql"]
+
+
+def resolve_code_cell_language(
+    language: Optional[str], cell_index: Optional[int] = None
+) -> tuple[str, Optional[Dict[str, Any]]]:
+    cell_prefix = f"Cell {cell_index} " if cell_index is not None else ""
+
+    if language is None:
+        return "python", None
+
+    if not isinstance(language, str):
+        return "", {
+            "status": "error",
+            "message": f"{cell_prefix}language must be a string, got {type(language).__name__}",
+            "errorCode": "INVALID_CELL_LANGUAGE",
+        }
+
+    normalized_language = language.strip().lower()
+    if normalized_language == "":
+        return "python", None
+
+    if normalized_language not in VALID_LANGUAGES:
+        return "", {
+            "status": "error",
+            "message": f"{cell_prefix}language must be one of {VALID_LANGUAGES}, got '{language}'",
+            "errorCode": "INVALID_CELL_LANGUAGE",
+        }
+    return normalized_language, None
+
 
 def get_notebook_schema() -> dict:
     """
@@ -76,21 +106,27 @@ def create_file_in_shared_space(
         nb["cells"] = []
 
         if content and "cells" in content:
-            for cell in content["cells"]:
+            for i, cell in enumerate(content["cells"]):
                 if cell["type"] == "markdown":
                     nb["cells"].append(nbfv4.new_markdown_cell(cell["content"]))
                 elif cell["type"] == "code":
-                    nb["cells"].append(nbfv4.new_code_cell(cell["content"]))
-                else:
-                    raise ValueError(
-                        f"Invalid cell type: {cell['type']}. Only 'markdown' and 'code' are supported."
+                    language, language_error = resolve_code_cell_language(
+                        cell.get("language"), i
                     )
+                    if language_error:
+                        return language_error
+                    code_cell = nbfv4.new_code_cell(cell["content"])
+                    code_cell["metadata"]["language"] = language
+                    nb["cells"].append(code_cell)
+                else:
+                    return {
+                        "status": "error",
+                        "message": f"Invalid cell type: {cell['type']}. Only 'markdown' and 'code' are supported.",
+                        "errorCode": "INVALID_CELL_TYPE_VALUE",
+                    }
         else:
             # Create a sample notebook with SingleStore connectivity example
-            nb["cells"] = [
-                nbfv4.new_markdown_cell(
-                    "# SingleStore Sample Notebook\n\nThis notebook demonstrates how to connect to a SingleStore database and run queries."
-                ),
+            sample_code_cells = [
                 nbfv4.new_code_cell(
                     "import singlestoredb as s2\n\n# Connect to your database\nconn = s2.connect('hostname', user='username', password='password', database='database')"
                 ),
@@ -98,6 +134,14 @@ def create_file_in_shared_space(
                     "result = conn.execute('SELECT * FROM your_table LIMIT 10')\n\nfor row in result:\n    print(row)"
                 ),
                 nbfv4.new_code_cell("conn.close()"),
+            ]
+            for c in sample_code_cells:
+                c["metadata"]["language"] = "python"
+            nb["cells"] = [
+                nbfv4.new_markdown_cell(
+                    "# SingleStore Sample Notebook\n\nThis notebook demonstrates how to connect to a SingleStore database and run queries."
+                ),
+                *sample_code_cells,
             ]
 
         # Write notebook to file
@@ -204,10 +248,15 @@ def convert_to_notebook_cells(cells: list) -> tuple[list, Optional[Dict[str, Any
                 "source": [cell_content],
             }
         else:  # code cell
+            cell_language, language_error = resolve_code_cell_language(
+                cell.get("language"), i
+            )
+            if language_error:
+                return [], language_error
             notebook_cell = {
                 "id": cell_id,
                 "cell_type": "code",
-                "metadata": {},
+                "metadata": {"language": cell_language},
                 "source": [cell_content],
                 "outputs": [],
                 "execution_count": None,
@@ -290,7 +339,9 @@ def validate_notebook_schema(
         return False, None
 
 
-def transform_to_valid_notebook_format(notebook_content: dict) -> dict:
+def transform_to_valid_notebook_format(
+    notebook_content: dict,
+) -> tuple[dict, Optional[Dict[str, Any]]]:
     """
     Transform a Jupyter notebook dict into the correct format for schema validation and upload.
 
@@ -298,7 +349,7 @@ def transform_to_valid_notebook_format(notebook_content: dict) -> dict:
         notebook_content: The original notebook dict (may be malformed or missing fields)
 
     Returns:
-        A dict in the correct Jupyter notebook format (v4, minor 5)
+        Tuple of (notebook dict, error dict). error dict is None if successful.
     """
     # Ensure top-level keys
     nbformat = notebook_content.get("nbformat", 4)
@@ -342,7 +393,7 @@ def transform_to_valid_notebook_format(notebook_content: dict) -> dict:
         elif not isinstance(source, list):
             source = [str(source)]
         cell_id = cell.get("id") or str(uuid.uuid4())[:8]
-        metadata_cell = cell.get("metadata", {})
+        metadata_cell = dict(cell.get("metadata") or {})
         if cell_type == "markdown":
             normalized_cells.append(
                 {
@@ -355,6 +406,16 @@ def transform_to_valid_notebook_format(notebook_content: dict) -> dict:
         elif cell_type == "code":
             outputs = cell.get("outputs", [])
             execution_count = cell.get("execution_count", None)
+            language = metadata_cell.get("language")
+            if language is None and "language" in cell:
+                language = cell.get("language")
+
+            cell_language, language_error = resolve_code_cell_language(language, i)
+            if language_error:
+                return {}, language_error
+
+            metadata_cell["language"] = cell_language
+
             normalized_cells.append(
                 {
                     "id": cell_id,
@@ -373,7 +434,7 @@ def transform_to_valid_notebook_format(notebook_content: dict) -> dict:
         "metadata": metadata,
         "cells": normalized_cells,
     }
-    return valid_notebook
+    return valid_notebook, None
 
 
 def check_if_file_exists(file_name: str, location: str = "shared") -> bool:

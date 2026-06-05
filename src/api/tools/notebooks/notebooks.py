@@ -29,11 +29,16 @@ async def create_notebook_file(ctx: Context, content: Dict[str, Any]) -> Dict[st
     formatted .ipynb file in a temporary location. The content is converted from the simplified format
     to the full Jupyter notebook format.
 
+    Each code cell MUST include a "language" field in its metadata for SingleStore to
+    properly recognize the cell. If not provided or empty, it defaults to "python".
+    Supported languages are "python" and "sql"; other values are rejected.
+
     Args:
         content: Notebook content in the format: {
             "cells": [
                 {"type": "markdown", "content": "Markdown content here"},
-                {"type": "code", "content": "Python code here"}
+                {"type": "code", "content": "Python code here", "language": "python"},
+                {"type": "code", "content": "SELECT * FROM t", "language": "sql"}
             ]
         }
 
@@ -44,7 +49,8 @@ async def create_notebook_file(ctx: Context, content: Dict[str, Any]) -> Dict[st
         content = {
             "cells": [
                 {"type": "markdown", "content": "# My Notebook\nThis is a sample notebook"},
-                {"type": "code", "content": "import pandas as pd\nprint('Hello World')"}
+                {"type": "code", "content": "import pandas as pd\nprint('Hello World')", "language": "python"},
+                {"type": "code", "content": "SELECT 1", "language": "sql"}
             ]
         }
     """
@@ -203,7 +209,11 @@ async def upload_notebook_file(
         }
 
     # Transform to valid notebook format before validation and upload
-    notebook_content = utils.transform_to_valid_notebook_format(raw_content)
+    notebook_content, transform_error = utils.transform_to_valid_notebook_format(
+        raw_content
+    )
+    if transform_error:
+        return transform_error
 
     # Validate notebook schema
     schema_validated, schema_error = utils.validate_notebook_schema(notebook_content)
@@ -307,17 +317,36 @@ async def upload_notebook_file(
             },
         }
 
-    def _upload():
-        fm = s2.manage_files(
-            access_token=get_access_token(),
-            base_url=settings.s2_api_base_url,
-            organization_id=org_id,
-        )
-        space = fm.shared_space if final_location == "shared" else fm.personal_space
-        return space.upload_file(local_path=local_path, path=remote_path)
-
+    temp_upload_path = None
+    uploaded_file_size = None
     file_info = None
     try:
+        # Use a temporary file to store the validated notebook without modifying the original file
+        temp_file = tempfile.NamedTemporaryFile(
+            mode="w",
+            suffix=".ipynb",
+            prefix="notebook_upload_",
+            delete=False,
+        )
+        try:
+            json.dump(notebook_content, temp_file, indent=2)
+            temp_upload_path = temp_file.name
+        finally:
+            temp_file.close()
+
+        uploaded_file_size = os.path.getsize(temp_upload_path)
+
+        def _upload():
+            fm = s2.manage_files(
+                access_token=get_access_token(),
+                base_url=settings.s2_api_base_url,
+                organization_id=org_id,
+            )
+            space = (
+                fm.shared_space if final_location == "shared" else fm.personal_space
+            )
+            return space.upload_file(local_path=temp_upload_path, path=remote_path)
+
         file_info = call_sdk_with_retry(_upload)
     except Exception as upload_error:
         logger.error(upload_error)
@@ -331,6 +360,9 @@ async def upload_notebook_file(
                 "exceptionType": type(upload_error).__name__,
             },
         }
+    finally:
+        if temp_upload_path and os.path.exists(temp_upload_path):
+            os.remove(temp_upload_path)
 
     execution_time = (time.time() - start_time) * 1000
 
@@ -361,6 +393,6 @@ async def upload_notebook_file(
         "metadata": {
             "executionTimeMs": round(execution_time, 2),
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "fileSize": os.path.getsize(local_path),
+            "fileSize": uploaded_file_size,
         },
     }
