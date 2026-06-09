@@ -21,6 +21,14 @@ from src.api.tools.notebooks import (
     upload_notebook_file,
 )
 from src.api.tools.jobs import create_job_from_notebook, delete_job, get_job
+from src.api.tools.cloud_functions import (
+    create_cloud_function,
+    delete_cloud_function,
+    get_cloud_function,
+    get_cloud_function_token,
+    list_cloud_functions,
+    update_cloud_function,
+)
 from src.api.tools.organization import (
     organization_info,
     choose_organization,
@@ -71,6 +79,12 @@ tools_definition = [
     },
     {"func": stage_move},
     {"func": stage_delete},
+    {"func": list_cloud_functions},
+    {"func": get_cloud_function},
+    {"func": create_cloud_function},
+    {"func": update_cloud_function},
+    {"func": delete_cloud_function},
+    {"func": get_cloud_function_token},
 ]
 
 # Export the tools
