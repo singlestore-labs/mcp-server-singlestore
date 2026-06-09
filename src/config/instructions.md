@@ -101,6 +101,11 @@ SHOW TABLES;
 ```python
 table_query_result = %sql show tables;
 ```
+### Cloud Functions
+
+**Cloud functions** are serverless HTTP endpoints backed by a notebook. A notebook published as a cloud function exposes a FastAPI app that may be connected to a SingleStore workspace and database, allowing it to run queries.
+
+**Important:** The cloud function's notebook must be uploaded as a **shared notebook**.
 
 ## Documentation
 
