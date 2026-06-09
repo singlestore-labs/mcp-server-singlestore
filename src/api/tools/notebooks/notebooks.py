@@ -342,9 +342,7 @@ async def upload_notebook_file(
                 base_url=settings.s2_api_base_url,
                 organization_id=org_id,
             )
-            space = (
-                fm.shared_space if final_location == "shared" else fm.personal_space
-            )
+            space = fm.shared_space if final_location == "shared" else fm.personal_space
             return space.upload_file(local_path=temp_upload_path, path=remote_path)
 
         file_info = call_sdk_with_retry(_upload)
